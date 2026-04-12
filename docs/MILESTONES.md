@@ -379,6 +379,11 @@ Make ADES outputs usable outside the app.
 - Upgraded print route to render project-backed sections for goals, tasks, reflections, evals, business metrics, assumptions, and critique notes.
 - Added friendly Firestore permission/index guidance in dashboard errors and improved signed-in account persistence UX in the header/dashboard.
 
+### Notes (2026-04-12 — UX/security refresh pass)
+- Refreshed global app navigation with active-route pills and workspace breadcrumb context to reduce orientation friction between Home, Dashboard, and Studio.
+- Redesigned dashboard information hierarchy with modern KPI cards, clearer workflow guidance, and stronger project-card actions.
+- Hardened Firestore client safety by enforcing owner checks before rename writes and validating node types during snapshot parsing.
+
 ---
 
 ## Milestone 9 — Usage caps and cost control

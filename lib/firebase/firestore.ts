@@ -62,6 +62,33 @@ function stringOrEmpty(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function sanitizeProjectTitle(value: string) {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+
+  if (!trimmed) {
+    return "Untitled design";
+  }
+
+  return trimmed.slice(0, 100);
+}
+
+function isValidNodeType(value: unknown): value is AdesNode["type"] {
+  return (
+    value === "goal" ||
+    value === "input" ||
+    value === "task" ||
+    value === "tool" ||
+    value === "reflection" ||
+    value === "feedback" ||
+    value === "risk" ||
+    value === "eval" ||
+    value === "business_metric" ||
+    value === "handoff" ||
+    value === "assumption" ||
+    value === "note"
+  );
+}
+
 function parseNodeData(value: unknown): AdesNodeData | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -104,7 +131,7 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
       const data = parseNodeData(raw.data);
       const position = raw.position as Record<string, unknown> | undefined;
 
-      if (!data || typeof raw.id !== "string" || typeof raw.type !== "string") {
+      if (!data || typeof raw.id !== "string" || !isValidNodeType(raw.type)) {
         return null;
       }
 
@@ -114,7 +141,7 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
 
       return {
         id: raw.id,
-        type: raw.type as AdesNode["type"],
+        type: raw.type,
         position: { x: position.x, y: position.y },
         data,
       } as AdesNode;
@@ -267,7 +294,7 @@ export async function createProjectForUser(ownerUid: string, title: string) {
     throw new Error("Firestore is not configured.");
   }
 
-  const safeTitle = title.trim() || "Untitled design";
+  const safeTitle = sanitizeProjectTitle(title);
   const projectRef = doc(collection(db, "projects"));
 
   await setDoc(projectRef, {
@@ -331,8 +358,20 @@ export async function renameProjectForUser(projectId: string, ownerUid: string, 
 
   const projectRef = doc(db, "projects", projectId);
 
+  const projectSnapshot = await getDoc(projectRef);
+
+  if (!projectSnapshot.exists()) {
+    throw new Error("Project not found.");
+  }
+
+  const projectData = projectSnapshot.data() as Record<string, unknown>;
+
+  if (projectData.ownerUid !== ownerUid) {
+    throw new Error("You do not have access to this project.");
+  }
+
   await updateDoc(projectRef, {
-    title: nextTitle.trim() || "Untitled design",
+    title: sanitizeProjectTitle(nextTitle),
     updatedAt: serverTimestamp(),
   });
 }
