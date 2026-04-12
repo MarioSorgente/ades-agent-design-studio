@@ -10,25 +10,27 @@ const floatingSignals = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1480px] flex-col px-5 py-8 md:px-8">
-      <header className="ades-panel sticky top-4 z-30 mb-6 flex items-center justify-between gap-4 rounded-2xl py-3">
-        <div className="flex items-center gap-3">
-          <Image src="/logo-ades.svg" alt="ADES logo" width={170} height={52} priority className="h-10 w-auto" />
-          <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500 md:inline-flex">
-            Agent Design Studio
-          </span>
-        </div>
+    <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-5 py-6 md:px-8">
+      <header className="mb-6 rounded-3xl border border-slate-200/80 bg-white/85 p-5 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Image src="/logo-ades.svg" alt="ADES logo" width={150} height={44} className="h-9 w-auto" priority />
+            <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 md:inline-flex">
+              Agent Design Studio
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
-            Log in
-          </Link>
-          <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
-            Sign in
-          </Link>
-          <Link href="/sign-in" className="ades-primary-btn px-3 py-2 text-xs md:text-sm">
-            Sign up
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
+              Log in
+            </Link>
+            <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
+              Sign in
+            </Link>
+            <Link href="/sign-in" className="ades-primary-btn px-3 py-2 text-xs md:text-sm">
+              Sign up
+            </Link>
+          </div>
         </div>
       </header>
 

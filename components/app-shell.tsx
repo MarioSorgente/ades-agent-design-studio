@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
@@ -15,9 +16,12 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
       <header className="mb-6 rounded-3xl border border-slate-200/80 bg-white/85 p-5 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              ADES · Agent Design Studio
-            </p>
+            <div className="flex items-center gap-3">
+              <Image src="/logo-ades.svg" alt="ADES logo" width={150} height={44} className="h-9 w-auto" priority />
+              <p className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 md:inline-flex">
+                Agent Design Studio
+              </p>
+            </div>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">{title}</h1>
             {subtitle ? <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">{subtitle}</p> : null}
           </div>
