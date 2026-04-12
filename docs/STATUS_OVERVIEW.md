@@ -1,4 +1,4 @@
-# ADES Status Overview (Post-M3 Review)
+# ADES Status Overview (Post-M4 Baseline)
 
 _Last updated: 2026-04-12_
 
@@ -12,7 +12,8 @@ This document gives a lean but comprehensive snapshot of where ADES is now, what
 - Milestone 1 — **done**
 - Milestone 2 — **done in code** (still depends on Firebase/Vercel real env verification)
 - Milestone 3 — **done in code** (dashboard create/list/rename/open flow implemented)
-- Milestone 4+ — **not started / todo**
+- Milestone 4 — **in progress** (React Flow board + local editing baseline complete)
+- Milestone 5+ — **not started / todo**
 
 Source of truth remains `docs/MILESTONES.md`.
 
@@ -32,97 +33,84 @@ Source of truth remains `docs/MILESTONES.md`.
 - Open project route from dashboard cards.
 - Empty/loading/error states present.
 
-### Project route ownership guard
-- Project page fetches by project ID.
-- Returns access/not-found state when unavailable.
+### Studio board baseline (Milestone 4)
+- `/project/[id]` now renders a real React Flow canvas.
+- Starter node set includes: goal, task, reflection, eval, business metric.
+- Pan/zoom, minimap, controls, dragging, and connecting are wired.
+- Local Zustand store handles nodes, edges, selected node, add/delete actions.
+- Right inspector edits title/body/tags with explicit fields for:
+  - reflection checkpoint
+  - eval metric
+  - business metric
+- Board edits persist in-session (local state only; no backend writes yet).
 
 ---
 
 ## 3) What is intentionally still missing
 
 These are intentionally deferred to keep implementation lean:
-- React Flow board editing UX (Milestone 4)
-- Board autosave and persistence (Milestone 5)
+- Firestore board autosave and reload persistence (Milestone 5)
 - Generate and critique APIs (Milestones 6 and 7)
 - Export stack (Milestone 8)
 - Usage caps and cost controls (Milestone 9)
 
 ---
 
-## 4) Key risks / checks before moving forward
+## 4) M5 prep completed in this slice
 
-1. **Firestore security rules must enforce ownership** for `projects` and `usage`.
-2. **Firebase + Vercel env variables** must be set in real deployment.
-3. **Project query indexes** may be requested by Firestore console for some query combinations; create them only if prompted.
-4. Keep M4 focused on editing basics only (no overengineering).
+### Locked local board schema (for M5 handoff)
+- `AdesNodeData` (label/body/tags + explicit reflection/eval/business metric fields)
+- `AdesNode` typed to core node set
+- `AdesBoardSnapshot` (`nodes` + `edges`)
+
+This schema is now stable enough to become the persisted Firestore `board` shape.
+
+### Debounced autosave strategy (to implement in M5)
+1. Load board from Firestore if present; otherwise initialize starter board.
+2. Track `lastSavedAt` and `isDirty` in the board store.
+3. On changes to nodes/edges, debounce save (e.g., 800–1200ms).
+4. Save only the `AdesBoardSnapshot` payload.
+5. Use owner-scoped project writes only (`ownerUid` already enforced in read flow).
+6. Flush save on route leave/unmount when there are unsaved changes.
 
 ---
 
 ## 5) Detailed next steps (lean, ordered)
 
-### Step 1 — M4.1: Render minimal React Flow board in project page
-**Goal:** replace canvas placeholder with an actual visual board.
+### Step 1 — M5.1: Firestore load/restore for board snapshot
+**Goal:** hydrate board from project document while preserving starter fallback.
 
-- Install and wire React Flow.
-- Render a tiny starter board for an empty project (goal/task/reflection/eval/business metric nodes).
-- Keep styling simple and Miro-like.
-- Do not add autosave yet.
+- Add board read mapping from Firestore `project.board` into store snapshot.
+- Keep starter board path for projects with empty or missing board.
 
-**Done when:** user can pan/zoom and see starter nodes on `/project/[id]`.
+**Done when:** reload restores previous board for persisted projects.
 
-### Step 2 — M4.2: Local board state with Zustand
-**Goal:** editable board state without backend coupling.
+### Step 2 — M5.2: Debounced autosave for board edits
+**Goal:** persist board without chatty writes.
 
-- Add a small project board store (nodes + edges + selected node).
-- Load starter board into store.
-- Wire drag/move/connect updates in local state.
+- Add debounce utility/hook for write scheduling.
+- Save `nodes` and `edges` to `project.board` with `updatedAt`.
 
-**Done when:** node movement and edge edits remain stable during session.
+**Done when:** edits save automatically with low write frequency.
 
-### Step 3 — M4.3: Inspector edits
-**Goal:** make node content editable in a PM-friendly flow.
+### Step 3 — M5.3: Ownership-safe write pattern and UX state
+**Goal:** ensure saves are reliable and transparent.
 
-- Add right-side inspector bound to selected node.
-- Support editing title/body/tags (lean schema).
-- Keep explicit fields for reflection/eval/business metric node clarity.
+- Keep writes owner-scoped via existing user/project identity checks.
+- Add lightweight saving indicator (`Saving…`, `Saved`).
+- Handle save errors with retry-safe messaging.
 
-**Done when:** user can select a node and edit core text fields instantly.
-
-### Step 4 — M4.4: Add/delete nodes
-**Goal:** complete minimum manual design loop.
-
-- Add “Add block” actions for core ADES node types.
-- Add delete action for selected node.
-- Keep node types limited to spec essentials.
-
-**Done when:** user can create and remove blocks without breaking canvas.
-
-### Step 5 — M4.5: Visual polish pass (small)
-**Goal:** keep UX coherent before persistence work.
-
-- Add minimap and controls.
-- Improve spacing/colors for node readability.
-- Ensure reflection/evals/business metrics are visually obvious.
-
-**Done when:** board feels usable enough for first real test sessions.
-
-### Step 6 — M5 kickoff prep
-**Goal:** prepare clean handoff into Firestore persistence.
-
-- Define board JSON shape used in Zustand.
-- Confirm it matches export/import needs later.
-- Document autosave strategy (debounced writes, owner-safe reads).
-
-**Done when:** M5 can start with zero schema ambiguity.
+**Done when:** board persistence feels trustworthy for PM usage.
 
 ---
 
 ## 6) What “everything works” means at this stage
 
-At this stage (through M3), “works” means:
+At this stage (through M4 baseline), “works” means:
 - Auth flow and protected routes run with valid Firebase config.
 - Dashboard project CRUD works for authenticated owner.
-- Project route opens and handles unavailable access cleanly.
+- Project studio renders a usable React Flow board.
+- Core manual design loop works locally (move/connect/edit/add/delete).
 - App builds cleanly (`npm run lint`, `npm run build`).
 
-This is enough to proceed safely to M4 board editing.
+This is enough to proceed safely to M5 persistence.

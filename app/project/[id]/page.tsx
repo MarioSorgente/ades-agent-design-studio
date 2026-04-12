@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
+import { BoardInspector } from "@/components/board/board-inspector";
+import { StudioBoard } from "@/components/board/studio-board";
 import { getProjectForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 
@@ -43,7 +45,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   return (
     <AppShell
       title={project?.title ?? `Project ${params.id}`}
-      subtitle="Three-panel studio shell for designing agent flow, reviewing structure, and preparing critique."
+      subtitle="Design and refine your agent map with tasks, reflections, evals, and business metrics."
     >
       <ProtectedRoute>
         {isLoading ? (
@@ -60,26 +62,23 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         ) : null}
 
         {!isLoading && project ? (
-          <div className="grid min-h-[65vh] gap-4 md:grid-cols-[240px_minmax(0,1fr)_280px]">
+          <div className="grid min-h-[72vh] gap-4 md:grid-cols-[220px_minmax(0,1fr)_320px]">
             <aside className="rounded-2xl border border-ades-soft bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Left panel</h2>
-              <p className="mt-2 text-sm text-slate-600">Placeholder for project map, blocks, and navigation.</p>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Board guide</h2>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>• Drag nodes to rearrange the design.</li>
+                <li>• Connect nodes to show flow and feedback loops.</li>
+                <li>• Select a node to edit details in the inspector.</li>
+                <li>• Keep reflection, eval, and business metrics explicit.</li>
+              </ul>
             </aside>
 
-            <section className="rounded-2xl border border-ades-soft bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Canvas</h2>
-              <div className="mt-3 flex min-h-[48vh] items-center justify-center rounded-xl border border-dashed border-ades-soft bg-slate-50 text-sm text-slate-500">
-                Center canvas placeholder
-              </div>
+            <section className="rounded-2xl border border-ades-soft bg-slate-50 p-3">
+              <StudioBoard />
             </section>
 
             <aside className="rounded-2xl border border-ades-soft bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Inspector</h2>
-              <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                <li>• Critique placeholder</li>
-                <li>• Reflection placeholder</li>
-                <li>• Evals placeholder</li>
-              </ul>
+              <BoardInspector />
             </aside>
           </div>
         ) : null}
