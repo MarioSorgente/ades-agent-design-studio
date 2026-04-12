@@ -377,6 +377,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     <AppShell
       title={project?.title ?? `Project ${params.id}`}
       subtitle="Premium workspace for planning agent behavior, critique coverage, eval quality, and business impact."
+      breadcrumbLabel={project?.title ?? "Studio"}
       actions={
         <Link href={`/project/${params.id}/print`} className="ades-ghost-btn">
           Print / export view
