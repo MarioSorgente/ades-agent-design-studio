@@ -26,6 +26,10 @@ export type ProjectRecord = {
   audience: string;
   status: "draft" | "generated";
   board: AdesBoardSnapshot | null;
+  summary: string;
+  constraints: string;
+  assumptions: string[];
+  critiqueSeed: string[];
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -50,6 +54,10 @@ function toIsoStringOrNull(value: unknown) {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function stringOrEmpty(value: unknown) {
+  return typeof value === "string" ? value : "";
 }
 
 function parseNodeData(value: unknown): AdesNodeData | null {
@@ -157,6 +165,10 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     audience: String(data.audience ?? ""),
     status: data.status === "generated" ? "generated" : "draft",
     board: parseBoardSnapshot(data.board),
+    summary: stringOrEmpty(data.summary),
+    constraints: stringOrEmpty(data.constraints),
+    assumptions: isStringArray(data.assumptions) ? data.assumptions : [],
+    critiqueSeed: isStringArray(data.critiqueSeed) ? data.critiqueSeed : [],
     createdAt: toIsoStringOrNull(data.createdAt),
     updatedAt: toIsoStringOrNull(data.updatedAt),
   };
@@ -205,7 +217,10 @@ export async function createProjectForUser(ownerUid: string, title: string) {
     audience: "",
     status: "draft",
     board: null,
-    summary: null,
+    summary: "",
+    constraints: "",
+    assumptions: [],
+    critiqueSeed: [],
     critique: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

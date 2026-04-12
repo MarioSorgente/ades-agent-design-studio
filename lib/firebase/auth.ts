@@ -65,3 +65,14 @@ export async function signOutUser() {
 
   await signOut(auth);
 }
+
+export async function getCurrentUserIdToken(forceRefresh = false): Promise<string> {
+  const auth = getClientAuth();
+  const user = auth?.currentUser;
+
+  if (!user) {
+    throw new Error("You must be signed in to run generation.");
+  }
+
+  return user.getIdToken(forceRefresh);
+}
