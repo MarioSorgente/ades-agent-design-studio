@@ -29,12 +29,20 @@ type AdesBoardState = {
   onConnect: (connection: Connection) => void;
   setSelectedNodeId: (nodeId: string | null) => void;
   addNode: (type: AdesNodeType) => void;
+  addNodeWithContent: (type: AdesNodeType, label: string, body: string) => void;
   deleteSelectedNode: () => void;
   updateNode: (nodeId: string, updater: (node: AdesNode) => AdesNode) => void;
 };
 
 function createNodeId(type: AdesNodeType): string {
   return `${type}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function nextNodePosition(index: number) {
+  return {
+    x: 240 + (index % 3) * 260,
+    y: 140 + Math.floor(index / 3) * 190,
+  };
 }
 
 export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
@@ -82,12 +90,23 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const state = get();
     const index = state.nodes.length;
     const nodeId = createNodeId(type);
-    const position = {
-      x: 240 + (index % 3) * 260,
-      y: 140 + Math.floor(index / 3) * 190,
-    };
+    const position = nextNodePosition(index);
 
     const newNode = createNode(type, nodeId, position, `New ${type.replace("_", " ")}`);
+
+    set({
+      nodes: [...state.nodes, newNode],
+      selectedNodeId: newNode.id,
+    });
+  },
+  addNodeWithContent: (type, label, body) => {
+    const state = get();
+    const index = state.nodes.length;
+    const nodeId = createNodeId(type);
+    const position = nextNodePosition(index);
+
+    const newNode = createNode(type, nodeId, position, label.trim() || `New ${type.replace("_", " ")}`);
+    newNode.data.body = body.trim();
 
     set({
       nodes: [...state.nodes, newNode],

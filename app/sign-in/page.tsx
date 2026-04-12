@@ -7,6 +7,18 @@ import { signInWithGoogle } from "@/lib/firebase/auth";
 import { getMissingFirebaseEnvKeys } from "@/lib/firebase/config";
 import { useAuthStore } from "@/lib/auth/store";
 
+function getSafeRedirectTarget(value: string | null): string {
+  if (!value || !value.startsWith("/")) {
+    return "/dashboard";
+  }
+
+  if (value.startsWith("//") || value.includes("http://") || value.includes("https://")) {
+    return "/dashboard";
+  }
+
+  return value;
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const status = useAuthStore((state) => state.status);
@@ -19,11 +31,7 @@ export default function SignInPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const redirect = params.get("redirect");
-
-    if (redirect) {
-      setRedirectTarget(redirect);
-    }
+    setRedirectTarget(getSafeRedirectTarget(params.get("redirect")));
   }, []);
 
   useEffect(() => {
@@ -58,13 +66,13 @@ export default function SignInPage() {
 
         <button
           type="button"
-          disabled={!isConfigured || isSubmitting}
+          disabled={!isConfigured || isSubmitting || status === "loading"}
           onClick={async () => {
             setErrorMessage(null);
             setIsSubmitting(true);
             try {
               await signInWithGoogle();
-              router.push(redirectTarget);
+              router.replace(redirectTarget);
             } catch (error) {
               const message = error instanceof Error ? error.message : "Unable to sign in with Google.";
               setErrorMessage(message);

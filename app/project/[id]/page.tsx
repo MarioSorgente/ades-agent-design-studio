@@ -6,13 +6,14 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
-import { CORE_NODE_TYPES, type AdesBoardSnapshot } from "@/lib/board/types";
+import { CORE_NODE_TYPES, type AdesBoardSnapshot, type AdesNodeType } from "@/lib/board/types";
 import { getNodeTheme } from "@/lib/board/node-theme";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
+import type { CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -26,6 +27,10 @@ type GenerateResponse = {
   board: AdesBoardSnapshot;
   assumptions: string[];
   critiqueSeed: string[];
+};
+
+type CritiqueResponse = {
+  critique: CritiqueResult;
 };
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
@@ -42,12 +47,16 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSummary, setGenerationSummary] = useState<string>("");
+  const [critiqueResult, setCritiqueResult] = useState<CritiqueResult | null>(null);
+  const [isCritiquing, setIsCritiquing] = useState(false);
+  const [critiqueError, setCritiqueError] = useState<string | null>(null);
 
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
   const isBoardInitialized = useAdesBoardStore((state) => state.isInitialized);
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
+  const addNodeWithContent = useAdesBoardStore((state) => state.addNodeWithContent);
 
   const hasHydratedBoardRef = useRef(false);
   const lastSavedHashRef = useRef<string | null>(null);
@@ -96,7 +105,9 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setSaveState("saved");
     setIdeaPrompt(project.ideaPrompt);
     setAudience(project.audience);
-    setGenerationSummary("");
+    setConstraints(project.constraints);
+    setGenerationSummary(project.summary);
+    setCritiqueResult(project.critique);
   }, [isLoading, loadBoardSnapshot, project]);
 
   const currentBoardHash = useMemo(() => {
@@ -186,6 +197,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       hasHydratedBoardRef.current = true;
       setSaveState("saved");
       setGenerationSummary(payload.project.summary);
+      setCritiqueResult(null);
       setProject((previous) =>
         previous
           ? {
@@ -195,6 +207,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               status: "generated",
               ideaPrompt,
               audience,
+              constraints,
+              critique: null,
             }
           : previous
       );
@@ -204,6 +218,51 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     } finally {
       setIsGenerating(false);
     }
+  }
+
+  async function handleCritiqueBoard() {
+    if (!user || !project || isCritiquing) {
+      return;
+    }
+
+    setCritiqueError(null);
+    setIsCritiquing(true);
+
+    try {
+      const idToken = await getCurrentUserIdToken();
+
+      const response = await fetch("/api/critique", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          summary: generationSummary || project.summary,
+          board: getBoardSnapshot(),
+        }),
+      });
+
+      const payload = (await response.json()) as CritiqueResponse | { error?: string };
+
+      if (!response.ok || !("critique" in payload)) {
+        const message = "error" in payload && typeof payload.error === "string" ? payload.error : "Critique failed.";
+        throw new Error(message);
+      }
+
+      setCritiqueResult(payload.critique);
+      setProject((previous) => (previous ? { ...previous, critique: payload.critique } : previous));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Critique failed.";
+      setCritiqueError(message);
+    } finally {
+      setIsCritiquing(false);
+    }
+  }
+
+  function handleAddSuggestionToBoard(suggestion: CritiqueSuggestion) {
+    addNodeWithContent(suggestion.type as AdesNodeType, suggestion.title, suggestion.body);
   }
 
   return (
@@ -310,18 +369,94 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     <h2 className="text-sm font-semibold text-slate-900">Studio canvas</h2>
                     <p className="text-xs text-slate-500">Miro-like board for tasks, reflections, critique loops, risks, evals, and business metrics.</p>
                   </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">AI generation · Milestone 6</div>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Critique flow · Milestone 7</div>
                 </div>
               </div>
               <StudioBoard />
             </section>
 
-            <aside className="ades-panel">
+            <aside className="ades-panel space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Critique</h3>
+                    <p className="mt-1 text-xs text-slate-600">Run gap analysis for reflections, evals, and business metrics.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCritiqueBoard()}
+                    disabled={isCritiquing || nodes.length === 0}
+                    className="ades-primary-btn px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isCritiquing ? "Running..." : "Run critique"}
+                  </button>
+                </div>
+                {critiqueError ? <p className="mt-2 text-xs text-rose-600">{critiqueError}</p> : null}
+              </div>
+
+              {critiqueResult ? (
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-slate-600">{critiqueResult.summary}</p>
+
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Findings</h4>
+                    <ul className="mt-2 space-y-2">
+                      {critiqueResult.critiqueItems.map((item) => (
+                        <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p>
+                          <p className="mt-1 text-sm text-slate-800">{item.message}</p>
+                          <p className="mt-1 text-xs text-slate-600">{item.recommendation}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections} onAdd={handleAddSuggestionToBoard} />
+                  <SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals} onAdd={handleAddSuggestionToBoard} />
+                  <SuggestionSection
+                    title="Missing business metrics"
+                    suggestions={critiqueResult.missingBusinessMetrics}
+                    onAdd={handleAddSuggestionToBoard}
+                  />
+                </div>
+              ) : null}
+
               <BoardInspector />
             </aside>
           </div>
         ) : null}
       </ProtectedRoute>
     </AppShell>
+  );
+}
+
+function SuggestionSection({
+  title,
+  suggestions,
+  onAdd,
+}: {
+  title: string;
+  suggestions: CritiqueSuggestion[];
+  onAdd: (suggestion: CritiqueSuggestion) => void;
+}) {
+  if (!suggestions.length) {
+    return null;
+  }
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <ul className="mt-2 space-y-2">
+        {suggestions.map((suggestion) => (
+          <li key={suggestion.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+            <p className="text-sm font-medium text-slate-800">{suggestion.title}</p>
+            <p className="mt-1 text-xs text-slate-600">{suggestion.body}</p>
+            <button type="button" className="ades-ghost-btn mt-2 px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>
+              Add to board
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
