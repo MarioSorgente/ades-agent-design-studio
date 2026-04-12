@@ -211,7 +211,7 @@ Let authenticated users create, view, rename, and open projects.
 ---
 
 ## Milestone 4 — Studio board and editing
-**Status:** `todo`
+**Status:** `in_progress`
 
 ### Goal
 Deliver the main Miro-like studio experience.
@@ -236,6 +236,13 @@ Deliver the main Miro-like studio experience.
 ### Risks
 - too many node types too early
 - editor complexity before persistence is stable
+
+### Notes (2026-04-12 — M4 baseline slice)
+- Replaced the `/project/[id]` canvas placeholder with a real React Flow board and starter nodes for goal/task/reflection/eval/business metric.
+- Added local Zustand board state (`nodes`, `edges`, `selectedNodeId`) with drag/move/connect interactions and in-session persistence.
+- Added right-side inspector editing for title/body/tags plus explicit fields for reflection checkpoints, eval metrics, and business metrics.
+- Added core-node add/delete actions, minimap, controls, and readable typed node styling for PM-friendly testing.
+- M5 prep captured by introducing a concrete local board schema (`AdesNodeData` + `AdesBoardSnapshot`) that will be reused for autosave/export work.
 
 ---
 
