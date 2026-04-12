@@ -89,7 +89,7 @@ This milestone is complete because the required repository-operating docs are no
 ---
 
 ## Milestone 1 — App foundation
-**Status:** `in_progress`
+**Status:** `done`
 
 ### Goal
 Create the full app shell and routing structure.
@@ -114,10 +114,16 @@ Create the full app shell and routing structure.
 - overbuilding before auth is ready
 - inconsistent folder structure
 
+
+### Notes (2026-04-12)
+- App shell and route structure are implemented for `/`, `/sign-in`, `/dashboard`, `/project/[id]`, and `/project/[id]/print`.
+- Production build succeeds and all milestone routes are generated.
+- Remaining milestone dependency is external deployment verification on Vercel.
+
 ---
 
 ## Milestone 2 — Firebase auth
-**Status:** `todo`
+**Status:** `in_progress`
 
 ### Goal
 Allow users to sign in with Google and access protected app routes.
@@ -140,6 +146,34 @@ Allow users to sign in with Google and access protected app routes.
 - Firebase project setup
 - authorized domain setup
 - Firebase config variables in Vercel
+
+
+### Notes (2026-04-12 — implementation update)
+- Implemented Firebase client/auth/firestore bootstrap files and Google sign-in/sign-out helpers.
+- Added global auth state handling with Zustand plus an auth provider using Firebase `onAuthStateChanged`.
+- Added protected-route guards for dashboard and project routes (including print view).
+- Added first-sign-in user profile upsert to `users/{uid}` via Firestore.
+- Remaining work is external verification with real Firebase credentials and Vercel environment setup.
+
+### Execution plan (smallest shippable slices)
+1. **Slice M2.1 — Firebase bootstrap in code**
+   - Add `lib/firebase/client.ts` with guarded singleton initialization.
+   - Add `lib/firebase/auth.ts` with Google provider and helper methods.
+
+2. **Slice M2.2 — Auth state and route protection (client-side)**
+   - Add a lightweight auth store/hook for loading + signed-in state.
+   - Protect `/dashboard` and `/project/[id]` with redirect to `/sign-in` when unauthenticated.
+
+3. **Slice M2.3 — Sign in / sign out UX wiring**
+   - Wire “Continue with Google” on `/sign-in`.
+   - Add a visible sign-out action in the app shell for authenticated pages.
+
+4. **Slice M2.4 — First sign-in user document sync**
+   - On successful auth, upsert `users/{uid}` with profile and timestamps in Firestore.
+
+5. **Slice M2.5 — End-to-end verification + docs**
+   - Validate redirect behavior, sign-in, sign-out, and `users/{uid}` creation.
+   - Mark Milestone 2 done once external Firebase/Vercel setup checklist is completed.
 
 ---
 
@@ -352,9 +386,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Start Milestone 1 by scaffolding the full app shell and route structure (landing, sign-in, dashboard, project, print).
-2. Add shared layout/navigation and placeholder loading/empty states for each route.
-3. Validate local route rendering and document any blockers before moving to Milestone 2 setup tasks.
+1. Complete Firebase console setup (Google provider + authorized domains + Firestore).
+2. Add Firebase env vars to Vercel, redeploy, and validate end-to-end sign-in/sign-out in production preview.
+3. If M2 exit criteria pass, mark Milestone 2 `done` and begin Milestone 3 dashboard CRUD.
 
 ---
 
