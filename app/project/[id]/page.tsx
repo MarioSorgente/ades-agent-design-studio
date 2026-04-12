@@ -17,6 +17,7 @@ import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "
 import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
+import { normalizeRouteParam } from "@/lib/utils/route-params";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -36,21 +37,9 @@ type CritiqueResponse = {
   critique: CritiqueResult;
 };
 
-function toProjectId(value: string | string[] | undefined) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value[0] ?? "";
-  }
-
-  return "";
-}
-
 export default function ProjectPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
-  const projectId = toProjectId(routeParams?.id);
+  const projectId = normalizeRouteParam(routeParams?.id);
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
 
