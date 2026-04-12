@@ -387,7 +387,7 @@ Make ADES outputs usable outside the app.
 ---
 
 ## Milestone 9 — Usage caps and cost control
-**Status:** `todo`
+**Status:** `done`
 
 ### Goal
 Protect the OpenAI API budget without overcomplicating the app.
@@ -407,6 +407,16 @@ Protect the OpenAI API budget without overcomplicating the app.
 - capped users are blocked politely
 - allowed users proceed normally
 - usage data updates correctly
+
+### Notes (2026-04-12 — M9 slice)
+- Added a shared route-param normalization helper and wired it into both studio and print project routes so project ID parsing is consistent across `/project/[id]` and `/project/[id]/print`.
+- Added print-route invalid-ID guard to align error handling with studio route behavior before adding usage-cap enforcement endpoints.
+
+### Notes (2026-04-12 — completion update)
+- Added server-side usage-cap helpers for daily `generate` and `critique` limits with Firestore `usage/{uid_yyyyMMdd}` documents.
+- Enforced per-user caps in `/api/generate` and `/api/critique` after auth + ownership checks and before OpenAI calls.
+- Added polite `429` quota responses with limit and remaining metadata for clear product messaging.
+- Added usage counter/token estimate increments after successful model responses for both generation and critique flows.
 
 ---
 
@@ -448,9 +458,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Start Milestone 8 with Markdown export endpoint and client download action from the project studio.
-2. Add JSON export/import so projects can be restored without Firestore dependencies.
-3. Add a basic image export pathway and finalize print route formatting for PDF handoff.
+1. Start Milestone 10 with targeted UX polish for loading, empty, and error states across dashboard and studio.
+2. Review Firestore security rules and validate owner-only access patterns for `users`, `projects`, and `usage`.
+3. Tune generate/critique prompts for tighter PM-friendly outputs and clearer business-metric specificity.
 
 ---
 

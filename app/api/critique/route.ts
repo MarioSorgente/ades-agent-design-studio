@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import { checkUsageCap, incrementUsageCount } from "@/lib/server/usage-caps";
 import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
 
@@ -160,6 +161,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
     }
 
+    const usage = await checkUsageCap(db, uid, "critique");
+
+    if (!usage.allowed) {
+      return NextResponse.json(
+        {
+          error: `Daily critique limit reached (${usage.limit}/day). Try again tomorrow.`,
+          usage: {
+            action: "critique",
+            limit: usage.limit,
+            used: usage.used,
+            remaining: usage.remaining,
+            dateKey: usage.dateKey,
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     const boardSummaryForPrompt = body.board.nodes.slice(0, 18).map((node) => ({
       id: node.id,
       type: node.type,
@@ -208,6 +227,12 @@ export async function POST(request: Request) {
     }
 
     const critique = getCritiqueResult(outputText);
+    const estimatedInputTokens =
+      typeof response.usage?.input_tokens === "number" && Number.isFinite(response.usage.input_tokens) ? response.usage.input_tokens : 0;
+    const estimatedOutputTokens =
+      typeof response.usage?.output_tokens === "number" && Number.isFinite(response.usage.output_tokens) ? response.usage.output_tokens : 0;
+
+    await incrementUsageCount(db, uid, "critique", estimatedInputTokens, estimatedOutputTokens);
 
     await projectRef.update({
       critique,

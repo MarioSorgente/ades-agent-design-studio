@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import { checkUsageCap, incrementUsageCount } from "@/lib/server/usage-caps";
 import { type AdesBoardSnapshot, type AdesNode, type AdesNodeType, CORE_NODE_TYPES, createNodeData } from "@/lib/board/types";
 
 type GenerateRequest = {
@@ -268,6 +269,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
     }
 
+    const usage = await checkUsageCap(db, uid, "generate");
+
+    if (!usage.allowed) {
+      return NextResponse.json(
+        {
+          error: `Daily generate limit reached (${usage.limit}/day). Try again tomorrow.`,
+          usage: {
+            action: "generate",
+            limit: usage.limit,
+            used: usage.used,
+            remaining: usage.remaining,
+            dateKey: usage.dateKey,
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     const openai = getOpenAIClient();
 
     const response = await openai.responses.create({
@@ -301,6 +320,12 @@ export async function POST(request: Request) {
 
     const generatedDesign = getGeneratedDesign(outputText);
     const board = normalizeDesign(generatedDesign);
+    const estimatedInputTokens =
+      typeof response.usage?.input_tokens === "number" && Number.isFinite(response.usage.input_tokens) ? response.usage.input_tokens : 0;
+    const estimatedOutputTokens =
+      typeof response.usage?.output_tokens === "number" && Number.isFinite(response.usage.output_tokens) ? response.usage.output_tokens : 0;
+
+    await incrementUsageCount(db, uid, "generate", estimatedInputTokens, estimatedOutputTokens);
 
     await projectRef.update({
       title: generatedDesign.title,
