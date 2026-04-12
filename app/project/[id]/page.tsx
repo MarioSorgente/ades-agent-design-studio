@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toPng } from "html-to-image";
+import { useParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
@@ -35,7 +36,21 @@ type CritiqueResponse = {
   critique: CritiqueResult;
 };
 
-export default function ProjectPage({ params }: { params: { id: string } }) {
+function toProjectId(value: string | string[] | undefined) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return "";
+}
+
+export default function ProjectPage() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const projectId = toProjectId(routeParams?.id);
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
 
@@ -71,6 +86,13 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     lastSavedHashRef.current = null;
 
     async function loadProject() {
+      if (!projectId) {
+        setProject(null);
+        setErrorMessage("Project not found or route is invalid.");
+        setIsLoading(false);
+        return;
+      }
+
       if (!user) {
         setIsLoading(status === "loading");
         setProject(null);
@@ -81,7 +103,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       setErrorMessage(null);
 
       try {
-        const loadedProject = await getProjectForUser(params.id, user.uid);
+        const loadedProject = await getProjectForUser(projectId, user.uid);
         setProject(loadedProject);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load project.";
@@ -92,7 +114,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     }
 
     void loadProject();
-  }, [params.id, status, user]);
+  }, [projectId, status, user]);
 
   useEffect(() => {
     if (isLoading || !project) {
@@ -375,10 +397,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
 
   return (
     <AppShell
-      title={project?.title ?? `Project ${params.id}`}
+      title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")}
       subtitle="Premium workspace for planning agent behavior, critique coverage, eval quality, and business impact."
+      breadcrumbLabel={project?.title ?? "Studio"}
       actions={
-        <Link href={`/project/${params.id}/print`} className="ades-ghost-btn">
+        <Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn" aria-disabled={!projectId}>
           Print / export view
         </Link>
       }
@@ -519,7 +542,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   >
                     {isExportingImage ? "Exporting..." : "Export image"}
                   </button>
-                  <button type="button" onClick={() => window.open(`/project/${params.id}/print`, "_blank")} className="ades-ghost-btn px-2 py-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/project/${projectId}/print`, "_blank")}
+                    className="ades-ghost-btn px-2 py-2 text-xs"
+                    disabled={!projectId}
+                  >
                     Print / PDF
                   </button>
                 </div>
