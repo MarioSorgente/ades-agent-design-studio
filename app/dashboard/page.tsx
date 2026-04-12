@@ -1,3 +1,4 @@
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 
 export default function DashboardPage() {
@@ -14,12 +15,14 @@ export default function DashboardPage() {
         </button>
       }
     >
-      <article className="rounded-2xl border border-dashed border-ades-soft bg-white p-10 text-center">
-        <h2 className="text-lg font-semibold">No projects yet</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Your saved agent designs will appear here once you create your first project.
-        </p>
-      </article>
+      <ProtectedRoute>
+        <article className="rounded-2xl border border-dashed border-ades-soft bg-white p-10 text-center">
+          <h2 className="text-lg font-semibold">No projects yet</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Your saved agent designs will appear here once you create your first project.
+          </p>
+        </article>
+      </ProtectedRoute>
     </AppShell>
   );
 }

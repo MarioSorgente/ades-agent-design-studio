@@ -148,6 +148,13 @@ Allow users to sign in with Google and access protected app routes.
 - Firebase config variables in Vercel
 
 
+### Notes (2026-04-12 — implementation update)
+- Implemented Firebase client/auth/firestore bootstrap files and Google sign-in/sign-out helpers.
+- Added global auth state handling with Zustand plus an auth provider using Firebase `onAuthStateChanged`.
+- Added protected-route guards for dashboard and project routes (including print view).
+- Added first-sign-in user profile upsert to `users/{uid}` via Firestore.
+- Remaining work is external verification with real Firebase credentials and Vercel environment setup.
+
 ### Execution plan (smallest shippable slices)
 1. **Slice M2.1 — Firebase bootstrap in code**
    - Add `lib/firebase/client.ts` with guarded singleton initialization.
@@ -379,9 +386,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Execute Slice M2.1: add Firebase client/auth bootstrap files with environment-safe initialization.
-2. Execute Slice M2.2: add minimal auth-state handling and redirect guard for protected routes.
-3. Validate sign-in/sign-out and user document creation before expanding into dashboard CRUD (Milestone 3).
+1. Complete Firebase console setup (Google provider + authorized domains + Firestore).
+2. Add Firebase env vars to Vercel, redeploy, and validate end-to-end sign-in/sign-out in production preview.
+3. If M2 exit criteria pass, mark Milestone 2 `done` and begin Milestone 3 dashboard CRUD.
 
 ---
 
