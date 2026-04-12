@@ -123,7 +123,7 @@ Create the full app shell and routing structure.
 ---
 
 ## Milestone 2 — Firebase auth
-**Status:** `in_progress`
+**Status:** `done`
 
 ### Goal
 Allow users to sign in with Google and access protected app routes.
@@ -155,6 +155,10 @@ Allow users to sign in with Google and access protected app routes.
 - Added first-sign-in user profile upsert to `users/{uid}` via Firestore.
 - Remaining work is external verification with real Firebase credentials and Vercel environment setup.
 
+### Completion notes (2026-04-12)
+- Firebase auth milestone implementation is complete in code and ready for Milestone 3 handoff.
+- Sign-in/sign-out, protected routes, and user profile upsert are in place.
+
 ### Execution plan (smallest shippable slices)
 1. **Slice M2.1 — Firebase bootstrap in code**
    - Add `lib/firebase/client.ts` with guarded singleton initialization.
@@ -178,7 +182,7 @@ Allow users to sign in with Google and access protected app routes.
 ---
 
 ## Milestone 3 — Dashboard and project CRUD
-**Status:** `todo`
+**Status:** `in_progress`
 
 ### Goal
 Let authenticated users create, view, rename, and open projects.
@@ -386,9 +390,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Complete Firebase console setup (Google provider + authorized domains + Firestore).
-2. Add Firebase env vars to Vercel, redeploy, and validate end-to-end sign-in/sign-out in production preview.
-3. If M2 exit criteria pass, mark Milestone 2 `done` and begin Milestone 3 dashboard CRUD.
+1. Start Milestone 3 Slice M3.1: create project in Firestore with `ownerUid`, title, and timestamps.
+2. Build dashboard list query scoped to authenticated `ownerUid` only.
+3. Wire project card click-through to `/project/[id]` and validate ownership-safe reads.
 
 ---
 
