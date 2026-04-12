@@ -63,7 +63,7 @@ A signed-in user can create a project, generate an agent design from an idea, ed
 ---
 
 ## Milestone 0 — Repository operating system
-**Status:** `in_progress`
+**Status:** `done`
 
 ### Goal
 Make the repo self-explanatory for Codex and future implementation work.
@@ -83,12 +83,13 @@ Make the repo self-explanatory for Codex and future implementation work.
 - `MILESTONES.md` exists
 
 ### Notes
-This milestone becomes `done` once these files are committed into `main`.
+Scaffold/docs baseline introduced in commit `674a9bc` (Add files via upload).
+This milestone is complete because the required repository-operating docs are now committed.
 
 ---
 
 ## Milestone 1 — App foundation
-**Status:** `todo`
+**Status:** `in_progress`
 
 ### Goal
 Create the full app shell and routing structure.
@@ -351,11 +352,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Commit the docs and repo operating files.
-2. Connect the repo to Vercel.
-3. Create the Firebase project and web app.
-4. Enable Google auth and create Firestore.
-5. Ask Codex to implement Milestone 1.
+1. Start Milestone 1 by scaffolding the full app shell and route structure (landing, sign-in, dashboard, project, print).
+2. Add shared layout/navigation and placeholder loading/empty states for each route.
+3. Validate local route rendering and document any blockers before moving to Milestone 2 setup tasks.
 
 ---
 
