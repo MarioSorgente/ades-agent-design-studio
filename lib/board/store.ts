@@ -8,7 +8,13 @@ import {
 } from "reactflow";
 import { create } from "zustand";
 import { createStarterBoard } from "@/lib/board/starter-board";
-import { type AdesCoreNodeType, type AdesEdge, type AdesNode, createNode } from "@/lib/board/types";
+import {
+  type AdesBoardSnapshot,
+  type AdesCoreNodeType,
+  type AdesEdge,
+  type AdesNode,
+  createNode,
+} from "@/lib/board/types";
 
 type AdesBoardState = {
   nodes: AdesNode[];
@@ -16,6 +22,8 @@ type AdesBoardState = {
   selectedNodeId: string | null;
   isInitialized: boolean;
   initializeBoard: () => void;
+  loadBoardSnapshot: (snapshot: AdesBoardSnapshot) => void;
+  getBoardSnapshot: () => AdesBoardSnapshot;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
@@ -40,7 +48,19 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     }
 
     const snapshot = createStarterBoard();
-    set({ ...snapshot, isInitialized: true });
+    set({ ...snapshot, selectedNodeId: null, isInitialized: true });
+  },
+  loadBoardSnapshot: (snapshot) => {
+    set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      selectedNodeId: null,
+      isInitialized: true,
+    });
+  },
+  getBoardSnapshot: () => {
+    const { nodes, edges } = get();
+    return { nodes, edges };
   },
   onNodesChange: (changes) => {
     set((state) => ({

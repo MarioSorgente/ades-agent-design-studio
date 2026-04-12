@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -19,7 +19,6 @@ function StudioBoardInner() {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
-  const initializeBoard = useAdesBoardStore((state) => state.initializeBoard);
   const onNodesChange = useAdesBoardStore((state) => state.onNodesChange);
   const onEdgesChange = useAdesBoardStore((state) => state.onEdgesChange);
   const onConnect = useAdesBoardStore((state) => state.onConnect);
@@ -27,11 +26,10 @@ function StudioBoardInner() {
   const addNode = useAdesBoardStore((state) => state.addNode);
   const deleteSelectedNode = useAdesBoardStore((state) => state.deleteSelectedNode);
 
-  useEffect(() => {
-    initializeBoard();
-  }, [initializeBoard]);
-
-  const nodeTypes = useMemo(() => ({ goal: AdesNode, task: AdesNode, reflection: AdesNode, eval: AdesNode, business_metric: AdesNode }), []);
+  const nodeTypes = useMemo(
+    () => ({ goal: AdesNode, task: AdesNode, reflection: AdesNode, eval: AdesNode, business_metric: AdesNode }),
+    []
+  );
 
   return (
     <div className="h-[70vh] overflow-hidden rounded-2xl border border-ades-soft bg-white">

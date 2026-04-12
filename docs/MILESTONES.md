@@ -211,7 +211,7 @@ Let authenticated users create, view, rename, and open projects.
 ---
 
 ## Milestone 4 — Studio board and editing
-**Status:** `in_progress`
+**Status:** `done`
 
 ### Goal
 Deliver the main Miro-like studio experience.
@@ -237,6 +237,11 @@ Deliver the main Miro-like studio experience.
 - too many node types too early
 - editor complexity before persistence is stable
 
+
+### Notes (2026-04-12 — completion update)
+- Studio board is now fully connected to project loading and keeps the core PM-first editing workflow stable.
+- Milestone 4 exit criteria are satisfied with draggable nodes, editable inspector fields, and coherent canvas UX.
+
 ### Notes (2026-04-12 — M4 baseline slice)
 - Replaced the `/project/[id]` canvas placeholder with a real React Flow board and starter nodes for goal/task/reflection/eval/business metric.
 - Added local Zustand board state (`nodes`, `edges`, `selectedNodeId`) with drag/move/connect interactions and in-session persistence.
@@ -247,7 +252,7 @@ Deliver the main Miro-like studio experience.
 ---
 
 ## Milestone 5 — Firestore persistence for board state
-**Status:** `todo`
+**Status:** `done`
 
 ### Goal
 Persist studio data to Firestore cleanly and cheaply.
@@ -263,6 +268,13 @@ Persist studio data to Firestore cleanly and cheaply.
 - board edits persist
 - reload restores project state
 - Firestore reads/writes stay lean
+
+
+### Notes (2026-04-12)
+- Added Firestore-backed board save/load for each project with strict owner checks before writes.
+- Added debounced autosave in the studio so edits persist with lean write volume.
+- Board state restores from Firestore on project reload, with starter board fallback for first-time projects.
+- Project updated timestamps are refreshed when board snapshots are persisted.
 
 ---
 

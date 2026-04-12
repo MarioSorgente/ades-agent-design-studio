@@ -12,8 +12,9 @@ import {
   Timestamp,
   updateDoc,
   where,
-  type Unsubscribe
+  type Unsubscribe,
 } from "firebase/firestore";
+import type { AdesBoardSnapshot, AdesEdge, AdesNode, AdesNodeData } from "@/lib/board/types";
 import { getFirebaseAppOrNull } from "@/lib/firebase/client";
 
 export type ProjectRecord = {
@@ -24,6 +25,7 @@ export type ProjectRecord = {
   ideaPrompt: string;
   audience: string;
   status: "draft" | "generated";
+  board: AdesBoardSnapshot | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -46,6 +48,99 @@ function toIsoStringOrNull(value: unknown) {
   return null;
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function parseNodeData(value: unknown): AdesNodeData | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const data = value as Record<string, unknown>;
+  if (typeof data.label !== "string") {
+    return null;
+  }
+
+  return {
+    label: data.label,
+    body: typeof data.body === "string" ? data.body : "",
+    tags: isStringArray(data.tags) ? data.tags : [],
+    reflectionPrompt: typeof data.reflectionPrompt === "string" ? data.reflectionPrompt : "",
+    evalMetric: typeof data.evalMetric === "string" ? data.evalMetric : "",
+    businessMetric: typeof data.businessMetric === "string" ? data.businessMetric : "",
+  };
+}
+
+function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const board = value as Record<string, unknown>;
+  if (!Array.isArray(board.nodes) || !Array.isArray(board.edges)) {
+    return null;
+  }
+
+  const nodes: AdesNode[] = board.nodes
+    .map((candidate) => {
+      if (!candidate || typeof candidate !== "object") {
+        return null;
+      }
+
+      const raw = candidate as Record<string, unknown>;
+      const data = parseNodeData(raw.data);
+      const position = raw.position as Record<string, unknown> | undefined;
+
+      if (!data || typeof raw.id !== "string" || typeof raw.type !== "string") {
+        return null;
+      }
+
+      if (!position || typeof position.x !== "number" || typeof position.y !== "number") {
+        return null;
+      }
+
+      return {
+        id: raw.id,
+        type: raw.type,
+        position: { x: position.x, y: position.y },
+        data,
+      } as AdesNode;
+    })
+    .filter((node): node is AdesNode => Boolean(node));
+
+  const edges = board.edges
+    .map((candidate) => {
+      if (!candidate || typeof candidate !== "object") {
+        return null;
+      }
+
+      const raw = candidate as Record<string, unknown>;
+      if (typeof raw.id !== "string" || typeof raw.source !== "string" || typeof raw.target !== "string") {
+        return null;
+      }
+
+      const edge: AdesEdge = {
+        id: raw.id,
+        source: raw.source,
+        target: raw.target,
+      };
+
+      if (typeof raw.animated === "boolean") {
+        edge.animated = raw.animated;
+      }
+
+      return edge;
+    })
+    .filter((edge): edge is AdesEdge => edge !== null);
+
+  if (!nodes.length) {
+    return null;
+  }
+
+  return { nodes, edges };
+}
+
 function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
   return {
     id: String(data.id ?? ""),
@@ -55,8 +150,9 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     ideaPrompt: String(data.ideaPrompt ?? ""),
     audience: String(data.audience ?? ""),
     status: data.status === "generated" ? "generated" : "draft",
+    board: parseBoardSnapshot(data.board),
     createdAt: toIsoStringOrNull(data.createdAt),
-    updatedAt: toIsoStringOrNull(data.updatedAt)
+    updatedAt: toIsoStringOrNull(data.updatedAt),
   };
 }
 
@@ -78,7 +174,7 @@ export async function upsertUserDocument(user: User) {
       photoURL: user.photoURL ?? null,
       plan: "free",
       lastSeenAt: serverTimestamp(),
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
     },
     { merge: true }
   );
@@ -106,7 +202,7 @@ export async function createProjectForUser(ownerUid: string, title: string) {
     summary: null,
     critique: [],
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
   });
 
   return projectRef.id;
@@ -124,18 +220,12 @@ export function subscribeToUserProjects(
     return () => undefined;
   }
 
-  const projectsQuery = query(
-    collection(db, "projects"),
-    where("ownerUid", "==", ownerUid),
-    orderBy("updatedAt", "desc")
-  );
+  const projectsQuery = query(collection(db, "projects"), where("ownerUid", "==", ownerUid), orderBy("updatedAt", "desc"));
 
   return onSnapshot(
     projectsQuery,
     (snapshot) => {
-      const projects = snapshot.docs.map((docSnapshot) =>
-        mapProjectSnapshot(docSnapshot.data() as Record<string, unknown>)
-      );
+      const projects = snapshot.docs.map((docSnapshot) => mapProjectSnapshot(docSnapshot.data() as Record<string, unknown>));
 
       onProjects(projects);
     },
@@ -160,7 +250,32 @@ export async function renameProjectForUser(projectId: string, ownerUid: string, 
 
   await updateDoc(projectRef, {
     title: nextTitle.trim() || "Untitled design",
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function saveProjectBoardForUser(projectId: string, ownerUid: string, board: AdesBoardSnapshot) {
+  const db = getDbOrNull();
+
+  if (!db) {
+    throw new Error("Firestore is not configured.");
+  }
+
+  const projectRef = doc(db, "projects", projectId);
+  const snapshot = await getDoc(projectRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("Project not found.");
+  }
+
+  const data = snapshot.data() as Record<string, unknown>;
+  if (data.ownerUid !== ownerUid) {
+    throw new Error("You do not have access to this project.");
+  }
+
+  await updateDoc(projectRef, {
+    board,
+    updatedAt: serverTimestamp(),
   });
 }
 
