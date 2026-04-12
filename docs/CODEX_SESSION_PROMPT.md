@@ -8,6 +8,8 @@ You are helping me build ADES (Agent Design Studio).
 First read:
 - docs/ADES_MASTER_SPEC.md
 - docs/CODEX_RULES.md
+- docs/AGENTS.md
+- docs/MILESTONES.md
 
 Project constraints:
 - Build for PMs and broader non-developer users
