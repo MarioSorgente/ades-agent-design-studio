@@ -69,6 +69,8 @@ function parseNodeData(value: unknown): AdesNodeData | null {
     reflectionPrompt: typeof data.reflectionPrompt === "string" ? data.reflectionPrompt : "",
     evalMetric: typeof data.evalMetric === "string" ? data.evalMetric : "",
     businessMetric: typeof data.businessMetric === "string" ? data.businessMetric : "",
+    confidenceCheck: typeof data.confidenceCheck === "string" ? data.confidenceCheck : "",
+    owner: typeof data.owner === "string" ? data.owner : "AI system",
   };
 }
 
@@ -102,7 +104,7 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
 
       return {
         id: raw.id,
-        type: raw.type,
+        type: raw.type as AdesNode["type"],
         position: { x: position.x, y: position.y },
         data,
       } as AdesNode;
@@ -128,6 +130,10 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
 
       if (typeof raw.animated === "boolean") {
         edge.animated = raw.animated;
+      }
+
+      if (typeof raw.label === "string") {
+        edge.label = raw.label;
       }
 
       return edge;

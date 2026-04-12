@@ -33,24 +33,20 @@ export default function SignInPage() {
   return (
     <AppShell
       title="Sign in"
-      subtitle="Start an agent design session, capture assumptions, and share clear outputs your PM team can review."
+      subtitle="Start a focused ADES session and create agent designs your team can critique, evaluate, and ship with confidence."
     >
-      <section className="mx-auto mt-8 w-full max-w-md rounded-2xl border border-ades-soft bg-white p-6">
-        <h2 className="text-xl font-semibold tracking-tight">Welcome to ADES</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Create better agent specs faster with built-in reflection, critique, and evaluation scaffolds.
-        </p>
+      <section className="mx-auto mt-6 w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_28px_70px_-55px_rgba(15,23,42,0.75)]">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h2>
+        <p className="mt-2 text-sm text-slate-600">Use Google sign-in to continue to your private dashboard and studio boards.</p>
 
         {!isConfigured || !hasFirebaseEnv() ? (
-          <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            Firebase auth is not configured yet. Add Firebase environment variables before signing in.
+          <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            Firebase auth is not configured yet. Add environment variables before signing in.
           </div>
         ) : null}
 
         {errorMessage ? (
-          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
-            {errorMessage}
-          </div>
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div>
         ) : null}
 
         <button
@@ -69,7 +65,7 @@ export default function SignInPage() {
               setIsSubmitting(false);
             }
           }}
-          className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-7 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Signing in..." : "Continue with Google"}
         </button>

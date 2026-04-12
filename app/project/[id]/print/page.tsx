@@ -4,24 +4,26 @@ import { AppShell } from "@/components/app-shell";
 export default function ProjectPrintPage({ params }: { params: { id: string } }) {
   return (
     <AppShell
-      title={`Project ${params.id} · Print summary`}
-      subtitle="Print-friendly overview of the design intent, reflections, evaluations, and business outcomes."
+      title={`Project ${params.id} · Print + export`}
+      subtitle="Print-ready shell for design summary, reflections, critique, eval signals, and business outcomes."
     >
       <ProtectedRoute>
-        <div className="space-y-4">
-          <PrintSection title="Goal" description="What user problem is this agent intended to solve?" />
-          <PrintSection
-            title="Reflections"
-            description="Key assumptions, uncertainty checks, and safety considerations."
-          />
-          <PrintSection
-            title="Evaluations"
-            description="How quality will be measured before and after launch."
-          />
-          <PrintSection
-            title="Business metrics"
-            description="Success indicators such as time saved, escalation rate, and user trust."
-          />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="space-y-4">
+            <PrintSection title="Goal and scope" description="What business and user problem this design should solve." />
+            <PrintSection title="Task map" description="Key workflow sequence and dependencies before implementation." />
+            <PrintSection title="Reflections + critique" description="Uncertainty checks, assumptions, and challenge prompts." />
+            <PrintSection title="Eval + business metrics" description="Quality and business success criteria for launch readiness." />
+          </div>
+
+          <aside className="ades-panel h-fit">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Export checklist</h2>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600">
+              <li>• Keep headings concise for PDF readability.</li>
+              <li>• Ensure reflection and handoff are explicit.</li>
+              <li>• Include at least one measurable business KPI.</li>
+            </ul>
+          </aside>
         </div>
       </ProtectedRoute>
     </AppShell>
@@ -30,10 +32,10 @@ export default function ProjectPrintPage({ params }: { params: { id: string } })
 
 function PrintSection({ title, description }: { title: string; description: string }) {
   return (
-    <section className="rounded-2xl border border-ades-soft bg-white p-5">
-      <h2 className="text-base font-semibold">{title}</h2>
+    <section className="ades-panel">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       <p className="mt-1 text-sm text-slate-600">{description}</p>
-      <div className="mt-4 min-h-24 rounded-lg border border-dashed border-ades-soft bg-slate-50" />
+      <div className="mt-4 min-h-28 rounded-xl border border-dashed border-slate-300 bg-slate-50" />
     </section>
   );
 }
