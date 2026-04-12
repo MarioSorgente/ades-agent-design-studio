@@ -6,14 +6,27 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
-import { CORE_NODE_TYPES } from "@/lib/board/types";
+import { CORE_NODE_TYPES, type AdesBoardSnapshot } from "@/lib/board/types";
 import { getNodeTheme } from "@/lib/board/node-theme";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
+import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 
 const AUTOSAVE_DELAY_MS = 900;
+
+type GenerateResponse = {
+  project: {
+    id: string;
+    title: string;
+    summary: string;
+    status: "generated";
+  };
+  board: AdesBoardSnapshot;
+  assumptions: string[];
+  critiqueSeed: string[];
+};
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const user = useAuthStore((state) => state.user);
@@ -23,6 +36,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [ideaPrompt, setIdeaPrompt] = useState("");
+  const [audience, setAudience] = useState("");
+  const [constraints, setConstraints] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationSummary, setGenerationSummary] = useState<string>("");
 
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
@@ -75,6 +94,9 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     lastSavedHashRef.current = JSON.stringify(initialBoard);
     hasHydratedBoardRef.current = true;
     setSaveState("saved");
+    setIdeaPrompt(project.ideaPrompt);
+    setAudience(project.audience);
+    setGenerationSummary("");
   }, [isLoading, loadBoardSnapshot, project]);
 
   const currentBoardHash = useMemo(() => {
@@ -122,6 +144,68 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       ? "Save failed (retrying on next edit)"
       : "";
 
+  async function handleGenerateBoard() {
+    if (!user || !project || isGenerating) {
+      return;
+    }
+
+    if (!ideaPrompt.trim()) {
+      setGenerationError("Add an idea before generating.");
+      return;
+    }
+
+    setGenerationError(null);
+    setIsGenerating(true);
+
+    try {
+      const idToken = await getCurrentUserIdToken();
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          ideaPrompt,
+          audience,
+          constraints,
+        }),
+      });
+
+      const payload = (await response.json()) as GenerateResponse | { error?: string };
+
+      if (!response.ok || !("board" in payload)) {
+        const message = "error" in payload && typeof payload.error === "string" ? payload.error : "Generation failed.";
+        throw new Error(message);
+      }
+
+      loadBoardSnapshot(payload.board);
+      lastSavedHashRef.current = JSON.stringify(payload.board);
+      hasHydratedBoardRef.current = true;
+      setSaveState("saved");
+      setGenerationSummary(payload.project.summary);
+      setProject((previous) =>
+        previous
+          ? {
+              ...previous,
+              title: payload.project.title,
+              summary: payload.project.summary,
+              status: "generated",
+              ideaPrompt,
+              audience,
+            }
+          : previous
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Generation failed.";
+      setGenerationError(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <AppShell
       title={project?.title ?? `Project ${params.id}`}
@@ -145,12 +229,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         ) : null}
 
         {!isLoading && project ? (
-          <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+          <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
             <aside className="ades-panel h-fit space-y-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Project panel</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">{project.title}</h2>
-                <p className="mt-2 text-sm text-slate-600">Structure blocks before generation so critique and evals stay first-class from day one.</p>
+                <p className="mt-2 text-sm text-slate-600">Generate a full board with reflections, critique seeds, evals, and business metrics.</p>
                 <p
                   className={`mt-3 text-xs ${
                     saveState === "error" ? "text-rose-600" : saveState === "saving" ? "text-amber-600" : "text-slate-500"
@@ -158,6 +242,49 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 >
                   {saveStateLabel}
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Generate design</h3>
+                <div className="mt-3 space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Idea
+                    <textarea
+                      className="ades-input mt-1 min-h-[96px] resize-y"
+                      value={ideaPrompt}
+                      onChange={(event) => setIdeaPrompt(event.target.value)}
+                      placeholder="Describe the agent idea in plain language."
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Audience
+                    <input
+                      className="ades-input mt-1"
+                      value={audience}
+                      onChange={(event) => setAudience(event.target.value)}
+                      placeholder="Who is this design for?"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Constraints (optional)
+                    <textarea
+                      className="ades-input mt-1 min-h-[72px] resize-y"
+                      value={constraints}
+                      onChange={(event) => setConstraints(event.target.value)}
+                      placeholder="Policy limits, compliance, latency, budget, etc."
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateBoard()}
+                    disabled={isGenerating || !ideaPrompt.trim()}
+                    className="ades-primary-btn w-full disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isGenerating ? "Generating board..." : "Generate board"}
+                  </button>
+                  {generationError ? <p className="text-xs text-rose-600">{generationError}</p> : null}
+                  {generationSummary ? <p className="text-xs text-slate-600">{generationSummary}</p> : null}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -174,15 +301,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   })}
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Workspace actions</h3>
-                <ul className="mt-2 space-y-1.5">
-                  <li>• Drag and connect blocks in the central canvas.</li>
-                  <li>• Use the inspector to sharpen critique and eval quality.</li>
-                  <li>• Use print view for stakeholder reviews and exports.</li>
-                </ul>
-              </div>
             </aside>
 
             <section className="space-y-3">
@@ -192,7 +310,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     <h2 className="text-sm font-semibold text-slate-900">Studio canvas</h2>
                     <p className="text-xs text-slate-500">Miro-like board for tasks, reflections, critique loops, risks, evals, and business metrics.</p>
                   </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Light mode · Milestone 5 UX pass</div>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">AI generation · Milestone 6</div>
                 </div>
               </div>
               <StudioBoard />
