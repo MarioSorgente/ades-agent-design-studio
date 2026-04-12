@@ -387,7 +387,7 @@ Make ADES outputs usable outside the app.
 ---
 
 ## Milestone 9 — Usage caps and cost control
-**Status:** `todo`
+**Status:** `in_progress`
 
 ### Goal
 Protect the OpenAI API budget without overcomplicating the app.
@@ -407,6 +407,10 @@ Protect the OpenAI API budget without overcomplicating the app.
 - capped users are blocked politely
 - allowed users proceed normally
 - usage data updates correctly
+
+### Notes (2026-04-12 — M9 slice)
+- Added a shared route-param normalization helper and wired it into both studio and print project routes so project ID parsing is consistent across `/project/[id]` and `/project/[id]/print`.
+- Added print-route invalid-ID guard to align error handling with studio route behavior before adding usage-cap enforcement endpoints.
 
 ---
 

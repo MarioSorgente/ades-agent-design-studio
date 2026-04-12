@@ -7,8 +7,10 @@ import { AppShell } from "@/components/app-shell";
 import { useAuthStore } from "@/lib/auth/store";
 import type { AdesNode } from "@/lib/board/types";
 import { getProjectForUser, type ProjectRecord } from "@/lib/firebase/firestore";
+import { normalizeRouteParam } from "@/lib/utils/route-params";
 
 export default function ProjectPrintPage({ params }: { params: { id: string } }) {
+  const projectId = normalizeRouteParam(params?.id);
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
   const [project, setProject] = useState<ProjectRecord | null>(null);
@@ -23,8 +25,15 @@ export default function ProjectPrintPage({ params }: { params: { id: string } })
         return;
       }
 
+      if (!projectId) {
+        setProject(null);
+        setErrorMessage("Project not found or route is invalid.");
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const loaded = await getProjectForUser(params.id, user.uid);
+        const loaded = await getProjectForUser(projectId, user.uid);
         setProject(loaded);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load project.";
@@ -35,7 +44,7 @@ export default function ProjectPrintPage({ params }: { params: { id: string } })
     }
 
     void loadProject();
-  }, [params.id, status, user]);
+  }, [projectId, status, user]);
 
   const sections = useMemo(() => {
     const nodes = project?.board?.nodes ?? [];
@@ -52,7 +61,7 @@ export default function ProjectPrintPage({ params }: { params: { id: string } })
 
   return (
     <AppShell
-      title={project?.title ? `${project.title} · Print + export` : `Project ${params.id} · Print + export`}
+      title={project?.title ? `${project.title} · Print + export` : `Project ${projectId} · Print + export`}
       subtitle="Print-ready view for design summary, reflections, critique, eval signals, and business outcomes."
       actions={
         <button type="button" onClick={() => window.print()} className="ades-ghost-btn">
