@@ -42,7 +42,7 @@ A signed-in user can create a project, generate an agent design from an idea, ed
 
 ### GitHub
 - [x] Repo created: `ades-agent-design-studio`
-- [ ] Docs committed to `main`
+- [x] Docs committed to `main`
 
 ### Vercel
 - [ ] Project connected to GitHub
@@ -182,7 +182,7 @@ Allow users to sign in with Google and access protected app routes.
 ---
 
 ## Milestone 3 — Dashboard and project CRUD
-**Status:** `in_progress`
+**Status:** `done`
 
 ### Goal
 Let authenticated users create, view, rename, and open projects.
@@ -199,6 +199,14 @@ Let authenticated users create, view, rename, and open projects.
 - project persists to Firestore
 - dashboard shows owned projects only
 - clicking a project opens the studio route
+
+### Notes (2026-04-12)
+- Implemented authenticated dashboard project CRUD basics: create, list (owner-scoped), rename, and open studio route.
+- Added Firestore helpers for project create/query/read/rename with owner UID checks in client logic.
+- Added project page data load guard so only owner-matching project docs render.
+- Milestone 3 is complete for V1 baseline; next milestone is board editing UX in Milestone 4.
+- Post-review refinement: renamed dashboard projects via inline edit UI (removed browser prompt dependency) and kept Firestore rename writes lean.
+- Detailed implementation sequence is documented in `docs/STATUS_OVERVIEW.md`.
 
 ---
 
@@ -390,9 +398,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Start Milestone 3 Slice M3.1: create project in Firestore with `ownerUid`, title, and timestamps.
-2. Build dashboard list query scoped to authenticated `ownerUid` only.
-3. Wire project card click-through to `/project/[id]` and validate ownership-safe reads.
+1. Start Milestone 4 Slice M4.1: render a minimal React Flow board with a mock starter node set.
+2. Add inline node title/body editing via the right inspector panel.
+3. Keep edits in local Zustand state before wiring autosave in Milestone 5.
 
 ---
 
