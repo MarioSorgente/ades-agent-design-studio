@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 
 type AppShellProps = {
   children: ReactNode;
@@ -24,12 +25,7 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
           >
             Dashboard
           </Link>
-          <Link
-            href="/sign-in"
-            className="rounded-lg border border-ades-soft px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Sign in
-          </Link>
+          <AuthHeaderActions />
           {actions}
         </div>
       </header>
