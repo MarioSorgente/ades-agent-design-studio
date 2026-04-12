@@ -10,9 +10,9 @@ import { create } from "zustand";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import {
   type AdesBoardSnapshot,
-  type AdesCoreNodeType,
   type AdesEdge,
   type AdesNode,
+  type AdesNodeType,
   createNode,
 } from "@/lib/board/types";
 
@@ -28,12 +28,12 @@ type AdesBoardState = {
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
   setSelectedNodeId: (nodeId: string | null) => void;
-  addNode: (type: AdesCoreNodeType) => void;
+  addNode: (type: AdesNodeType) => void;
   deleteSelectedNode: () => void;
   updateNode: (nodeId: string, updater: (node: AdesNode) => AdesNode) => void;
 };
 
-function createNodeId(type: AdesCoreNodeType): string {
+function createNodeId(type: AdesNodeType): string {
   return `${type}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
@@ -83,8 +83,8 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const index = state.nodes.length;
     const nodeId = createNodeId(type);
     const position = {
-      x: 200 + (index % 3) * 220,
-      y: 120 + Math.floor(index / 3) * 180,
+      x: 240 + (index % 3) * 260,
+      y: 140 + Math.floor(index / 3) * 190,
     };
 
     const newNode = createNode(type, nodeId, position, `New ${type.replace("_", " ")}`);

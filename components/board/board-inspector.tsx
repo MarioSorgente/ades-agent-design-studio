@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
+import { getNodeTheme } from "@/lib/board/node-theme";
 import { useAdesBoardStore } from "@/lib/board/store";
+import type { AdesNodeType } from "@/lib/board/types";
 
 export function BoardInspector() {
   const nodes = useAdesBoardStore((state) => state.nodes);
@@ -10,51 +12,71 @@ export function BoardInspector() {
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId],
+    [nodes, selectedNodeId]
   );
 
   if (!selectedNode) {
-    return <p className="text-sm text-slate-500">Select a node to edit title, body, tags, and type-specific fields.</p>;
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+        Select a block on the canvas to edit details, critique assumptions, and refine eval quality.
+      </div>
+    );
   }
 
-  const updateField = (field: "label" | "body" | "reflectionPrompt" | "evalMetric" | "businessMetric", value: string) => {
+  const nodeTheme = getNodeTheme(selectedNode.type as AdesNodeType);
+
+  const updateField = (
+    field: "label" | "body" | "reflectionPrompt" | "evalMetric" | "businessMetric" | "confidenceCheck" | "owner",
+    value: string
+  ) => {
     updateNode(selectedNode.id, (node) => ({
       ...node,
       data: {
         ...node.data,
-        [field]: value,
-      },
+        [field]: value
+      }
     }));
   };
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Inspector</h2>
-        <p className="mt-1 text-xs text-slate-500">Editing: {selectedNode.type.replace("_", " ")}</p>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Inspector</p>
+        <div className="mt-2 flex items-center justify-between">
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${nodeTheme.badgeClass}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${nodeTheme.dotClass}`} />
+            {nodeTheme.label}
+          </span>
+          <span className="text-xs text-slate-500">{selectedNode.id}</span>
+        </div>
       </div>
 
-      <label className="block text-sm font-medium text-slate-700">
-        Title
+      <Field label="Title">
         <input
           value={selectedNode.data.label}
           onChange={(event) => updateField("label", event.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="ades-input"
         />
-      </label>
+      </Field>
 
-      <label className="block text-sm font-medium text-slate-700">
-        Body
+      <Field label="Description">
         <textarea
           value={selectedNode.data.body}
           onChange={(event) => updateField("body", event.target.value)}
           rows={4}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="ades-input resize-none"
         />
-      </label>
+      </Field>
 
-      <label className="block text-sm font-medium text-slate-700">
-        Tags (comma-separated)
+      <Field label="Owner">
+        <input
+          value={selectedNode.data.owner}
+          onChange={(event) => updateField("owner", event.target.value)}
+          className="ades-input"
+        />
+      </Field>
+
+      <Field label="Tags (comma-separated)">
         <input
           value={selectedNode.data.tags.join(", ")}
           onChange={(event) => {
@@ -67,47 +89,64 @@ export function BoardInspector() {
               ...node,
               data: {
                 ...node.data,
-                tags,
-              },
+                tags
+              }
             }));
           }}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="ades-input"
         />
-      </label>
+      </Field>
 
-      {selectedNode.type === "reflection" ? (
-        <label className="block text-sm font-medium text-slate-700">
-          Reflection checkpoint (required)
-          <textarea
-            value={selectedNode.data.reflectionPrompt}
-            onChange={(event) => updateField("reflectionPrompt", event.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-amber-300 px-3 py-2 text-sm"
-          />
-        </label>
-      ) : null}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Critique and quality layer</h3>
+        <div className="mt-3 space-y-3">
+          <Field label="Reflection checkpoint">
+            <textarea
+              value={selectedNode.data.reflectionPrompt}
+              onChange={(event) => updateField("reflectionPrompt", event.target.value)}
+              rows={2}
+              className="ades-input resize-none"
+              placeholder="When should the system pause and self-check?"
+            />
+          </Field>
 
-      {selectedNode.type === "eval" ? (
-        <label className="block text-sm font-medium text-slate-700">
-          Eval metric (required)
-          <input
-            value={selectedNode.data.evalMetric}
-            onChange={(event) => updateField("evalMetric", event.target.value)}
-            className="mt-1 w-full rounded-lg border border-emerald-300 px-3 py-2 text-sm"
-          />
-        </label>
-      ) : null}
+          <Field label="Eval metric">
+            <input
+              value={selectedNode.data.evalMetric}
+              onChange={(event) => updateField("evalMetric", event.target.value)}
+              className="ades-input"
+              placeholder="How do we measure quality for this block?"
+            />
+          </Field>
 
-      {selectedNode.type === "business_metric" ? (
-        <label className="block text-sm font-medium text-slate-700">
-          Business metric (required)
-          <input
-            value={selectedNode.data.businessMetric}
-            onChange={(event) => updateField("businessMetric", event.target.value)}
-            className="mt-1 w-full rounded-lg border border-fuchsia-300 px-3 py-2 text-sm"
-          />
-        </label>
-      ) : null}
+          <Field label="Business metric">
+            <input
+              value={selectedNode.data.businessMetric}
+              onChange={(event) => updateField("businessMetric", event.target.value)}
+              className="ades-input"
+              placeholder="How does this contribute to business outcomes?"
+            />
+          </Field>
+
+          <Field label="Risk confidence trigger">
+            <input
+              value={selectedNode.data.confidenceCheck}
+              onChange={(event) => updateField("confidenceCheck", event.target.value)}
+              className="ades-input"
+              placeholder="What threshold should trigger a warning or handoff?"
+            />
+          </Field>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      {children}
+    </label>
   );
 }
