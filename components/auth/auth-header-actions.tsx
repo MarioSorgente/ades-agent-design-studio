@@ -12,10 +12,7 @@ export function AuthHeaderActions() {
 
   if (status !== "authenticated" || !user) {
     return (
-      <Link
-        href="/sign-in"
-        className="rounded-lg border border-ades-soft px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-      >
+      <Link href="/sign-in" className="ades-primary-btn">
         Sign in
       </Link>
     );
@@ -23,14 +20,14 @@ export function AuthHeaderActions() {
 
   return (
     <div className="flex items-center gap-2">
-      <p className="hidden text-sm text-slate-600 md:block">{user.displayName ?? user.email}</p>
+      <p className="hidden max-w-56 truncate text-sm text-slate-600 md:block">{user.displayName ?? user.email}</p>
       <button
         type="button"
         onClick={async () => {
           await signOutUser();
           router.push("/sign-in");
         }}
-        className="rounded-lg border border-ades-soft px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        className="ades-ghost-btn"
       >
         Sign out
       </button>

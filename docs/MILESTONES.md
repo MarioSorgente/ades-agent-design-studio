@@ -276,6 +276,12 @@ Persist studio data to Firestore cleanly and cheaply.
 - Board state restores from Firestore on project reload, with starter board fallback for first-time projects.
 - Project updated timestamps are refreshed when board snapshots are persisted.
 
+### Notes (2026-04-12 — UX redesign pass)
+- Completed a milestone-5 UI/UX redesign pass across landing, dashboard, studio shell, and print shell while keeping implementation lean.
+- Expanded board node coverage to include goal, task, reflection, feedback, risk, eval, business metric, assumption, and human handoff types with cohesive visual treatments.
+- Upgraded studio workspace hierarchy with premium toolbar/panels, stronger canvas styling, improved inspector clarity, and better empty-state guidance.
+
+
 ---
 
 ## Milestone 6 — AI generation

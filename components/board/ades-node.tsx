@@ -1,30 +1,43 @@
 import type { NodeProps } from "reactflow";
 import { Handle, Position } from "reactflow";
-import type { AdesNodeData } from "@/lib/board/types";
-
-const STYLE_BY_TYPE: Record<string, string> = {
-  goal: "border-violet-300 bg-violet-50",
-  task: "border-blue-300 bg-blue-50",
-  reflection: "border-amber-300 bg-amber-50",
-  eval: "border-emerald-300 bg-emerald-50",
-  business_metric: "border-fuchsia-300 bg-fuchsia-50",
-};
+import { getNodeTheme } from "@/lib/board/node-theme";
+import type { AdesNodeData, AdesNodeType } from "@/lib/board/types";
 
 export function AdesNode({ data, type, selected }: NodeProps<AdesNodeData>) {
-  const styleClass = STYLE_BY_TYPE[type ?? "task"] ?? "border-slate-300 bg-slate-50";
+  const resolvedType = (type ?? "task") as AdesNodeType;
+  const theme = getNodeTheme(resolvedType);
 
   return (
     <div
-      className={`w-64 rounded-xl border p-3 shadow-sm transition ${styleClass} ${
-        selected ? "ring-2 ring-slate-900/20" : ""
+      className={`w-72 rounded-2xl border px-4 py-3 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.6)] transition ${theme.cardClass} ${
+        selected ? `ring-2 ${theme.ringClass}` : ""
       }`}
     >
-      <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border !border-slate-500 !bg-white" />
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">{type?.replace("_", " ")}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-900">{data.label}</div>
-      <div className="mt-1 max-h-12 overflow-hidden text-xs text-slate-700">{data.body || "Add details in inspector."}</div>
-      {data.tags.length ? <div className="mt-2 text-[11px] text-slate-600">#{data.tags.join(" #")}</div> : null}
-      <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border !border-slate-500 !bg-white" />
+      <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border !border-slate-400 !bg-white" />
+
+      <div className="flex items-center justify-between gap-2">
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${theme.badgeClass}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
+          {theme.label}
+        </span>
+        <span className="text-[10px] font-medium text-slate-500">{data.owner}</span>
+      </div>
+
+      <div className="mt-2 text-sm font-semibold leading-snug text-slate-900">{data.label}</div>
+      <div className="mt-1 text-xs leading-relaxed text-slate-700">
+        {data.body || "Add practical details in the inspector."}
+      </div>
+      {data.tags.length ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {data.tags.map((tag) => (
+            <span key={tag} className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-600">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border !border-slate-400 !bg-white" />
     </div>
   );
 }
