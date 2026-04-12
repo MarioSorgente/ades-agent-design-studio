@@ -34,7 +34,7 @@ function StudioBoardInner() {
   }, []);
 
   return (
-    <div className="h-[calc(100vh-15.5rem)] min-h-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-[#f3f5fa] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+    <div id="ades-canvas-export" className="h-[calc(100vh-15.5rem)] min-h-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-[#f3f5fa] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
       <ReactFlow
         nodes={nodes}
         edges={edges}

@@ -24,6 +24,22 @@ function formatDateTimeLabel(isoString: string | null) {
   }).format(new Date(isoString));
 }
 
+
+
+function toFriendlyFirestoreError(error: Error) {
+  const raw = error.message || "";
+
+  if (raw.toLowerCase().includes("missing or insufficient permissions")) {
+    return "Firestore permissions are blocking this action. In Firebase Console, verify that Firestore rules allow authenticated users to read and write only their own projects (ownerUid == auth.uid).";
+  }
+
+  if (raw.toLowerCase().includes("requires an index")) {
+    return "This query needs a Firestore composite index. Open the error link in browser console once to create the index for projects(ownerUid + updatedAt).";
+  }
+
+  return raw || "Something went wrong while loading projects.";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -52,7 +68,7 @@ export default function DashboardPage() {
         setIsLoadingProjects(false);
       },
       (error) => {
-        setErrorMessage(error.message);
+        setErrorMessage(toFriendlyFirestoreError(error));
         setIsLoadingProjects(false);
       }
     );
@@ -83,7 +99,7 @@ export default function DashboardPage() {
       setNewTitle("");
       router.push(`/project/${projectId}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not create project.";
+      const message = error instanceof Error ? toFriendlyFirestoreError(error) : "Could not create project.";
       setErrorMessage(message);
     } finally {
       setIsCreating(false);
@@ -105,7 +121,7 @@ export default function DashboardPage() {
       setEditingProjectId(null);
       setEditingTitle("");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not rename project.";
+      const message = error instanceof Error ? toFriendlyFirestoreError(error) : "Could not rename project.";
       setErrorMessage(message);
     } finally {
       setIsRenaming(false);
@@ -125,6 +141,10 @@ export default function DashboardPage() {
       <ProtectedRoute>
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+              Signed-in sessions persist on this browser. You can safely close the tab and continue from your dashboard later.
+            </div>
+
             <form onSubmit={handleCreateProject} className="ades-panel">
               <h2 className="text-base font-semibold text-slate-900">Start a new design</h2>
               <p className="mt-1 text-sm text-slate-600">Use a practical project title. You can revise details inside the studio.</p>

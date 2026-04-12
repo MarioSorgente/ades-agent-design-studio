@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { toPng } from "html-to-image";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
@@ -14,6 +15,7 @@ import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
+import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -50,7 +52,10 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [critiqueResult, setCritiqueResult] = useState<CritiqueResult | null>(null);
   const [isCritiquing, setIsCritiquing] = useState(false);
   const [critiqueError, setCritiqueError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExportingImage, setIsExportingImage] = useState(false);
 
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
   const isBoardInitialized = useAdesBoardStore((state) => state.isInitialized);
@@ -265,6 +270,109 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     addNodeWithContent(suggestion.type as AdesNodeType, suggestion.title, suggestion.body);
   }
 
+  function handleExportMarkdown() {
+    if (!project) {
+      return;
+    }
+
+    const payload: ProjectRecord = { ...project, board: getBoardSnapshot(), critique: critiqueResult ?? project.critique };
+    const markdown = createProjectMarkdown(payload);
+    downloadTextFile(`${payload.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.md`, markdown, "text/markdown;charset=utf-8");
+  }
+
+  function handleExportJson() {
+    if (!project) {
+      return;
+    }
+
+    const payload: ProjectRecord = {
+      ...project,
+      board: getBoardSnapshot(),
+      ideaPrompt,
+      audience,
+      constraints,
+      summary: generationSummary || project.summary,
+      critique: critiqueResult ?? project.critique,
+    };
+
+    downloadTextFile(`${payload.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.json`, createProjectJson(payload), "application/json;charset=utf-8");
+  }
+
+  async function handleExportImage() {
+    if (isExportingImage) {
+      return;
+    }
+
+    setExportError(null);
+    setIsExportingImage(true);
+
+    try {
+      const element = document.getElementById("ades-canvas-export");
+      if (!element) {
+        throw new Error("Could not find canvas for image export.");
+      }
+
+      const dataUrl = await toPng(element, { cacheBust: true, pixelRatio: 2 });
+      const anchor = document.createElement("a");
+      anchor.href = dataUrl;
+      anchor.download = `${(project?.title || "ades-project").replace(/\s+/g, "-").toLowerCase()}-board.png`;
+      anchor.click();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to export image.";
+      setExportError(message);
+    } finally {
+      setIsExportingImage(false);
+    }
+  }
+
+  async function handleImportJson(event: ChangeEvent<HTMLInputElement>) {
+    if (!project || !user) {
+      return;
+    }
+
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      setExportError(null);
+      const text = await file.text();
+      const parsed = parseImportJson(text);
+
+      loadBoardSnapshot(parsed.board);
+      lastSavedHashRef.current = JSON.stringify(parsed.board);
+      setIdeaPrompt(parsed.ideaPrompt);
+      setAudience(parsed.audience);
+      setConstraints(parsed.constraints);
+      setGenerationSummary(parsed.summary);
+      setCritiqueResult(parsed.critique);
+      setProject((previous) =>
+        previous
+          ? {
+              ...previous,
+              title: parsed.title || previous.title,
+              summary: parsed.summary,
+              ideaPrompt: parsed.ideaPrompt,
+              audience: parsed.audience,
+              constraints: parsed.constraints,
+              critique: parsed.critique,
+            }
+          : previous
+      );
+
+      await saveProjectBoardForUser(project.id, user.uid, parsed.board);
+      setSaveState("saved");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to import JSON.";
+      setExportError(message);
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
+  }
+
   return (
     <AppShell
       title={project?.title ?? `Project ${params.id}`}
@@ -369,7 +477,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     <h2 className="text-sm font-semibold text-slate-900">Studio canvas</h2>
                     <p className="text-xs text-slate-500">Miro-like board for tasks, reflections, critique loops, risks, evals, and business metrics.</p>
                   </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Critique flow · Milestone 7</div>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Exports · Milestone 8</div>
                 </div>
               </div>
               <StudioBoard />
@@ -392,6 +500,40 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   </button>
                 </div>
                 {critiqueError ? <p className="mt-2 text-xs text-rose-600">{critiqueError}</p> : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Export + import</h3>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={handleExportMarkdown} className="ades-ghost-btn px-2 py-2 text-xs">
+                    Export Markdown
+                  </button>
+                  <button type="button" onClick={handleExportJson} className="ades-ghost-btn px-2 py-2 text-xs">
+                    Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportImage()}
+                    className="ades-ghost-btn px-2 py-2 text-xs"
+                    disabled={isExportingImage}
+                  >
+                    {isExportingImage ? "Exporting..." : "Export image"}
+                  </button>
+                  <button type="button" onClick={() => window.open(`/project/${params.id}/print`, "_blank")} className="ades-ghost-btn px-2 py-2 text-xs">
+                    Print / PDF
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json"
+                    onChange={(event) => void handleImportJson(event)}
+                    className="block w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-2 file:py-1"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">Import JSON to replace current board with a saved ADES export.</p>
+                </div>
+                {exportError ? <p className="mt-2 text-xs text-rose-600">{exportError}</p> : null}
               </div>
 
               {critiqueResult ? (

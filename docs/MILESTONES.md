@@ -355,7 +355,7 @@ Let the user critique an existing design and improve it.
 ---
 
 ## Milestone 8 — Exports
-**Status:** `todo`
+**Status:** `done`
 
 ### Goal
 Make ADES outputs usable outside the app.
@@ -372,6 +372,12 @@ Make ADES outputs usable outside the app.
 - JSON restores reliably
 - board can be exported visually
 - print page looks presentation-ready
+
+### Notes (2026-04-12)
+- Added in-studio export actions for Markdown, JSON, PNG image, and print/PDF handoff from the project workspace.
+- Added JSON import to restore board snapshots and project metadata from exported ADES files.
+- Upgraded print route to render project-backed sections for goals, tasks, reflections, evals, business metrics, assumptions, and critique notes.
+- Added friendly Firestore permission/index guidance in dashboard errors and improved signed-in account persistence UX in the header/dashboard.
 
 ---
 
