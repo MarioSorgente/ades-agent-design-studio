@@ -285,7 +285,7 @@ Persist studio data to Firestore cleanly and cheaply.
 ---
 
 ## Milestone 6 — AI generation
-**Status:** `todo`
+**Status:** `done`
 
 ### Goal
 Generate a structured ADES board from a plain-language idea.
@@ -316,6 +316,13 @@ Generate a structured ADES board from a plain-language idea.
 ### Blockers
 - OpenAI API key in Vercel
 - auth verification flow finalized
+
+### Notes (2026-04-12)
+- Added `/api/generate` with Firebase ID-token verification, owner checks, and server-side OpenAI Responses API generation.
+- Added structured JSON schema generation with normalization into ADES board nodes/edges plus required reflection/eval/business-metric/assumption coverage.
+- Persisted generated title, summary, prompt metadata, assumptions, critique seed, and board snapshot directly to Firestore in the server route.
+- Added studio-side generation UI (idea, audience, constraints) that calls `/api/generate`, hydrates board state, and keeps autosave behavior coherent.
+
 
 ---
 

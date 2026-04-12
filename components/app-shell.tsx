@@ -17,7 +17,9 @@ export function AppShell({ children, title, subtitle, actions }: AppShellProps) 
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <Image src="/logo-ades.svg" alt="ADES logo" width={150} height={44} className="h-9 w-auto" priority />
+              <Link href="/" aria-label="Go to ADES landing page">
+                <Image src="/logo-ades.svg" alt="ADES logo" width={150} height={44} className="h-9 w-auto" priority />
+              </Link>
               <p className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 md:inline-flex">
                 Agent Design Studio
               </p>
