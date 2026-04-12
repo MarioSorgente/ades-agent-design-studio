@@ -6,6 +6,8 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
+import { CORE_NODE_TYPES } from "@/lib/board/types";
+import { getNodeTheme } from "@/lib/board/node-theme";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
@@ -123,15 +125,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   return (
     <AppShell
       title={project?.title ?? `Project ${params.id}`}
-      subtitle="Design and refine your agent map with tasks, reflections, evals, and business metrics."
+      subtitle="Premium workspace for planning agent behavior, critique coverage, eval quality, and business impact."
+      actions={
+        <Link href={`/project/${params.id}/print`} className="ades-ghost-btn">
+          Print / export view
+        </Link>
+      }
     >
       <ProtectedRoute>
-        {isLoading ? (
-          <div className="rounded-xl border border-ades-soft bg-white p-6 text-sm text-slate-600">Loading project…</div>
-        ) : null}
+        {isLoading ? <div className="ades-panel text-sm text-slate-600">Loading project…</div> : null}
 
         {!isLoading && (errorMessage || !project) ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900">
             <p>{errorMessage ?? "Project not found or you do not have access."}</p>
             <Link href="/dashboard" className="mt-3 inline-block font-semibold text-rose-900 underline">
               Back to dashboard
@@ -140,29 +145,60 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         ) : null}
 
         {!isLoading && project ? (
-          <div className="grid min-h-[72vh] gap-4 md:grid-cols-[220px_minmax(0,1fr)_320px]">
-            <aside className="rounded-2xl border border-ades-soft bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Board guide</h2>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>• Drag nodes to rearrange the design.</li>
-                <li>• Connect nodes to show flow and feedback loops.</li>
-                <li>• Select a node to edit details in the inspector.</li>
-                <li>• Keep reflection, eval, and business metrics explicit.</li>
-              </ul>
-              <p
-                className={`mt-4 text-xs ${
-                  saveState === "error" ? "text-rose-600" : saveState === "saving" ? "text-amber-600" : "text-slate-500"
-                }`}
-              >
-                {saveStateLabel}
-              </p>
+          <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+            <aside className="ades-panel h-fit space-y-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Project panel</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">{project.title}</h2>
+                <p className="mt-2 text-sm text-slate-600">Structure blocks before generation so critique and evals stay first-class from day one.</p>
+                <p
+                  className={`mt-3 text-xs ${
+                    saveState === "error" ? "text-rose-600" : saveState === "saving" ? "text-amber-600" : "text-slate-500"
+                  }`}
+                >
+                  {saveStateLabel}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Block types</h3>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {CORE_NODE_TYPES.map((type) => {
+                    const theme = getNodeTheme(type);
+                    return (
+                      <span key={type} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${theme.badgeClass}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
+                        {theme.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Workspace actions</h3>
+                <ul className="mt-2 space-y-1.5">
+                  <li>• Drag and connect blocks in the central canvas.</li>
+                  <li>• Use the inspector to sharpen critique and eval quality.</li>
+                  <li>• Use print view for stakeholder reviews and exports.</li>
+                </ul>
+              </div>
             </aside>
 
-            <section className="rounded-2xl border border-ades-soft bg-slate-50 p-3">
+            <section className="space-y-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900">Studio canvas</h2>
+                    <p className="text-xs text-slate-500">Miro-like board for tasks, reflections, critique loops, risks, evals, and business metrics.</p>
+                  </div>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Light mode · Milestone 5 UX pass</div>
+                </div>
+              </div>
               <StudioBoard />
             </section>
 
-            <aside className="rounded-2xl border border-ades-soft bg-white p-4">
+            <aside className="ades-panel">
               <BoardInspector />
             </aside>
           </div>

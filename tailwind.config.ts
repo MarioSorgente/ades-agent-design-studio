@@ -6,10 +6,12 @@ const config: Config = {
     extend: {
       colors: {
         ades: {
-          bg: "#F7F8FC",
+          bg: "#F5F7FB",
           ink: "#0F172A",
           accent: "#2563EB",
-          soft: "#E2E8F0"
+          soft: "#E2E8F0",
+          panel: "#FFFFFF",
+          board: "#F3F5FA"
         }
       }
     }
