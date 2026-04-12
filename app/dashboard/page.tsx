@@ -33,6 +33,9 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -87,25 +90,31 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleRename(project: ProjectRecord) {
-    if (!user) {
+  async function handleRenameProject(event: FormEvent<HTMLFormElement>, projectId: string) {
+    event.preventDefault();
+
+    if (!user || isRenaming) {
       return;
     }
 
-    const proposedTitle = window.prompt("Rename project", project.title)?.trim();
-
-    if (!proposedTitle || proposedTitle === project.title) {
-      return;
-    }
-
+    setIsRenaming(true);
     setErrorMessage(null);
 
     try {
-      await renameProjectForUser(project.id, user.uid, proposedTitle);
+      await renameProjectForUser(projectId, user.uid, editingTitle);
+      setEditingProjectId(null);
+      setEditingTitle("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not rename project.";
       setErrorMessage(message);
+    } finally {
+      setIsRenaming(false);
     }
+  }
+
+  function startRename(project: ProjectRecord) {
+    setEditingProjectId(project.id);
+    setEditingTitle(project.title);
   }
 
   return (
@@ -167,33 +176,74 @@ export default function DashboardPage() {
 
             {!isLoadingProjects && projects.length ? (
               <ul className="mt-4 space-y-3">
-                {projects.map((project) => (
-                  <li key={project.id} className="rounded-xl border border-ades-soft p-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <h3 className="font-semibold text-slate-900">{project.title}</h3>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Updated {formatDateTimeLabel(project.updatedAt)}
-                        </p>
+                {projects.map((project) => {
+                  const isEditing = editingProjectId === project.id;
+
+                  return (
+                    <li key={project.id} className="rounded-xl border border-ades-soft p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="flex-1">
+                          {isEditing ? (
+                            <form
+                              onSubmit={(event) => void handleRenameProject(event, project.id)}
+                              className="flex flex-col gap-2 md:flex-row md:items-center"
+                            >
+                              <input
+                                value={editingTitle}
+                                onChange={(event) => setEditingTitle(event.target.value)}
+                                className="w-full rounded-lg border border-ades-soft px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring"
+                                maxLength={100}
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={isRenaming}
+                                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isRenaming ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingProjectId(null);
+                                    setEditingTitle("");
+                                  }}
+                                  className="rounded-lg border border-ades-soft px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              <h3 className="font-semibold text-slate-900">{project.title}</h3>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Updated {formatDateTimeLabel(project.updatedAt)}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!isEditing ? (
+                            <button
+                              type="button"
+                              onClick={() => startRename(project)}
+                              className="rounded-lg border border-ades-soft px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Rename
+                            </button>
+                          ) : null}
+                          <Link
+                            href={`/project/${project.id}`}
+                            className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                          >
+                            Open studio
+                          </Link>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleRename(project)}
-                          className="rounded-lg border border-ades-soft px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Rename
-                        </button>
-                        <Link
-                          href={`/project/${project.id}`}
-                          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
-                        >
-                          Open studio
-                        </Link>
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </article>

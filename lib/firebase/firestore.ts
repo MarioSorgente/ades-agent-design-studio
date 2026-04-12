@@ -152,18 +152,11 @@ export async function renameProjectForUser(projectId: string, ownerUid: string, 
     throw new Error("Firestore is not configured.");
   }
 
+  if (!ownerUid) {
+    throw new Error("You must be signed in to rename a project.");
+  }
+
   const projectRef = doc(db, "projects", projectId);
-  const snapshot = await getDoc(projectRef);
-
-  if (!snapshot.exists()) {
-    throw new Error("Project not found.");
-  }
-
-  const data = snapshot.data() as Record<string, unknown>;
-
-  if (data.ownerUid !== ownerUid) {
-    throw new Error("You do not have permission to edit this project.");
-  }
 
   await updateDoc(projectRef, {
     title: nextTitle.trim() || "Untitled design",

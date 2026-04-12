@@ -42,7 +42,7 @@ A signed-in user can create a project, generate an agent design from an idea, ed
 
 ### GitHub
 - [x] Repo created: `ades-agent-design-studio`
-- [ ] Docs committed to `main`
+- [x] Docs committed to `main`
 
 ### Vercel
 - [ ] Project connected to GitHub
@@ -205,6 +205,8 @@ Let authenticated users create, view, rename, and open projects.
 - Added Firestore helpers for project create/query/read/rename with owner UID checks in client logic.
 - Added project page data load guard so only owner-matching project docs render.
 - Milestone 3 is complete for V1 baseline; next milestone is board editing UX in Milestone 4.
+- Post-review refinement: renamed dashboard projects via inline edit UI (removed browser prompt dependency) and kept Firestore rename writes lean.
+- Detailed implementation sequence is documented in `docs/STATUS_OVERVIEW.md`.
 
 ---
 
