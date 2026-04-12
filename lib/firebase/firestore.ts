@@ -15,6 +15,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import type { AdesBoardSnapshot, AdesEdge, AdesNode, AdesNodeData } from "@/lib/board/types";
+import type { CritiqueItem, CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
 import { getFirebaseAppOrNull } from "@/lib/firebase/client";
 
 export type ProjectRecord = {
@@ -30,6 +31,7 @@ export type ProjectRecord = {
   constraints: string;
   assumptions: string[];
   critiqueSeed: string[];
+  critique: CritiqueResult | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -155,6 +157,65 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
   return { nodes, edges };
 }
 
+function isCritiqueItem(value: unknown): value is CritiqueItem {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === "string" &&
+    (item.severity === "low" || item.severity === "medium" || item.severity === "high") &&
+    typeof item.message === "string" &&
+    typeof item.recommendation === "string"
+  );
+}
+
+function isCritiqueSuggestion(value: unknown): value is CritiqueSuggestion {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === "string" &&
+    (item.type === "reflection" || item.type === "eval" || item.type === "business_metric") &&
+    typeof item.title === "string" &&
+    typeof item.body === "string"
+  );
+}
+
+function parseCritique(value: unknown): CritiqueResult | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const critique = value as Record<string, unknown>;
+
+  if (
+    typeof critique.summary !== "string" ||
+    !Array.isArray(critique.critiqueItems) ||
+    !Array.isArray(critique.missingReflections) ||
+    !Array.isArray(critique.missingEvals) ||
+    !Array.isArray(critique.missingBusinessMetrics)
+  ) {
+    return null;
+  }
+
+  const critiqueItems = critique.critiqueItems.filter(isCritiqueItem);
+  const missingReflections = critique.missingReflections.filter(isCritiqueSuggestion);
+  const missingEvals = critique.missingEvals.filter(isCritiqueSuggestion);
+  const missingBusinessMetrics = critique.missingBusinessMetrics.filter(isCritiqueSuggestion);
+
+  return {
+    summary: critique.summary,
+    critiqueItems,
+    missingReflections,
+    missingEvals,
+    missingBusinessMetrics,
+  };
+}
+
 function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
   return {
     id: String(data.id ?? ""),
@@ -169,6 +230,7 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     constraints: stringOrEmpty(data.constraints),
     assumptions: isStringArray(data.assumptions) ? data.assumptions : [],
     critiqueSeed: isStringArray(data.critiqueSeed) ? data.critiqueSeed : [],
+    critique: parseCritique(data.critique),
     createdAt: toIsoStringOrNull(data.createdAt),
     updatedAt: toIsoStringOrNull(data.updatedAt),
   };
@@ -221,7 +283,7 @@ export async function createProjectForUser(ownerUid: string, title: string) {
     constraints: "",
     assumptions: [],
     critiqueSeed: [],
-    critique: [],
+    critique: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

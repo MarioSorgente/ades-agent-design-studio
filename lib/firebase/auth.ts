@@ -1,7 +1,9 @@
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
   getAuth,
   onAuthStateChanged,
+  setPersistence,
   signInWithPopup,
   signOut,
   type Auth,
@@ -16,6 +18,8 @@ import { getFirebaseAppOrNull } from "@/lib/firebase/client";
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
+let persistenceReadyPromise: Promise<void> | null = null;
+
 function getClientAuth(): Auth | null {
   const app = getFirebaseAppOrNull();
 
@@ -24,6 +28,14 @@ function getClientAuth(): Auth | null {
   }
 
   return getAuth(app);
+}
+
+function ensureLocalAuthPersistence(auth: Auth): Promise<void> {
+  if (!persistenceReadyPromise) {
+    persistenceReadyPromise = setPersistence(auth, browserLocalPersistence);
+  }
+
+  return persistenceReadyPromise;
 }
 
 function emitUnauthenticated(nextOrObserver: NextOrObserver<User>) {
@@ -43,6 +55,8 @@ export function subscribeToAuthState(nextOrObserver: NextOrObserver<User>): Unsu
     return () => undefined;
   }
 
+  void ensureLocalAuthPersistence(auth);
+
   return onAuthStateChanged(auth, nextOrObserver);
 }
 
@@ -53,6 +67,7 @@ export async function signInWithGoogle(): Promise<UserCredential> {
     throw new Error("Firebase auth is not configured.");
   }
 
+  await ensureLocalAuthPersistence(auth);
   return signInWithPopup(auth, provider);
 }
 

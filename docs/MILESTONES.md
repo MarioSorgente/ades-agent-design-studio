@@ -327,7 +327,7 @@ Generate a structured ADES board from a plain-language idea.
 ---
 
 ## Milestone 7 — Critique flow
-**Status:** `todo`
+**Status:** `done`
 
 ### Goal
 Let the user critique an existing design and improve it.
@@ -344,6 +344,13 @@ Let the user critique an existing design and improve it.
 - critique can run on current board
 - critique results are readable and actionable
 - critique results can be saved to project state
+
+
+### Notes (2026-04-12)
+- Added `/api/critique` with Firebase ID-token verification, project ownership checks, structured OpenAI Responses API output, and Firestore persistence.
+- Added in-studio critique UX with actionable findings and one-click "Add to board" for missing reflections, evals, and business metrics.
+- Added an explicit auth-persistence improvement (`browserLocalPersistence`) so sign-in state survives refreshes and revisit flows.
+- Added lightweight milestone verification checks via `npm run test:milestones` to validate M0–M7 surface coverage.
 
 ---
 
@@ -430,9 +437,9 @@ Do not split into tiny ceremonial tasks unless it improves verification.
 
 ## Current recommended next action
 
-1. Start Milestone 4 Slice M4.1: render a minimal React Flow board with a mock starter node set.
-2. Add inline node title/body editing via the right inspector panel.
-3. Keep edits in local Zustand state before wiring autosave in Milestone 5.
+1. Start Milestone 8 with Markdown export endpoint and client download action from the project studio.
+2. Add JSON export/import so projects can be restored without Firestore dependencies.
+3. Add a basic image export pathway and finalize print route formatting for PDF handoff.
 
 ---
 
