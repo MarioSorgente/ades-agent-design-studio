@@ -91,6 +91,31 @@ type GeneratedDesign = {
 const AI_SCHEMA = {
   type: "object",
   additionalProperties: false,
+  $defs: {
+    evalItem: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        id: { type: "string" },
+        name: { type: "string" },
+        question: { type: "string" },
+        category: {
+          type: "string",
+          enum: ["task_success", "reasoning_quality", "tool_accuracy", "output_quality", "efficiency", "safety", "escalation", "reflection_effectiveness", "feedback_usefulness", "robustness"],
+        },
+        scope: { type: "string", enum: ["step", "flow"] },
+        relatedStepIds: { type: "array", items: { type: "string" } },
+        whyItMatters: { type: "string" },
+        gradingMethod: { type: "string" },
+        passCriteria: { type: "string" },
+        threshold: { type: "string" },
+        datasetNotes: { type: "string" },
+        failureExamples: { type: "string" },
+        priority: { type: "string", enum: ["high", "medium", "low"] },
+      },
+      required: ["id", "name", "question", "category", "scope", "relatedStepIds", "whyItMatters", "gradingMethod", "passCriteria", "threshold", "datasetNotes", "failureExamples", "priority"],
+    },
+  },
   properties: {
     title: { type: "string" },
     summary: { type: "string" },
@@ -152,29 +177,7 @@ const AI_SCHEMA = {
           },
           evals: {
             type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                id: { type: "string" },
-                name: { type: "string" },
-                question: { type: "string" },
-                category: {
-                  type: "string",
-                  enum: ["task_success", "reasoning_quality", "tool_accuracy", "output_quality", "efficiency", "safety", "escalation", "reflection_effectiveness", "feedback_usefulness", "robustness"],
-                },
-                scope: { type: "string", enum: ["step", "flow"] },
-                relatedStepIds: { type: "array", items: { type: "string" } },
-                whyItMatters: { type: "string" },
-                gradingMethod: { type: "string" },
-                passCriteria: { type: "string" },
-                threshold: { type: "string" },
-                datasetNotes: { type: "string" },
-                failureExamples: { type: "string" },
-                priority: { type: "string", enum: ["high", "medium", "low"] },
-              },
-              required: ["id", "name", "question", "category", "scope", "relatedStepIds", "whyItMatters", "gradingMethod", "passCriteria", "threshold", "datasetNotes", "failureExamples", "priority"],
-            },
+            items: { $ref: "#/$defs/evalItem" },
           },
         },
         required: [
@@ -198,7 +201,7 @@ const AI_SCHEMA = {
         ],
       },
     },
-    endToEndEvals: { type: "array", items: { "$ref": "#/properties/steps/items/properties/evals/items" } },
+    endToEndEvals: { type: "array", items: { $ref: "#/$defs/evalItem" } },
   },
   required: ["title", "summary", "mainTask", "userContext", "expectedBusinessOutcome", "assumptions", "risks", "critiqueSeed", "steps", "endToEndEvals"],
 } as const;
