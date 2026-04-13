@@ -23,7 +23,7 @@ export function AuthHeaderActions() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Link href="/dashboard" className="ades-ghost-btn px-3 py-2 text-xs">
         Dashboard
       </Link>
