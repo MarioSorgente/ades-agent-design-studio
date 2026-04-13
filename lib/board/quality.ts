@@ -17,6 +17,26 @@ export type BoardQualityReport = {
   issues: string[];
 };
 
+export type BoardChecklistReport = {
+  decomposition: {
+    clearStepBoundaries: boolean;
+    explicitInputsOutputs: boolean;
+    dependenciesMapped: boolean;
+    reflectionHooksPresent: boolean;
+    escalationOrHandoffJustified: boolean;
+    score: number;
+    issues: string[];
+  };
+  evalRigor: {
+    hasStepAndFlowEvals: boolean;
+    categoryCoverageBroad: boolean;
+    measurableThresholds: boolean;
+    hasFailureExamplesAndDatasets: boolean;
+    score: number;
+    issues: string[];
+  };
+};
+
 function isMainStep(node: AdesNode) {
   return node.type === "goal" || node.type === "task" || node.type === "handoff";
 }
@@ -85,5 +105,84 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
     score,
     weakestArea,
     issues,
+  };
+}
+
+export function analyzeBoardChecklists(board: AdesBoardSnapshot | null): BoardChecklistReport {
+  if (!board?.nodes?.length) {
+    return {
+      decomposition: {
+        clearStepBoundaries: false,
+        explicitInputsOutputs: false,
+        dependenciesMapped: false,
+        reflectionHooksPresent: false,
+        escalationOrHandoffJustified: false,
+        score: 0,
+        issues: ["No board generated yet."],
+      },
+      evalRigor: {
+        hasStepAndFlowEvals: false,
+        categoryCoverageBroad: false,
+        measurableThresholds: false,
+        hasFailureExamplesAndDatasets: false,
+        score: 0,
+        issues: ["No board generated yet."],
+      },
+    };
+  }
+
+  const mainSteps = board.nodes.filter(isMainStep);
+  const evalNodes = board.nodes.filter((node) => node.type === "eval");
+  const reflectionNodes = board.nodes.filter((node) => node.type === "reflection");
+  const handoffNodes = board.nodes.filter((node) => node.type === "handoff");
+
+  const clearStepBoundaries = mainSteps.every((node) => !isGenericStepTitle(node.data.label));
+  const explicitInputsOutputs = mainSteps.every((node) => node.data.inputs.trim() && node.data.outputs.trim());
+  const dependenciesMapped = mainSteps.every((node) => node.data.dependencies.length > 0);
+  const reflectionHooksPresent = mainSteps.some((node) => node.data.reflectionHooks.length > 0) || reflectionNodes.length > 0;
+  const escalationOrHandoffJustified = handoffNodes.every((node) => {
+    const text = `${node.data.body} ${node.data.completionCriteria}`.toLowerCase();
+    return /escalat|human|policy|risk|confidence/.test(text);
+  });
+
+  const decompositionIssues: string[] = [];
+  if (!clearStepBoundaries) decompositionIssues.push("Some step labels are generic.");
+  if (!explicitInputsOutputs) decompositionIssues.push("Some steps are missing explicit inputs or outputs.");
+  if (!dependenciesMapped) decompositionIssues.push("Some steps do not include dependencies.");
+  if (!reflectionHooksPresent) decompositionIssues.push("No reflection hooks detected.");
+  if (!escalationOrHandoffJustified) decompositionIssues.push("Some handoff/escalation steps look weakly justified.");
+  const decompositionScore = [clearStepBoundaries, explicitInputsOutputs, dependenciesMapped, reflectionHooksPresent, escalationOrHandoffJustified].filter(Boolean).length * 20;
+
+  const hasStepAndFlowEvals = evalNodes.some((node) => node.data.evalScope === "step") && evalNodes.some((node) => node.data.evalScope === "flow");
+  const categories = new Set(evalNodes.map((node) => node.data.evalCategory));
+  const categoryCoverageBroad = categories.has("task_success") && categories.has("safety") && categories.has("robustness");
+  const measurableThresholds = evalNodes.every((node) => node.data.evalThreshold.trim().length > 0);
+  const hasFailureExamplesAndDatasets = evalNodes.every((node) => node.data.evalMetric.trim().length > 0 && node.data.evalDataset.trim().length > 0);
+
+  const evalIssues: string[] = [];
+  if (!hasStepAndFlowEvals) evalIssues.push("Need both step-level and flow-level evals.");
+  if (!categoryCoverageBroad) evalIssues.push("Eval categories should include task_success, safety, and robustness.");
+  if (!measurableThresholds) evalIssues.push("Some evals are missing measurable thresholds.");
+  if (!hasFailureExamplesAndDatasets) evalIssues.push("Some evals are missing failure examples or dataset notes.");
+  const evalScore = [hasStepAndFlowEvals, categoryCoverageBroad, measurableThresholds, hasFailureExamplesAndDatasets].filter(Boolean).length * 25;
+
+  return {
+    decomposition: {
+      clearStepBoundaries,
+      explicitInputsOutputs,
+      dependenciesMapped,
+      reflectionHooksPresent,
+      escalationOrHandoffJustified,
+      score: decompositionScore,
+      issues: decompositionIssues,
+    },
+    evalRigor: {
+      hasStepAndFlowEvals,
+      categoryCoverageBroad,
+      measurableThresholds,
+      hasFailureExamplesAndDatasets,
+      score: evalScore,
+      issues: evalIssues,
+    },
   };
 }
