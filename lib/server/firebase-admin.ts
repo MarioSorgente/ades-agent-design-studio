@@ -8,10 +8,22 @@ type FirebaseAdminEnv = {
   privateKey: string;
 };
 
+function normalizePrivateKey(rawValue: string | undefined): string {
+  if (!rawValue) return "";
+
+  const trimmed = rawValue.trim();
+  const unquoted =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+      ? trimmed.slice(1, -1)
+      : trimmed;
+
+  return unquoted.replace(/\\r/g, "\r").replace(/\\n/g, "\n").trim();
+}
+
 function getFirebaseAdminEnv(): FirebaseAdminEnv {
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim() ?? "";
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL?.trim() ?? "";
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n").trim() ?? "";
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY);
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
