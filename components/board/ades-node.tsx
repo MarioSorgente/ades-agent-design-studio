@@ -9,11 +9,7 @@ function AdesNodeComponent({ data, type, selected }: NodeProps<AdesNodeData>) {
   const theme = getNodeTheme(resolvedType);
 
   return (
-    <div
-      className={`w-64 rounded-2xl border px-3.5 py-3 shadow-[0_10px_28px_-22px_rgba(15,23,42,0.35)] transition ${theme.cardClass} ${
-        selected ? `ring-2 ${theme.ringClass}` : ""
-      }`}
-    >
+    <div className={`w-72 rounded-2xl border px-3.5 py-3 shadow-[0_10px_28px_-22px_rgba(15,23,42,0.35)] transition ${theme.cardClass} ${selected ? `ring-2 ${theme.ringClass}` : ""}`}>
       <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border !border-slate-300 !bg-white" />
 
       <div className="flex items-center justify-between gap-2">
@@ -21,36 +17,29 @@ function AdesNodeComponent({ data, type, selected }: NodeProps<AdesNodeData>) {
           <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
           {theme.label}
         </span>
-        <span className="text-[10px] font-medium text-slate-500">{data.owner}</span>
+        <span className="text-[10px] font-medium text-slate-500">{data.stepIndex ? `Step ${data.stepIndex}` : data.owner}</span>
       </div>
 
       <div className="mt-2 text-sm font-semibold leading-snug text-slate-900">{data.label}</div>
-      <div
-        className="mt-1 text-xs leading-relaxed text-slate-600"
-        style={{
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
-        {data.body || "Add practical details in inspector."}
-      </div>
+      <div className="mt-1 text-xs leading-relaxed text-slate-600" style={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden"}}>{data.body || "Add practical details in inspector."}</div>
 
-      {data.tags.length ? (
+      {data.attachmentSummary ? (
         <div className="mt-2 flex flex-wrap gap-1">
-          {data.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600">
-              #{tag}
-            </span>
-          ))}
-          {data.tags.length > 2 ? <span className="text-[10px] text-slate-500">+{data.tags.length - 2}</span> : null}
+          {data.attachmentSummary.reflectionCount ? <Badge label={`↻ ${data.attachmentSummary.reflectionCount} reflection`} /> : null}
+          {data.attachmentSummary.feedbackCount ? <Badge label={`👤 ${data.attachmentSummary.feedbackCount} feedback`} /> : null}
+          {data.attachmentSummary.evalCount ? <Badge label={`✓ ${data.attachmentSummary.evalCount} eval`} /> : null}
+          {data.attachmentSummary.riskCount ? <Badge label={`⚠ ${data.attachmentSummary.riskCount} risk`} /> : null}
+          {data.attachmentSummary.toolCount ? <Badge label={`🛠 ${data.attachmentSummary.toolCount} tools`} /> : null}
         </div>
       ) : null}
 
       <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border !border-slate-300 !bg-white" />
     </div>
   );
+}
+
+function Badge({ label }: { label: string }) {
+  return <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600">{label}</span>;
 }
 
 export const AdesNode = memo(AdesNodeComponent);
