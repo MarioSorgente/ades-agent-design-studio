@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 
 const floatingSignals = [
   { label: "Reflection loop", className: "left-[10%] top-[24%] animate-float-slow" },
@@ -21,15 +22,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
-              Log in
-            </Link>
-            <Link href="/sign-in" className="ades-ghost-btn px-3 py-2 text-xs md:text-sm">
-              Sign in
-            </Link>
-            <Link href="/sign-in" className="ades-primary-btn px-3 py-2 text-xs md:text-sm">
-              Sign up
-            </Link>
+            <AuthHeaderActions />
           </div>
         </div>
       </header>

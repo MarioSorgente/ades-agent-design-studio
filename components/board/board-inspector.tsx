@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { getNodeTheme } from "@/lib/board/node-theme";
 import { useAdesBoardStore } from "@/lib/board/store";
 import type { AdesNodeType } from "@/lib/board/types";
@@ -35,7 +35,7 @@ export function BoardInspector() {
     }));
   };
 
-  const tagValue = useMemo(() => selectedNode.data.tags.join(", "), [selectedNode.data.tags]);
+  const tagValue = selectedNode.data.tags.join(", ");
 
   return (
     <div className="space-y-4">

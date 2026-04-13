@@ -10,9 +10,13 @@ export function AuthHeaderActions() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
 
+  if (status === "loading") {
+    return <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">Loading…</span>;
+  }
+
   if (status !== "authenticated" || !user) {
     return (
-      <Link href="/sign-in" className="ades-primary-btn">
+      <Link href="/sign-in" className="ades-primary-btn px-3 py-2 text-xs">
         Sign in
       </Link>
     );
@@ -20,18 +24,12 @@ export function AuthHeaderActions() {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 md:flex">
-        {user.photoURL ? (
-          <img src={user.photoURL} alt={user.displayName ?? user.email ?? "Signed in user"} className="h-6 w-6 rounded-full" />
-        ) : (
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-600">
-            {(user.displayName ?? user.email ?? "U").slice(0, 1).toUpperCase()}
-          </span>
-        )}
-        <div className="max-w-56">
-          <p className="truncate text-xs font-semibold text-slate-700">{user.displayName ?? "Signed in"}</p>
-          <p className="truncate text-[11px] text-slate-500">{user.email}</p>
-        </div>
+      <Link href="/dashboard" className="ades-ghost-btn px-3 py-2 text-xs">
+        Dashboard
+      </Link>
+      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+        {user.photoURL ? <img src={user.photoURL} alt={user.displayName ?? "Signed in user"} className="h-6 w-6 rounded-full" /> : null}
+        <span className="text-xs font-semibold text-slate-700">{user.displayName?.split(" ")[0] || "Account"}</span>
       </div>
       <button
         type="button"
@@ -39,7 +37,7 @@ export function AuthHeaderActions() {
           await signOutUser();
           router.push("/sign-in");
         }}
-        className="ades-ghost-btn"
+        className="ades-ghost-btn px-3 py-2 text-xs"
       >
         Sign out
       </button>
