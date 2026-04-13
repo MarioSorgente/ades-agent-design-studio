@@ -59,6 +59,12 @@ export default function ProjectPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
 
+  const [isLeftToolbarExpanded, setIsLeftToolbarExpanded] = useState(false);
+  const [isRightPanelVisible, setIsRightPanelVisible] = useState(true);
+  const [isRightPanelPinned, setIsRightPanelPinned] = useState(true);
+  const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(false);
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(220);
+
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
@@ -66,6 +72,8 @@ export default function ProjectPage() {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const addNodeWithContent = useAdesBoardStore((state) => state.addNodeWithContent);
+  const addNode = useAdesBoardStore((state) => state.addNode);
+  const deleteSelectedNode = useAdesBoardStore((state) => state.deleteSelectedNode);
 
   const hasHydratedBoardRef = useRef(false);
   const lastSavedHashRef = useRef<string | null>(null);
@@ -106,11 +114,7 @@ export default function ProjectPage() {
   }, [projectId, status, user]);
 
   useEffect(() => {
-    if (isLoading || !project) {
-      return;
-    }
-
-    if (hasHydratedBoardRef.current) {
+    if (isLoading || !project || hasHydratedBoardRef.current) {
       return;
     }
 
@@ -135,11 +139,7 @@ export default function ProjectPage() {
   }, [edges, isBoardInitialized, nodes]);
 
   useEffect(() => {
-    if (!user || !project || !currentBoardHash || !hasHydratedBoardRef.current) {
-      return;
-    }
-
-    if (lastSavedHashRef.current === currentBoardHash) {
+    if (!user || !project || !currentBoardHash || !hasHydratedBoardRef.current || lastSavedHashRef.current === currentBoardHash) {
       return;
     }
 
@@ -269,6 +269,7 @@ export default function ProjectPage() {
 
       setCritiqueResult(payload.critique);
       setProject((previous) => (previous ? { ...previous, critique: payload.critique } : previous));
+      setIsBottomPanelOpen(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Critique failed.";
       setCritiqueError(message);
@@ -384,10 +385,29 @@ export default function ProjectPage() {
     }
   }
 
+  function handleResizeBottomPanel(event: React.MouseEvent<HTMLButtonElement>) {
+    const startY = event.clientY;
+    const startHeight = bottomPanelHeight;
+
+    function onMove(moveEvent: MouseEvent) {
+      const delta = startY - moveEvent.clientY;
+      const nextHeight = Math.max(140, Math.min(340, startHeight + delta));
+      setBottomPanelHeight(nextHeight);
+    }
+
+    function onUp() {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   return (
     <AppShell
       title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")}
-      subtitle="Premium workspace for planning agent behavior, critique coverage, eval quality, and business impact."
+      subtitle="Minimal board-first studio for planning agent behavior, critique coverage, eval quality, and business impact."
       breadcrumbLabel={project?.title ?? "Studio"}
       actions={
         <Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn" aria-disabled={!projectId}>
@@ -408,160 +428,214 @@ export default function ProjectPage() {
         ) : null}
 
         {!isLoading && project ? (
-          <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
-            <aside className="ades-panel h-fit space-y-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">Project panel</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">{project.title}</h2>
-                <p className="mt-2 text-sm text-slate-600">Generate a full board with reflections, critique seeds, evals, and business metrics.</p>
-                <p
-                  className={`mt-3 text-xs ${
-                    saveState === "error" ? "text-rose-600" : saveState === "saving" ? "text-amber-600" : "text-slate-500"
-                  }`}
-                >
-                  {saveStateLabel}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Generate design</h3>
-                <div className="mt-3 space-y-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Idea
-                    <textarea
-                      className="ades-input mt-1 min-h-[96px] resize-y"
-                      value={ideaPrompt}
-                      onChange={(event) => setIdeaPrompt(event.target.value)}
-                      placeholder="Describe the agent idea in plain language."
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Audience
-                    <input
-                      className="ades-input mt-1"
-                      value={audience}
-                      onChange={(event) => setAudience(event.target.value)}
-                      placeholder="Who is this design for?"
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Constraints (optional)
-                    <textarea
-                      className="ades-input mt-1 min-h-[72px] resize-y"
-                      value={constraints}
-                      onChange={(event) => setConstraints(event.target.value)}
-                      placeholder="Policy limits, compliance, latency, budget, etc."
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void handleGenerateBoard()}
-                    disabled={isGenerating || !ideaPrompt.trim()}
-                    className="ades-primary-btn w-full disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isGenerating ? "Generating board..." : "Generate board"}
+          <div className="space-y-3">
+            <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-[0_8px_24px_-24px_rgba(15,23,42,0.9)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Studio mode</p>
+                  <h2 className="text-sm font-semibold text-slate-900 md:text-base">{project.title}</h2>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{saveStateLabel || "Ready"}</span>
+                  <button type="button" className="ades-ghost-btn px-3 py-2 text-xs" onClick={() => setIsBottomPanelOpen((prev) => !prev)}>
+                    {isBottomPanelOpen ? "Hide details" : "Show details"}
                   </button>
-                  {generationError ? <p className="text-xs text-rose-600">{generationError}</p> : null}
-                  {generationSummary ? <p className="text-xs text-slate-600">{generationSummary}</p> : null}
+                  <button type="button" className="ades-ghost-btn px-3 py-2 text-xs" onClick={() => setIsRightPanelVisible((prev) => !prev)}>
+                    {isRightPanelVisible ? "Hide inspector" : "Show inspector"}
+                  </button>
+                  <button type="button" className="ades-primary-btn px-3 py-2 text-xs" onClick={handleExportJson}>
+                    Quick export
+                  </button>
                 </div>
               </div>
+            </section>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Block types</h3>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+            <section className="flex gap-3">
+              <aside className={`rounded-2xl border border-slate-200/80 bg-white/85 p-2 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.8)] ${isLeftToolbarExpanded ? "w-[208px]" : "w-[64px]"}`}>
+                <div className="mb-2 flex items-center justify-between">
+                  {isLeftToolbarExpanded ? <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tools</p> : null}
+                  <button type="button" onClick={() => setIsLeftToolbarExpanded((prev) => !prev)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                    {isLeftToolbarExpanded ? "←" : "→"}
+                  </button>
+                </div>
+                <div className="space-y-1.5">
                   {CORE_NODE_TYPES.map((type) => {
                     const theme = getNodeTheme(type);
                     return (
-                      <span key={type} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${theme.badgeClass}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
-                        {theme.label}
-                      </span>
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => addNode(type)}
+                        className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/40"
+                      >
+                        <span className={`h-2 w-2 rounded-full ${theme.dotClass}`} />
+                        {isLeftToolbarExpanded ? theme.label : null}
+                      </button>
                     );
                   })}
+                  <button
+                    type="button"
+                    onClick={deleteSelectedNode}
+                    className="flex w-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-2 py-2 text-xs font-semibold text-rose-700"
+                  >
+                    {isLeftToolbarExpanded ? "Delete selected" : "×"}
+                  </button>
                 </div>
-              </div>
-            </aside>
+              </aside>
 
-            <section className="space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-900">Studio canvas</h2>
-                    <p className="text-xs text-slate-500">Miro-like board for tasks, reflections, critique loops, risks, evals, and business metrics.</p>
-                  </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Exports · Milestone 8</div>
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="relative">
+                  <StudioBoard className="h-[calc(100vh-15rem)] min-h-[620px] overflow-hidden rounded-[26px] border border-slate-200/90 bg-[#f3f5fa] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]" />
+
+                  {!isRightPanelPinned && isRightPanelVisible ? (
+                    <div className="absolute right-3 top-3 z-10 w-[320px] rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-[0_20px_45px_-34px_rgba(15,23,42,0.7)] backdrop-blur">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Floating inspector</p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setIsRightPanelPinned(true)}
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+                          >
+                            Pin
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsRightPanelVisible(false)}
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                      <BoardInspector />
+                    </div>
+                  ) : null}
                 </div>
+
+                {isBottomPanelOpen ? (
+                  <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-3" style={{ height: bottomPanelHeight }}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details · critique · export</h3>
+                        <p className="text-xs text-slate-500">Keep this panel hidden for maximum board focus.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onMouseDown={handleResizeBottomPanel}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600"
+                        >
+                          Resize
+                        </button>
+                        <button type="button" onClick={() => setIsBottomPanelOpen(false)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                          Hide
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid h-[calc(100%-2.2rem)] gap-3 overflow-y-auto md:grid-cols-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Generate</h4>
+                        <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Idea
+                          <textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} />
+                        </label>
+                        <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Audience
+                          <input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} />
+                        </label>
+                        <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Constraints
+                          <textarea
+                            className="ades-input mt-1 min-h-[66px] resize-y"
+                            value={constraints}
+                            onChange={(event) => setConstraints(event.target.value)}
+                            placeholder="Policy, compliance, latency, budget..."
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void handleGenerateBoard()}
+                          disabled={isGenerating || !ideaPrompt.trim()}
+                          className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isGenerating ? "Generating..." : "Generate board"}
+                        </button>
+                        {generationError ? <p className="mt-1 text-xs text-rose-600">{generationError}</p> : null}
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Critique</h4>
+                          <button
+                            type="button"
+                            onClick={() => void handleCritiqueBoard()}
+                            disabled={isCritiquing || nodes.length === 0}
+                            className="ades-primary-btn px-3 py-1.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isCritiquing ? "Running..." : "Run"}
+                          </button>
+                        </div>
+                        {critiqueError ? <p className="mt-1 text-xs text-rose-600">{critiqueError}</p> : null}
+                        {critiqueResult ? <p className="mt-2 text-xs text-slate-600">{critiqueResult.summary}</p> : <p className="mt-2 text-xs text-slate-500">Run critique to surface missing reflections, evals, and metrics.</p>}
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Export + import</h4>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <button type="button" onClick={handleExportMarkdown} className="ades-ghost-btn px-2 py-2 text-xs">
+                            Markdown
+                          </button>
+                          <button type="button" onClick={handleExportJson} className="ades-ghost-btn px-2 py-2 text-xs">
+                            JSON
+                          </button>
+                          <button type="button" onClick={() => void handleExportImage()} className="ades-ghost-btn px-2 py-2 text-xs" disabled={isExportingImage}>
+                            {isExportingImage ? "Exporting..." : "Image"}
+                          </button>
+                          <button type="button" onClick={() => window.open(`/project/${projectId}/print`, "_blank")} className="ades-ghost-btn px-2 py-2 text-xs" disabled={!projectId}>
+                            PDF
+                          </button>
+                        </div>
+                        <input
+                          ref={importInputRef}
+                          type="file"
+                          accept="application/json"
+                          onChange={(event) => void handleImportJson(event)}
+                          className="mt-2 block w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-2 file:py-1"
+                        />
+                        {exportError ? <p className="mt-1 text-xs text-rose-600">{exportError}</p> : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              <StudioBoard />
+
+              {isRightPanelPinned && isRightPanelVisible ? (
+                <aside className="w-[336px] rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-[0_10px_32px_-28px_rgba(15,23,42,0.8)]">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inspector</p>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => setIsRightPanelPinned(false)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                        Unpin
+                      </button>
+                      <button type="button" onClick={() => setIsRightPanelVisible(false)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                        Collapse
+                      </button>
+                    </div>
+                  </div>
+                  <BoardInspector />
+                </aside>
+              ) : null}
             </section>
 
-            <aside className="ades-panel space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-2">
+            {critiqueResult ? (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Critique findings</h3>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Critique</h3>
-                    <p className="mt-1 text-xs text-slate-600">Run gap analysis for reflections, evals, and business metrics.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCritiqueBoard()}
-                    disabled={isCritiquing || nodes.length === 0}
-                    className="ades-primary-btn px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isCritiquing ? "Running..." : "Run critique"}
-                  </button>
-                </div>
-                {critiqueError ? <p className="mt-2 text-xs text-rose-600">{critiqueError}</p> : null}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Export + import</h3>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={handleExportMarkdown} className="ades-ghost-btn px-2 py-2 text-xs">
-                    Export Markdown
-                  </button>
-                  <button type="button" onClick={handleExportJson} className="ades-ghost-btn px-2 py-2 text-xs">
-                    Export JSON
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleExportImage()}
-                    className="ades-ghost-btn px-2 py-2 text-xs"
-                    disabled={isExportingImage}
-                  >
-                    {isExportingImage ? "Exporting..." : "Export image"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.open(`/project/${projectId}/print`, "_blank")}
-                    className="ades-ghost-btn px-2 py-2 text-xs"
-                    disabled={!projectId}
-                  >
-                    Print / PDF
-                  </button>
-                </div>
-                <div className="mt-2">
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept="application/json"
-                    onChange={(event) => void handleImportJson(event)}
-                    className="block w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-2 file:py-1"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-500">Import JSON to replace current board with a saved ADES export.</p>
-                </div>
-                {exportError ? <p className="mt-2 text-xs text-rose-600">{exportError}</p> : null}
-              </div>
-
-              {critiqueResult ? (
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-slate-600">{critiqueResult.summary}</p>
-
-                  <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Findings</h4>
-                    <ul className="mt-2 space-y-2">
+                    <ul className="space-y-2">
                       {critiqueResult.critiqueItems.map((item) => (
-                        <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                        <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p>
                           <p className="mt-1 text-sm text-slate-800">{item.message}</p>
                           <p className="mt-1 text-xs text-slate-600">{item.recommendation}</p>
@@ -569,19 +643,14 @@ export default function ProjectPage() {
                       ))}
                     </ul>
                   </div>
-
-                  <SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections} onAdd={handleAddSuggestionToBoard} />
-                  <SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals} onAdd={handleAddSuggestionToBoard} />
-                  <SuggestionSection
-                    title="Missing business metrics"
-                    suggestions={critiqueResult.missingBusinessMetrics}
-                    onAdd={handleAddSuggestionToBoard}
-                  />
+                  <div className="space-y-3">
+                    <SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections} onAdd={handleAddSuggestionToBoard} />
+                    <SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals} onAdd={handleAddSuggestionToBoard} />
+                    <SuggestionSection title="Missing business metrics" suggestions={critiqueResult.missingBusinessMetrics} onAdd={handleAddSuggestionToBoard} />
+                  </div>
                 </div>
-              ) : null}
-
-              <BoardInspector />
-            </aside>
+              </section>
+            ) : null}
           </div>
         ) : null}
       </ProtectedRoute>

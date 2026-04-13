@@ -1,23 +1,20 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { getNodeTheme } from "@/lib/board/node-theme";
 import { useAdesBoardStore } from "@/lib/board/store";
 import type { AdesNodeType } from "@/lib/board/types";
 
 export function BoardInspector() {
-  const nodes = useAdesBoardStore((state) => state.nodes);
   const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
   const updateNode = useAdesBoardStore((state) => state.updateNode);
-
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
+  const selectedNode = useAdesBoardStore(
+    useCallback((state) => state.nodes.find((node) => node.id === selectedNodeId) ?? null, [selectedNodeId])
   );
 
   if (!selectedNode) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
         Select a block on the canvas to edit details, critique assumptions, and refine eval quality.
       </div>
     );
@@ -33,10 +30,12 @@ export function BoardInspector() {
       ...node,
       data: {
         ...node.data,
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   };
+
+  const tagValue = useMemo(() => selectedNode.data.tags.join(", "), [selectedNode.data.tags]);
 
   return (
     <div className="space-y-4">
@@ -52,33 +51,20 @@ export function BoardInspector() {
       </div>
 
       <Field label="Title">
-        <input
-          value={selectedNode.data.label}
-          onChange={(event) => updateField("label", event.target.value)}
-          className="ades-input"
-        />
+        <input value={selectedNode.data.label} onChange={(event) => updateField("label", event.target.value)} className="ades-input" />
       </Field>
 
       <Field label="Description">
-        <textarea
-          value={selectedNode.data.body}
-          onChange={(event) => updateField("body", event.target.value)}
-          rows={4}
-          className="ades-input resize-none"
-        />
+        <textarea value={selectedNode.data.body} onChange={(event) => updateField("body", event.target.value)} rows={4} className="ades-input resize-none" />
       </Field>
 
       <Field label="Owner">
-        <input
-          value={selectedNode.data.owner}
-          onChange={(event) => updateField("owner", event.target.value)}
-          className="ades-input"
-        />
+        <input value={selectedNode.data.owner} onChange={(event) => updateField("owner", event.target.value)} className="ades-input" />
       </Field>
 
       <Field label="Tags (comma-separated)">
         <input
-          value={selectedNode.data.tags.join(", ")}
+          value={tagValue}
           onChange={(event) => {
             const tags = event.target.value
               .split(",")
@@ -89,8 +75,8 @@ export function BoardInspector() {
               ...node,
               data: {
                 ...node.data,
-                tags
-              }
+                tags,
+              },
             }));
           }}
           className="ades-input"
