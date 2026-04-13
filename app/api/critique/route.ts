@@ -4,11 +4,22 @@ import { NextResponse } from "next/server";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
+import { analyzeBoardChecklists } from "@/lib/board/quality";
+import { recordOpenAIEvent } from "@/lib/server/openai-events";
 
 type CritiqueRequest = {
   projectId?: string;
   summary?: string;
   board?: AdesBoardSnapshot;
+};
+
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/critique";
 };
 
 const AI_SCHEMA = {
@@ -105,6 +116,17 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
+function createOpenAIDebug(hasApiKey: boolean): OpenAIDebug {
+  return {
+    called: false,
+    responseId: null,
+    model: null,
+    usage: null,
+    hasApiKey,
+    route: "/api/critique"
+  };
+}
+
 function getCritiqueResult(outputText: string): CritiqueResult {
   const parsed = JSON.parse(outputText) as Partial<CritiqueResult>;
 
@@ -128,6 +150,12 @@ function getCritiqueResult(outputText: string): CritiqueResult {
 }
 
 export async function POST(request: Request) {
+  const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
+  const openaiDebug = createOpenAIDebug(hasApiKey);
+  let requestProjectId: string | null = null;
+
+  console.info("[/api/critique] Route entry", { hasApiKey });
+
   try {
     const token = parseAuthToken(request);
 
@@ -141,6 +169,8 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as CritiqueRequest;
     const projectId = typeof body.projectId === "string" ? body.projectId.trim().slice(0, 120) : "";
+    requestProjectId = projectId || null;
+    console.info("[/api/critique] Request context", { projectId });
 
     if (!projectId || !isSafeBoard(body.board)) {
       return NextResponse.json({ error: "projectId and board are required." }, { status: 400 });
@@ -173,6 +203,8 @@ export async function POST(request: Request) {
     }));
 
     const openai = getOpenAIClient();
+    console.info("[/api/critique] Calling OpenAI Responses API", { projectId });
+    openaiDebug.called = true;
 
     const response = await openai.responses.create({
       model: "gpt-4.1-mini",
@@ -201,6 +233,15 @@ export async function POST(request: Request) {
       }
     });
 
+    openaiDebug.responseId = response.id ?? null;
+    openaiDebug.model = response.model ?? null;
+    openaiDebug.usage = response.usage ?? null;
+    console.info("[/api/critique] OpenAI response received", {
+      responseId: openaiDebug.responseId,
+      model: openaiDebug.model,
+      usage: openaiDebug.usage
+    });
+
     const outputText = response.output_text;
 
     if (!outputText) {
@@ -208,16 +249,63 @@ export async function POST(request: Request) {
     }
 
     const critique = getCritiqueResult(outputText);
+    const qualityChecklist = analyzeBoardChecklists(body.board);
+    const critiqueActionability = {
+      hasReflectionSuggestions: critique.missingReflections.length > 0,
+      hasEvalSuggestions: critique.missingEvals.length > 0,
+      hasBusinessMetricSuggestions: critique.missingBusinessMetrics.length > 0,
+      recommendationsDetailed: critique.critiqueItems.every((item) => item.recommendation.trim().length >= 20)
+    };
 
     await projectRef.update({
       critique,
       updatedAt: FieldValue.serverTimestamp()
     });
 
-    return NextResponse.json({ critique });
+    try {
+      await recordOpenAIEvent({
+        route: "/api/critique",
+        projectId,
+        uid,
+        success: true,
+        responseId: openaiDebug.responseId,
+        model: openaiDebug.model,
+        usage: openaiDebug.usage,
+        hasApiKey: openaiDebug.hasApiKey
+      });
+    } catch (eventError) {
+      console.error("[/api/critique] Failed to persist OpenAI event", eventError);
+    }
+
+    return NextResponse.json({ critique, openaiDebug, qualityChecklist, critiqueActionability });
   } catch (error) {
-    console.error("/api/critique failed", error);
+    console.error("[/api/critique] Failed", {
+      projectId: requestProjectId,
+      hasApiKey: openaiDebug.hasApiKey,
+      openaiCalled: openaiDebug.called,
+      responseId: openaiDebug.responseId,
+      model: openaiDebug.model,
+      usage: openaiDebug.usage,
+      error
+    });
     const message = error instanceof Error ? error.message : "Failed to critique board.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (requestProjectId) {
+      try {
+        await recordOpenAIEvent({
+          route: "/api/critique",
+          projectId: requestProjectId,
+          uid: null,
+          success: false,
+          responseId: openaiDebug.responseId,
+          model: openaiDebug.model,
+          usage: openaiDebug.usage,
+          hasApiKey: openaiDebug.hasApiKey,
+          errorMessage: message
+        });
+      } catch (eventError) {
+        console.error("[/api/critique] Failed to persist OpenAI event", eventError);
+      }
+    }
+    return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }
