@@ -1,13 +1,23 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { AppShell } from "@/components/app-shell";
+import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 import { analyzeBoardQuality } from "@/lib/board/quality";
-import { createProjectForUser, deleteProjectForUser, renameProjectForUser, subscribeToUserProjects, type ProjectRecord } from "@/lib/firebase/firestore";
-import { getCurrentUserIdToken } from "@/lib/firebase/auth";
+import {
+  createProjectForUser,
+  deleteProjectForUser,
+  renameProjectForUser,
+  subscribeToUserProjects,
+  type ProjectRecord,
+} from "@/lib/firebase/firestore";
+import { getCurrentUserIdToken, signOutUser } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
+
+type ProjectTab = "mine" | "recent" | "templates";
 
 function formatDateTimeLabel(isoString: string | null) {
   if (!isoString) return "Just now";
@@ -17,6 +27,8 @@ function formatDateTimeLabel(isoString: string | null) {
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
+  const router = useRouter();
+  const userName = user?.displayName?.split(" ")[0] || "there";
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [newTitle, setNewTitle] = useState("");
@@ -30,6 +42,7 @@ export default function DashboardPage() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [generatingProjectId, setGeneratingProjectId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ProjectTab>("mine");
 
   useEffect(() => {
     if (!user) {
@@ -62,20 +75,32 @@ export default function DashboardPage() {
     [projects],
   );
 
-  const stats = useMemo(() => {
-    const missingEvalCoverage = qualityByProject.filter(({ quality }) => quality.evalCoveragePct < 100).length;
-    const missingImprovementCoverage = qualityByProject.filter(({ quality }) => quality.improvementCoveragePct === 0).length;
-    const underDefined = qualityByProject.filter(({ quality }) => quality.genericStepCount > 0 || quality.stepsMissingPurpose > 0).length;
-    const readyForReview = qualityByProject.filter(({ quality }) => quality.score >= 75 && quality.hasEndToEndEval).length;
+  const recentProjectTitles = useMemo(() => {
+    return [...projects]
+      .sort((a, b) => {
+        const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      })
+      .slice(0, 3)
+      .map((project) => ({ id: project.id, title: project.title }));
+  }, [projects]);
 
-    return {
-      projects: projects.length,
-      missingEvalCoverage,
-      missingImprovementCoverage,
-      underDefined,
-      readyForReview,
-    };
-  }, [projects.length, qualityByProject]);
+  const visibleProjects = useMemo(() => {
+    if (activeTab === "recent") {
+      return [...qualityByProject].sort((a, b) => {
+        const aDate = a.project.updatedAt ? new Date(a.project.updatedAt).getTime() : 0;
+        const bDate = b.project.updatedAt ? new Date(b.project.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      });
+    }
+
+    if (activeTab === "templates") {
+      return qualityByProject.filter(({ project }) => project.status === "generated");
+    }
+
+    return qualityByProject;
+  }, [activeTab, qualityByProject]);
 
   useEffect(() => {
     if (!generatingProjectId) return;
@@ -155,73 +180,166 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppShell title="Dashboard" subtitle="Design intelligence across your portfolio: eval depth, improvement loops, and readiness gaps." breadcrumbLabel="Dashboard">
-      <ProtectedRoute>
-        <div className="space-y-4">
-          <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-5">
-            <div className="space-y-4">
-              <form onSubmit={handleCreateProject} className="mx-auto w-full max-w-3xl rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start a project</label>
-                <div className="mt-2 space-y-2">
-                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional) e.g., Claims Intake Agent" className="ades-input" maxLength={100} />
-                  <textarea
-                    value={newIdeaPrompt}
-                    onChange={(event) => setNewIdeaPrompt(event.target.value)}
-                    placeholder="Describe the agent idea. ADES will immediately break it into tasks, loops, reflections, and evals."
-                    className="ades-input min-h-20"
-                    maxLength={1800}
-                  />
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
-                    <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
-                  </div>
-                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn w-full whitespace-nowrap disabled:opacity-50">{isCreating ? "Creating + Generating..." : "Create and generate"}</button>
-                </div>
-              </form>
+    <ProtectedRoute>
+      <main className="mx-auto flex min-h-screen w-full max-w-[1500px] gap-4 p-4 md:p-6">
+        <aside className="hidden w-[270px] shrink-0 flex-col rounded-[2rem] border border-slate-200/80 bg-white/85 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur lg:flex">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="inline-flex items-center gap-2" aria-label="Go to ADES landing page">
+              <Image src="/logo-ades.svg" alt="ADES logo" width={124} height={34} className="h-8 w-auto" priority />
+            </Link>
+            <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-700">Workspace</span>
+          </div>
 
+          <nav className="mt-6 space-y-1 text-sm">
+            {[
+              "Home",
+              "Search",
+              "All projects",
+              "Starred",
+              "Created by me",
+              "Shared with me",
+            ].map((item, idx) => (
+              <button
+                key={item}
+                type="button"
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${idx === 0 ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+              >
+                <span>{item}</span>
+                {item === "Search" ? <span className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px]">⌘K</span> : null}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-6 border-t border-slate-200/80 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recents</p>
+            <div className="mt-2 space-y-1">
+              {recentProjectTitles.length ? (
+                recentProjectTitles.map((project) => (
+                  <Link key={project.id} href={`/project/${project.id}`} className="block rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
+                    {project.title}
+                  </Link>
+                ))
+              ) : (
+                <p className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">Your recents will appear here.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50/85 p-3">
+            <div className="flex items-center gap-2">
+              {user?.photoURL ? <img src={user.photoURL} alt={user.displayName ?? "ADES user"} className="h-8 w-8 rounded-full" /> : <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">{(user?.displayName || "A").slice(0, 1)}</span>}
               <div>
-                <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design workspace</p>
-                <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">From fuzzy idea to testable agent system.</h2>
+                <p className="text-sm font-semibold text-slate-900">{user?.displayName || "ADES designer"}</p>
+                <p className="text-xs text-slate-600">Designing reliable agent systems with ADES.</p>
               </div>
             </div>
-          </section>
-
-          <section className="grid gap-3 md:grid-cols-5">
-            <MetricCard label="Projects missing eval coverage" value={String(stats.missingEvalCoverage)} />
-            <MetricCard label="Flows with no improvement loops" value={String(stats.missingImprovementCoverage)} />
-            <MetricCard label="Under-defined projects" value={String(stats.underDefined)} />
-            <MetricCard label="Projects ready for review" value={String(stats.readyForReview)} />
-            <MetricCard label="Total projects" value={String(stats.projects)} />
-          </section>
-
-          {errorMessage ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
-          {generatingProjectId ? (
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
-              Generating your project board now. You will see it below with a spinner until it is ready.
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOutUser();
+                  router.push("/sign-in");
+                }}
+                className="ades-ghost-btn w-full px-3 py-2 text-xs"
+              >
+                Sign out
+              </button>
             </div>
+          </div>
+        </aside>
+
+        <section className="flex-1">
+          <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(99,102,241,0.22),transparent_42%),radial-gradient(circle_at_82%_20%,rgba(147,51,234,0.22),transparent_36%),radial-gradient(circle_at_50%_96%,rgba(56,189,248,0.14),transparent_38%)]" />
+            <div className="relative">
+              <div className="mb-5 flex items-center justify-between gap-2 lg:hidden">
+                <Link href="/" className="inline-flex items-center gap-2" aria-label="Go to ADES landing page">
+                  <Image src="/logo-ades.svg" alt="ADES logo" width={124} height={34} className="h-8 w-auto" priority />
+                </Link>
+                <AuthHeaderActions />
+              </div>
+
+              <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Agent design workspace</p>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">Let&apos;s design something, {userName}.</h1>
+              <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a testable agent with structured tasks, reflection loops, eval coverage, and business metrics.</p>
+
+              <form onSubmit={handleCreateProject} className="mt-6 rounded-[1.7rem] border border-slate-200/90 bg-white/95 p-4 shadow-[0_25px_55px_-42px_rgba(15,23,42,0.55)] md:p-5">
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Start a new project</label>
+                <textarea
+                  value={newIdeaPrompt}
+                  onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                  placeholder="Describe the agent you want to design… Ask ADES to draft tasks, loops, risks, and evals."
+                  className="ades-input mt-3 min-h-28 rounded-2xl"
+                  maxLength={1800}
+                />
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional)" className="ades-input" maxLength={100} />
+                  <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
+                  <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">ADES will generate a first structured board so you can refine quickly.</p>
+                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn px-5 py-3 disabled:opacity-50">
+                    {isCreating ? "Creating + Generating..." : "Create project"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
+          {generatingProjectId ? (
+            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">Generating your project board now. You will see it below with a spinner until it is ready.</div>
           ) : null}
 
-          <section className="rounded-3xl border border-slate-200/80 bg-white p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-slate-900">Projects to resume</h3>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{projects.length} total</span>
+          <section className="mt-4 rounded-[2rem] border border-slate-200/80 bg-white/90 p-4 shadow-[0_18px_45px_-42px_rgba(15,23,42,0.8)] md:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1">
+                {[
+                  { id: "mine", label: "My projects" },
+                  { id: "recent", label: "Recently viewed" },
+                  { id: "templates", label: "Templates" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id as ProjectTab)}
+                    className={`rounded-full px-3 py-1.5 text-sm transition ${activeTab === tab.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{projects.length} total projects</span>
             </div>
 
-            {isLoadingProjects ? <p className="mt-4 text-sm text-slate-600">Loading your projects...</p> : null}
+            {isLoadingProjects ? <p className="mt-5 text-sm text-slate-600">Loading your projects...</p> : null}
 
-            {!isLoadingProjects && !projects.length ? <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><h4 className="text-sm font-semibold text-slate-900">No projects yet</h4><p className="mt-1 text-sm text-slate-600">Create your first flow and attach reflection loops, external feedback, and eval questions.</p></div> : null}
+            {!isLoadingProjects && !visibleProjects.length ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                <h3 className="text-sm font-semibold text-slate-900">No projects in this view</h3>
+                <p className="mt-1 text-sm text-slate-600">Use the composer above to create your first agent design workspace.</p>
+              </div>
+            ) : null}
 
-            {!isLoadingProjects && qualityByProject.length ? (
-              <ul className="mt-4 grid gap-3 md:grid-cols-2">
-                {qualityByProject.map(({ project, quality }) => {
+            {!isLoadingProjects && visibleProjects.length ? (
+              <ul className="mt-5 grid gap-3 lg:grid-cols-2">
+                {visibleProjects.map(({ project, quality }) => {
                   const isEditing = editingProjectId === project.id;
                   const isGenerating = generatingProjectId === project.id && project.status !== "generated";
+
                   return (
-                    <li key={project.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-indigo-200 hover:bg-white">
-                      <div className="flex items-center justify-between">
+                    <li key={project.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_18px_35px_-35px_rgba(15,23,42,0.6)] transition hover:-translate-y-0.5 hover:border-indigo-200">
+                      <div className="flex items-center justify-between gap-2">
                         <span
                           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            project.status === "generated" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : isGenerating ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-300 bg-white text-slate-600"
+                            project.status === "generated"
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : isGenerating
+                                ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                : "border-slate-300 bg-white text-slate-600"
                           }`}
                         >
                           {isGenerating ? <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-indigo-600 border-t-transparent" aria-hidden /> : null}
@@ -234,26 +352,53 @@ export default function DashboardPage() {
                         <form onSubmit={(event) => void handleRenameProject(event, project.id)} className="mt-3 space-y-2">
                           <input value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} className="ades-input" maxLength={100} />
                           <div className="flex items-center gap-2">
-                            <button type="submit" disabled={isRenaming} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-50">{isRenaming ? "Saving..." : "Save"}</button>
-                            <button type="button" onClick={() => { setEditingProjectId(null); setEditingTitle(""); }} className="ades-ghost-btn px-3 py-2 text-xs">Cancel</button>
+                            <button type="submit" disabled={isRenaming} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-50">
+                              {isRenaming ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProjectId(null);
+                                setEditingTitle("");
+                              }}
+                              className="ades-ghost-btn px-3 py-2 text-xs"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         </form>
                       ) : (
                         <>
-                          <h4 className="mt-2 font-semibold text-slate-900">{project.title}</h4>
-                          <p className="mt-1 text-xs text-slate-500">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900">{project.title}</h3>
+                          <p className="mt-1 text-sm text-slate-600">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                            <span>Concrete steps: {quality.totalSteps}</span>
-                            <span>Eval coverage: {quality.evalCoveragePct}%</span>
-                            <span>Improvement coverage: {quality.improvementCoveragePct}%</span>
-                            <span>Unresolved risks: {quality.unresolvedRisks}</span>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                            <ProjectSignal label="Quality score" value={`${quality.score}/100`} tooltip="Composite board health score from structure, eval depth, and improvement loops." />
+                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} tooltip="Indicates whether the project has end-to-end eval logic and is ready for review." />
+                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} tooltip="Percent of key steps that are paired with explicit evaluation criteria." />
+                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} tooltip="Coverage of reflection loops and improvement paths across the flow." />
                           </div>
-                          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
-                          <div className="mt-3 flex items-center gap-2">
-                            <button type="button" onClick={() => { setEditingProjectId(project.id); setEditingTitle(project.title); }} className="ades-ghost-btn px-3 py-2 text-xs">Rename</button>
-                            <button type="button" onClick={() => void handleDeleteProject(project.id)} className="ades-ghost-btn px-3 py-2 text-xs text-rose-700">Delete</button>
-                            <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">Open studio</Link>
+
+                          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
+
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProjectId(project.id);
+                                setEditingTitle(project.title);
+                              }}
+                              className="ades-ghost-btn px-3 py-2 text-xs"
+                            >
+                              Rename
+                            </button>
+                            <button type="button" onClick={() => void handleDeleteProject(project.id)} className="ades-ghost-btn px-3 py-2 text-xs text-rose-700">
+                              Delete
+                            </button>
+                            <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">
+                              Open studio
+                            </Link>
                           </div>
                         </>
                       )}
@@ -263,12 +408,25 @@ export default function DashboardPage() {
               </ul>
             ) : null}
           </section>
-        </div>
-      </ProtectedRoute>
-    </AppShell>
+        </section>
+      </main>
+    </ProtectedRoute>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return <article className="rounded-2xl border border-slate-200/80 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</p></article>;
+function ProjectSignal({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold text-slate-500" tabIndex={0} aria-label={`${label} info`}>
+          ?
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-52 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-[11px] font-normal normal-case tracking-normal text-slate-600 shadow-lg group-hover:block group-focus-visible:block">
+            {tooltip}
+          </span>
+        </span>
+      </div>
+      <p className="mt-1 text-xs font-medium text-slate-700">{value}</p>
+    </div>
+  );
 }
