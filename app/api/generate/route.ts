@@ -13,6 +13,15 @@ import {
 } from "@/lib/board/types";
 import { analyzeBoardQuality } from "@/lib/board/quality";
 
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/generate";
+};
+
 type GenerateRequest = {
   projectId?: string;
   ideaPrompt?: string;
@@ -213,6 +222,17 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
+function createOpenAIDebug(hasApiKey: boolean): OpenAIDebug {
+  return {
+    called: false,
+    responseId: null,
+    model: null,
+    usage: null,
+    hasApiKey,
+    route: "/api/generate",
+  };
+}
+
 function toEvalCategory(value: string): EvalCategory {
   const known: EvalCategory[] = ["task_success", "reasoning_quality", "tool_accuracy", "output_quality", "efficiency", "safety", "escalation", "reflection_effectiveness", "feedback_usefulness", "robustness"];
   return known.includes(value as EvalCategory) ? (value as EvalCategory) : "task_success";
@@ -398,6 +418,12 @@ function getGeneratedDesign(outputText: string): GeneratedDesign {
 }
 
 export async function POST(request: Request) {
+  const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
+  const openaiDebug = createOpenAIDebug(hasApiKey);
+  let requestProjectId: string | null = null;
+
+  console.info("[/api/generate] Route entry", { hasApiKey });
+
   try {
     const token = parseAuthToken(request);
     if (!token) return NextResponse.json({ error: "Missing Firebase auth token." }, { status: 401 });
@@ -408,6 +434,8 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as GenerateRequest;
     const projectId = clampText(body.projectId, 120);
+    requestProjectId = projectId || null;
+    console.info("[/api/generate] Request context", { projectId });
     const ideaPrompt = clampText(body.ideaPrompt, 1800);
     const audience = clampText(body.audience, 240);
     const constraints = clampText(body.constraints, 400);
@@ -424,6 +452,9 @@ export async function POST(request: Request) {
     if (projectData.ownerUid !== uid) return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
 
     const openai = getOpenAIClient();
+
+    console.info("[/api/generate] Calling OpenAI Responses API", { projectId });
+    openaiDebug.called = true;
 
     const response = await openai.responses.create({
       model: "gpt-4.1-mini",
@@ -446,6 +477,15 @@ export async function POST(request: Request) {
           strict: true,
         },
       },
+    });
+
+    openaiDebug.responseId = response.id ?? null;
+    openaiDebug.model = response.model ?? null;
+    openaiDebug.usage = response.usage ?? null;
+    console.info("[/api/generate] OpenAI response received", {
+      responseId: openaiDebug.responseId,
+      model: openaiDebug.model,
+      usage: openaiDebug.usage,
     });
 
     const outputText = response.output_text;
@@ -474,10 +514,19 @@ export async function POST(request: Request) {
       assumptions: generatedDesign.assumptions,
       critiqueSeed: generatedDesign.critiqueSeed,
       quality,
+      openaiDebug,
     });
   } catch (error) {
-    console.error("/api/generate failed", error);
+    console.error("[/api/generate] Failed", {
+      projectId: requestProjectId,
+      hasApiKey: openaiDebug.hasApiKey,
+      openaiCalled: openaiDebug.called,
+      responseId: openaiDebug.responseId,
+      model: openaiDebug.model,
+      usage: openaiDebug.usage,
+      error,
+    });
     const message = error instanceof Error ? error.message : "Failed to generate board.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }
