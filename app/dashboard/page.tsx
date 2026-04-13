@@ -150,12 +150,8 @@ export default function DashboardPage() {
       <ProtectedRoute>
         <div className="space-y-4">
           <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-5">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design workspace</p>
-                <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">From fuzzy idea to testable agent system.</h2>
-              </div>
-              <form onSubmit={handleCreateProject} className="w-full max-w-xl rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+            <div className="space-y-4">
+              <form onSubmit={handleCreateProject} className="mx-auto w-full max-w-3xl rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start a project</label>
                 <div className="mt-2 space-y-2">
                   <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional) e.g., Claims Intake Agent" className="ades-input" maxLength={100} />
@@ -173,6 +169,11 @@ export default function DashboardPage() {
                   <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn w-full whitespace-nowrap disabled:opacity-50">{isCreating ? "Creating + Generating..." : "Create and generate"}</button>
                 </div>
               </form>
+
+              <div>
+                <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design workspace</p>
+                <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">From fuzzy idea to testable agent system.</h2>
+              </div>
             </div>
           </section>
 
