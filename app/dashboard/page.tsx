@@ -23,6 +23,10 @@ function formatDateTimeLabel(isoString: string | null) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(isoString));
 }
 
+function getProjectUpdatedAt(updatedAt?: string | null) {
+  return updatedAt ? new Date(updatedAt).getTime() : 0;
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
@@ -73,21 +77,6 @@ export default function DashboardPage() {
     [projects],
   );
 
-  const stats = useMemo(() => {
-    const missingEvalCoverage = qualityByProject.filter(({ quality }) => quality.evalCoveragePct < 100).length;
-    const missingImprovementCoverage = qualityByProject.filter(({ quality }) => quality.improvementCoveragePct === 0).length;
-    const underDefined = qualityByProject.filter(({ quality }) => quality.genericStepCount > 0 || quality.stepsMissingPurpose > 0).length;
-    const readyForReview = qualityByProject.filter(({ quality }) => quality.score >= 75 && quality.hasEndToEndEval).length;
-
-    return {
-      projects: projects.length,
-      missingEvalCoverage,
-      missingImprovementCoverage,
-      underDefined,
-      readyForReview,
-    };
-  }, [projects.length, qualityByProject]);
-
   const recentProjectTitles = useMemo(() => {
     return [...projects]
       .sort((a, b) => {
@@ -102,8 +91,8 @@ export default function DashboardPage() {
   const visibleProjects = useMemo(() => {
     if (activeTab === "recent") {
       return [...qualityByProject].sort((a, b) => {
-        const aDate = a.project.updatedAt ? new Date(a.project.updatedAt).getTime() : 0;
-        const bDate = b.project.updatedAt ? new Date(b.project.updatedAt).getTime() : 0;
+        const aDate = getProjectUpdatedAt(a.project.updatedAt);
+        const bDate = getProjectUpdatedAt(b.project.updatedAt);
         return bDate - aDate;
       });
     }
@@ -204,15 +193,7 @@ export default function DashboardPage() {
           </div>
 
           <nav className="mt-6 space-y-1 text-sm">
-            {[
-              "Home",
-              "Search",
-              "Resources",
-              "All projects",
-              "Starred",
-              "Created by me",
-              "Shared with me",
-            ].map((item, idx) => (
+            {["Home", "Search", "All projects", "Starred", "Created by me", "Shared with me"].map((item, idx) => (
               <button
                 key={item}
                 type="button"
@@ -287,13 +268,6 @@ export default function DashboardPage() {
                 </div>
               </form>
             </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            <SecondaryInsight label="Need eval coverage" value={stats.missingEvalCoverage} />
-            <SecondaryInsight label="Need improvement loops" value={stats.missingImprovementCoverage} />
-            <SecondaryInsight label="Under-defined flows" value={stats.underDefined} />
-            <SecondaryInsight label="Review-ready" value={stats.readyForReview} />
           </div>
 
           {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
@@ -381,10 +355,14 @@ export default function DashboardPage() {
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
 
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                            <ProjectSignal label="Quality score" value={`${quality.score}/100`} />
-                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} />
-                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} />
-                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} />
+                            <ProjectSignal
+                              label="Quality score"
+                              value={`${quality.score}/100`}
+                              tooltip="Overall project quality based on clarity, reflection loops, risk coverage, and eval readiness."
+                            />
+                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} tooltip="Shows whether the project has enough end-to-end eval definition to be review-ready." />
+                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} tooltip="Percent of core steps that have explicit evaluation criteria defined." />
+                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} tooltip="Percent of steps that include feedback loops and concrete improvement actions." />
                           </div>
 
                           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
@@ -421,19 +399,19 @@ export default function DashboardPage() {
   );
 }
 
-function SecondaryInsight({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="rounded-2xl border border-slate-200/80 bg-white/80 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{value}</p>
-    </article>
-  );
-}
-
-function ProjectSignal({ label, value }: { label: string; value: string }) {
+function ProjectSignal({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        {label}
+        <span
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600"
+          title={tooltip}
+          aria-label={tooltip}
+        >
+          i
+        </span>
+      </p>
       <p className="mt-1 text-xs font-medium text-slate-700">{value}</p>
     </div>
   );
