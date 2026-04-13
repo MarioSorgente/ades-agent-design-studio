@@ -102,6 +102,33 @@ export default function DashboardPage() {
     return qualityByProject;
   }, [activeTab, qualityByProject]);
 
+  const recentProjectTitles = useMemo(() => {
+    return [...projects]
+      .sort((a, b) => {
+        const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      })
+      .slice(0, 3)
+      .map((project) => ({ id: project.id, title: project.title }));
+  }, [projects]);
+
+  const visibleProjects = useMemo(() => {
+    if (activeTab === "recent") {
+      return [...qualityByProject].sort((a, b) => {
+        const aDate = a.project.updatedAt ? new Date(a.project.updatedAt).getTime() : 0;
+        const bDate = b.project.updatedAt ? new Date(b.project.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      });
+    }
+
+    if (activeTab === "templates") {
+      return qualityByProject.filter(({ project }) => project.status === "generated");
+    }
+
+    return qualityByProject;
+  }, [activeTab, qualityByProject]);
+
   useEffect(() => {
     if (!generatingProjectId) return;
     const generatingProject = projects.find((project) => project.id === generatingProjectId);
@@ -232,6 +259,34 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-slate-900">{user?.displayName || "ADES designer"}</p>
                 <p className="text-xs text-slate-600">Designing reliable agent systems with ADES.</p>
               </div>
+
+              <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Agent design workspace</p>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">Let&apos;s design something, {userName}.</h1>
+              <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a testable agent with structured tasks, reflection loops, eval coverage, and business metrics.</p>
+
+              <form onSubmit={handleCreateProject} className="mt-6 rounded-[1.7rem] border border-slate-200/90 bg-white/95 p-4 shadow-[0_25px_55px_-42px_rgba(15,23,42,0.55)] md:p-5">
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Start a new project</label>
+                <textarea
+                  value={newIdeaPrompt}
+                  onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                  placeholder="Describe the agent you want to design… Ask ADES to draft tasks, loops, risks, and evals."
+                  className="ades-input mt-3 min-h-28 rounded-2xl"
+                  maxLength={1800}
+                />
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional)" className="ades-input" maxLength={100} />
+                  <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
+                  <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">ADES will generate a first structured board so you can refine quickly.</p>
+                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn px-5 py-3 disabled:opacity-50">
+                    {isCreating ? "Creating + Generating..." : "Create project"}
+                  </button>
+                </div>
+              </form>
             </div>
             <div className="mt-3 flex gap-2">
               <button
