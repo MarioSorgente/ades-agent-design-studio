@@ -5,7 +5,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
-import { createProjectForUser, renameProjectForUser, subscribeToUserProjects, type ProjectRecord } from "@/lib/firebase/firestore";
+import { analyzeBoardQuality } from "@/lib/board/quality";
+import { createProjectForUser, deleteProjectForUser, renameProjectForUser, subscribeToUserProjects, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 
 function formatDateTimeLabel(isoString: string | null) {
@@ -49,19 +50,29 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [status, user]);
 
+  const qualityByProject = useMemo(
+    () =>
+      projects.map((project) => ({
+        project,
+        quality: analyzeBoardQuality(project.board),
+      })),
+    [projects],
+  );
+
   const stats = useMemo(() => {
-    const generated = projects.filter((project) => project.status === "generated").length;
-    const drafts = projects.length - generated;
-    const evalCoverage = projects.length ? Math.round((generated / projects.length) * 100) : 0;
+    const missingEvalCoverage = qualityByProject.filter(({ quality }) => quality.evalCoveragePct < 100).length;
+    const missingImprovementCoverage = qualityByProject.filter(({ quality }) => quality.improvementCoveragePct === 0).length;
+    const underDefined = qualityByProject.filter(({ quality }) => quality.genericStepCount > 0 || quality.stepsMissingPurpose > 0).length;
+    const readyForReview = qualityByProject.filter(({ quality }) => quality.score >= 75 && quality.hasEndToEndEval).length;
 
     return {
-      activeProjects: projects.length,
-      recentFlows: Math.min(projects.length, 5),
-      evalCoverage,
-      reviewActivity: projects.filter((project) => project.critique).length,
-      drafts,
+      projects: projects.length,
+      missingEvalCoverage,
+      missingImprovementCoverage,
+      underDefined,
+      readyForReview,
     };
-  }, [projects]);
+  }, [projects.length, qualityByProject]);
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,8 +108,21 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleDeleteProject(projectId: string) {
+    if (!user) return;
+    const confirmed = window.confirm("Delete this project permanently?");
+    if (!confirmed) return;
+
+    setErrorMessage(null);
+    try {
+      await deleteProjectForUser(projectId, user.uid);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not delete project.");
+    }
+  }
+
   return (
-    <AppShell title="Dashboard" subtitle="Resume active agent design work quickly: flow progress, eval coverage, and review activity." breadcrumbLabel="Dashboard">
+    <AppShell title="Dashboard" subtitle="Design intelligence across your portfolio: eval depth, improvement loops, and readiness gaps." breadcrumbLabel="Dashboard">
       <ProtectedRoute>
         <div className="space-y-4">
           <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-5">
@@ -118,11 +142,11 @@ export default function DashboardPage() {
           </section>
 
           <section className="grid gap-3 md:grid-cols-5">
-            <MetricCard label="Active projects" value={String(stats.activeProjects)} />
-            <MetricCard label="Recent flows" value={String(stats.recentFlows)} />
-            <MetricCard label="Eval coverage" value={`${stats.evalCoverage}%`} />
-            <MetricCard label="Feedback activity" value={String(stats.reviewActivity)} />
-            <MetricCard label="Drafts needing refinement" value={String(stats.drafts)} />
+            <MetricCard label="Projects missing eval coverage" value={String(stats.missingEvalCoverage)} />
+            <MetricCard label="Flows with no improvement loops" value={String(stats.missingImprovementCoverage)} />
+            <MetricCard label="Under-defined projects" value={String(stats.underDefined)} />
+            <MetricCard label="Projects ready for review" value={String(stats.readyForReview)} />
+            <MetricCard label="Total projects" value={String(stats.projects)} />
           </section>
 
           {errorMessage ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
@@ -137,9 +161,9 @@ export default function DashboardPage() {
 
             {!isLoadingProjects && !projects.length ? <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><h4 className="text-sm font-semibold text-slate-900">No projects yet</h4><p className="mt-1 text-sm text-slate-600">Create your first flow and attach reflection loops, external feedback, and eval questions.</p></div> : null}
 
-            {!isLoadingProjects && projects.length ? (
+            {!isLoadingProjects && qualityByProject.length ? (
               <ul className="mt-4 grid gap-3 md:grid-cols-2">
-                {projects.map((project) => {
+                {qualityByProject.map(({ project, quality }) => {
                   const isEditing = editingProjectId === project.id;
                   return (
                     <li key={project.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-indigo-200 hover:bg-white">
@@ -160,8 +184,16 @@ export default function DashboardPage() {
                         <>
                           <h4 className="mt-2 font-semibold text-slate-900">{project.title}</h4>
                           <p className="mt-1 text-xs text-slate-500">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                            <span>Concrete steps: {quality.totalSteps}</span>
+                            <span>Eval coverage: {quality.evalCoveragePct}%</span>
+                            <span>Improvement coverage: {quality.improvementCoveragePct}%</span>
+                            <span>Unresolved risks: {quality.unresolvedRisks}</span>
+                          </div>
+                          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
                           <div className="mt-3 flex items-center gap-2">
                             <button type="button" onClick={() => { setEditingProjectId(project.id); setEditingTitle(project.title); }} className="ades-ghost-btn px-3 py-2 text-xs">Rename</button>
+                            <button type="button" onClick={() => void handleDeleteProject(project.id)} className="ades-ghost-btn px-3 py-2 text-xs text-rose-700">Delete</button>
                             <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">Open studio</Link>
                           </div>
                         </>

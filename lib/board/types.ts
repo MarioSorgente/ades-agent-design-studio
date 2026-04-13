@@ -11,24 +11,77 @@ export type NodeLane = "main" | "quality" | "business";
 export type EdgeSemanticType = "execution" | "eval" | "reflection" | "business" | "feedback";
 
 export type StepType = "task" | "tool_use" | "reflection" | "human_feedback" | "eval_checkpoint" | "decision" | "output";
-export type EvalCategory = "task_success" | "reasoning_quality" | "tool_accuracy" | "efficiency" | "safety";
+export type EvalCategory =
+  | "task_success"
+  | "reasoning_quality"
+  | "tool_accuracy"
+  | "output_quality"
+  | "efficiency"
+  | "safety"
+  | "escalation"
+  | "reflection_effectiveness"
+  | "feedback_usefulness"
+  | "robustness";
+
+export type ReflectionHook = {
+  trigger: string;
+  purpose: string;
+  critiqueQuestion: string;
+  revisionAction: string;
+  stopCondition: string;
+};
+
+export type FeedbackHook = {
+  source: string;
+  whenToRequest: string;
+  whatIsReviewed: string;
+  afterFeedbackAction: string;
+  updatesScope: "current_run" | "prompt" | "both";
+};
+
+export type EvalDefinition = {
+  id: string;
+  name: string;
+  question: string;
+  category: EvalCategory;
+  scope: "step" | "flow";
+  relatedStepIds: string[];
+  whyItMatters: string;
+  gradingMethod: string;
+  passCriteria: string;
+  threshold: string;
+  testCases: string;
+  failureExamples: string;
+  priority: "high" | "medium" | "low";
+};
 
 export type AdesNodeData = {
   label: string;
+  shortLabel: string;
   body: string;
   tags: string[];
   owner: string;
   stepType: StepType;
+  purpose: string;
+  whyThisStepExists: string;
   inputs: string;
   outputs: string;
   tools: string[];
+  reasoningRequired: string;
+  completionCriteria: string;
+  commonFailureModes: string[];
   assumptions: string[];
   risks: string[];
+  dependencies: string[];
+  reflectionHooks: ReflectionHook[];
+  feedbackHooks: FeedbackHook[];
+  evals: EvalDefinition[];
   reflectionPrompt: string;
   reflectionTrigger: string;
   feedbackSource: string;
   feedbackCondition: string;
   feedbackAction: string;
+  feedbackUpdatesScope: "current_run" | "prompt" | "both";
   evalName: string;
   evalQuestion: string;
   evalMetric: string;
@@ -65,20 +118,31 @@ export function createNodeData(type: AdesNodeType, label: string): AdesNodeData 
   const isEval = type === "eval";
   return {
     label,
+    shortLabel: label,
     body: "",
     tags: [],
     owner: type === "handoff" ? "Human reviewer" : "AI agent",
     stepType: type === "handoff" ? "human_feedback" : "task",
+    purpose: "",
+    whyThisStepExists: "",
     inputs: "",
     outputs: "",
     tools: [],
+    reasoningRequired: "",
+    completionCriteria: "",
+    commonFailureModes: [],
     assumptions: [],
     risks: [],
+    dependencies: [],
+    reflectionHooks: [],
+    feedbackHooks: [],
+    evals: [],
     reflectionPrompt: type === "reflection" ? "Critique this step before moving forward." : "",
     reflectionTrigger: type === "reflection" ? "Low confidence or missing constraints" : "",
     feedbackSource: type === "feedback" ? "Human reviewer" : "",
     feedbackCondition: type === "feedback" ? "Confidence below threshold" : "",
     feedbackAction: type === "feedback" ? "Revise prompt and rerun previous step" : "",
+    feedbackUpdatesScope: "current_run",
     evalName: isEval ? "Step quality check" : "",
     evalQuestion: isEval ? "Did this step achieve its intended output?" : "",
     evalMetric: isEval ? "Quality rubric" : "",

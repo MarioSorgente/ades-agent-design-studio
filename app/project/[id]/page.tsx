@@ -18,12 +18,14 @@ import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
 import { normalizeRouteParam } from "@/lib/utils/route-params";
+import { analyzeBoardQuality } from "@/lib/board/quality";
 
 const AUTOSAVE_DELAY_MS = 900;
 
 type GenerateResponse = {
   project: { id: string; title: string; summary: string; status: "generated" };
   board: AdesBoardSnapshot;
+  quality?: { score: number; issues: string[] };
 };
 
 type CritiqueResponse = { critique: CritiqueResult };
@@ -124,6 +126,8 @@ export default function ProjectPage() {
     return { mainSteps, reflections, feedback, evals };
   }, [nodes]);
 
+
+  const qualityReport = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
   useEffect(() => {
     if (!user || !project || !currentBoardHash || !hasHydratedBoardRef.current || lastSavedHashRef.current === currentBoardHash) return;
     setSaveState("saving");
@@ -263,6 +267,7 @@ export default function ProjectPage() {
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">{boardSummary.reflections} reflections</span>
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-sky-700">{boardSummary.feedback} feedback</span>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{boardSummary.evals} evals</span>
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700">quality {qualityReport.score}/100</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {BOARD_VIEW_MODES.map((mode) => (
@@ -274,6 +279,17 @@ export default function ProjectPage() {
                 </div>
               </div>
             </section>
+
+            {qualityReport.issues.length ? (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Design quality checks</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-900">
+                  {qualityReport.issues.slice(0, 4).map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             <section className="flex gap-3">
               <aside className={`rounded-2xl border border-slate-200/80 bg-white/90 p-2 ${isLeftToolbarExpanded ? "w-[220px]" : "w-[54px]"}`}>

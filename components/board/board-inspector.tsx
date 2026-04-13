@@ -5,7 +5,7 @@ import { getNodeTheme } from "@/lib/board/node-theme";
 import { useAdesBoardStore } from "@/lib/board/store";
 import type { AdesNodeType, EvalCategory } from "@/lib/board/types";
 
-const evalCategories: EvalCategory[] = ["task_success", "reasoning_quality", "tool_accuracy", "efficiency", "safety"];
+const evalCategories: EvalCategory[] = ["task_success", "reasoning_quality", "tool_accuracy", "output_quality", "efficiency", "safety", "escalation", "reflection_effectiveness", "feedback_usefulness", "robustness"];
 
 export function BoardInspector() {
   const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
@@ -13,7 +13,7 @@ export function BoardInspector() {
   const selectedNode = useAdesBoardStore(useCallback((state) => state.nodes.find((node) => node.id === selectedNodeId) ?? null, [selectedNodeId]));
 
   if (!selectedNode) {
-    return <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">Select a step to edit details. Flow stays clean while reflection, feedback, and evals live here.</div>;
+    return <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">Select a step to edit operational details, evals, and improvement hooks.</div>;
   }
 
   const nodeTheme = getNodeTheme(selectedNode.type as AdesNodeType);
@@ -21,9 +21,14 @@ export function BoardInspector() {
   const updateField = (
     field:
       | "label"
+      | "shortLabel"
       | "body"
+      | "purpose"
+      | "whyThisStepExists"
       | "inputs"
       | "outputs"
+      | "reasoningRequired"
+      | "completionCriteria"
       | "reflectionTrigger"
       | "reflectionPrompt"
       | "feedbackSource"
@@ -56,18 +61,17 @@ export function BoardInspector() {
         </div>
       </div>
 
-      <Field label="Step title">
-        <input value={selectedNode.data.label} onChange={(event) => updateField("label", event.target.value)} className="ades-input" />
-      </Field>
-
-      <Field label="One-line purpose">
-        <textarea value={selectedNode.data.body} onChange={(event) => updateField("body", event.target.value)} rows={3} className="ades-input resize-none" />
-      </Field>
+      <Field label="Step title"><input value={selectedNode.data.label} onChange={(event) => updateField("label", event.target.value)} className="ades-input" /></Field>
+      <Field label="Short label"><input value={selectedNode.data.shortLabel} onChange={(event) => updateField("shortLabel", event.target.value)} className="ades-input" /></Field>
+      <Field label="One-line purpose"><textarea value={selectedNode.data.purpose || selectedNode.data.body} onChange={(event) => { updateField("purpose", event.target.value); updateField("body", event.target.value); }} rows={3} className="ades-input resize-none" /></Field>
+      <Field label="Why this step exists"><textarea value={selectedNode.data.whyThisStepExists} onChange={(event) => updateField("whyThisStepExists", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         <Field label="Inputs"><input value={selectedNode.data.inputs} onChange={(event) => updateField("inputs", event.target.value)} className="ades-input" /></Field>
         <Field label="Outputs"><input value={selectedNode.data.outputs} onChange={(event) => updateField("outputs", event.target.value)} className="ades-input" /></Field>
       </div>
+      <Field label="Reasoning required"><input value={selectedNode.data.reasoningRequired} onChange={(event) => updateField("reasoningRequired", event.target.value)} className="ades-input" /></Field>
+      <Field label="Completion criteria"><input value={selectedNode.data.completionCriteria} onChange={(event) => updateField("completionCriteria", event.target.value)} className="ades-input" /></Field>
 
       {selectedNode.type === "reflection" ? (
         <Section title="Reflection loop">
@@ -97,11 +101,11 @@ export function BoardInspector() {
             <Field label="Scope">
               <select value={selectedNode.data.evalScope} onChange={(event) => updateField("evalScope", event.target.value)} className="ades-input">
                 <option value="step">Step-level</option>
-                <option value="flow">Flow-level</option>
+                <option value="flow">End-to-end</option>
               </select>
             </Field>
           </div>
-          <Field label="Criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
+          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
           <Field label="Dataset / cases"><input value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} className="ades-input" /></Field>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <Field label="Grading method"><input value={selectedNode.data.evalMethod} onChange={(event) => updateField("evalMethod", event.target.value)} className="ades-input" /></Field>
@@ -113,7 +117,7 @@ export function BoardInspector() {
       {selectedNode.type === "business_metric" || selectedNode.type === "risk" || selectedNode.type === "assumption" ? (
         <Section title="Business context">
           {selectedNode.type === "business_metric" ? <Field label="Business outcome metric"><input value={selectedNode.data.businessMetric} onChange={(event) => updateField("businessMetric", event.target.value)} className="ades-input" /></Field> : null}
-          {selectedNode.type === "risk" ? <Field label="Risk trigger"><input value={selectedNode.data.confidenceCheck} onChange={(event) => updateField("confidenceCheck", event.target.value)} className="ades-input" /></Field> : null}
+          {selectedNode.type === "risk" ? <Field label="Risk / escalation trigger"><input value={selectedNode.data.confidenceCheck} onChange={(event) => updateField("confidenceCheck", event.target.value)} className="ades-input" /></Field> : null}
         </Section>
       ) : null}
     </div>
