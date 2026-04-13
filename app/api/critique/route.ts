@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
+import { analyzeBoardChecklists } from "@/lib/board/quality";
+import { recordOpenAIEvent } from "@/lib/server/openai-events";
 
 type CritiqueRequest = {
   projectId?: string;
@@ -247,13 +249,35 @@ export async function POST(request: Request) {
     }
 
     const critique = getCritiqueResult(outputText);
+    const qualityChecklist = analyzeBoardChecklists(body.board);
+    const critiqueActionability = {
+      hasReflectionSuggestions: critique.missingReflections.length > 0,
+      hasEvalSuggestions: critique.missingEvals.length > 0,
+      hasBusinessMetricSuggestions: critique.missingBusinessMetrics.length > 0,
+      recommendationsDetailed: critique.critiqueItems.every((item) => item.recommendation.trim().length >= 20)
+    };
 
     await projectRef.update({
       critique,
       updatedAt: FieldValue.serverTimestamp()
     });
 
-    return NextResponse.json({ critique, openaiDebug });
+    try {
+      await recordOpenAIEvent({
+        route: "/api/critique",
+        projectId,
+        uid,
+        success: true,
+        responseId: openaiDebug.responseId,
+        model: openaiDebug.model,
+        usage: openaiDebug.usage,
+        hasApiKey: openaiDebug.hasApiKey
+      });
+    } catch (eventError) {
+      console.error("[/api/critique] Failed to persist OpenAI event", eventError);
+    }
+
+    return NextResponse.json({ critique, openaiDebug, qualityChecklist, critiqueActionability });
   } catch (error) {
     console.error("[/api/critique] Failed", {
       projectId: requestProjectId,
@@ -265,6 +289,23 @@ export async function POST(request: Request) {
       error
     });
     const message = error instanceof Error ? error.message : "Failed to critique board.";
+    if (requestProjectId) {
+      try {
+        await recordOpenAIEvent({
+          route: "/api/critique",
+          projectId: requestProjectId,
+          uid: null,
+          success: false,
+          responseId: openaiDebug.responseId,
+          model: openaiDebug.model,
+          usage: openaiDebug.usage,
+          hasApiKey: openaiDebug.hasApiKey,
+          errorMessage: message
+        });
+      } catch (eventError) {
+        console.error("[/api/critique] Failed to persist OpenAI event", eventError);
+      }
+    }
     return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }

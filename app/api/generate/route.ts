@@ -11,7 +11,17 @@ import {
   createNodeData,
   type EvalCategory,
 } from "@/lib/board/types";
-import { analyzeBoardQuality } from "@/lib/board/quality";
+import { analyzeBoardChecklists, analyzeBoardQuality } from "@/lib/board/quality";
+import { recordOpenAIEvent } from "@/lib/server/openai-events";
+
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/generate";
+};
 
 type OpenAIDebug = {
   called: boolean;
@@ -494,6 +504,7 @@ export async function POST(request: Request) {
     const generatedDesign = getGeneratedDesign(outputText);
     const board = normalizeDesign(generatedDesign);
     const quality = analyzeBoardQuality(board);
+    const qualityChecklist = analyzeBoardChecklists(board);
 
     await projectRef.update({
       title: generatedDesign.title,
@@ -508,12 +519,28 @@ export async function POST(request: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    try {
+      await recordOpenAIEvent({
+        route: "/api/generate",
+        projectId,
+        uid,
+        success: true,
+        responseId: openaiDebug.responseId,
+        model: openaiDebug.model,
+        usage: openaiDebug.usage,
+        hasApiKey: openaiDebug.hasApiKey,
+      });
+    } catch (eventError) {
+      console.error("[/api/generate] Failed to persist OpenAI event", eventError);
+    }
+
     return NextResponse.json({
       project: { id: projectId, title: generatedDesign.title, summary: generatedDesign.summary, status: "generated" },
       board,
       assumptions: generatedDesign.assumptions,
       critiqueSeed: generatedDesign.critiqueSeed,
       quality,
+      qualityChecklist,
       openaiDebug,
     });
   } catch (error) {
@@ -527,6 +554,23 @@ export async function POST(request: Request) {
       error,
     });
     const message = error instanceof Error ? error.message : "Failed to generate board.";
+    if (requestProjectId) {
+      try {
+        await recordOpenAIEvent({
+          route: "/api/generate",
+          projectId: requestProjectId,
+          uid: null,
+          success: false,
+          responseId: openaiDebug.responseId,
+          model: openaiDebug.model,
+          usage: openaiDebug.usage,
+          hasApiKey: openaiDebug.hasApiKey,
+          errorMessage: message,
+        });
+      } catch (eventError) {
+        console.error("[/api/generate] Failed to persist OpenAI event", eventError);
+      }
+    }
     return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }
