@@ -23,6 +23,10 @@ function formatDateTimeLabel(isoString: string | null) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(isoString));
 }
 
+function getProjectUpdatedAt(updatedAt?: string | null) {
+  return updatedAt ? new Date(updatedAt).getTime() : 0;
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
@@ -102,8 +106,8 @@ export default function DashboardPage() {
   const visibleProjects = useMemo(() => {
     if (activeTab === "recent") {
       return [...qualityByProject].sort((a, b) => {
-        const aDate = a.project.updatedAt ? new Date(a.project.updatedAt).getTime() : 0;
-        const bDate = b.project.updatedAt ? new Date(b.project.updatedAt).getTime() : 0;
+        const aDate = getProjectUpdatedAt(a.project.updatedAt);
+        const bDate = getProjectUpdatedAt(b.project.updatedAt);
         return bDate - aDate;
       });
     }
