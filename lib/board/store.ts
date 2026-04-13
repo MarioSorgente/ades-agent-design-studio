@@ -113,7 +113,19 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const nodeId = createNodeId(type);
     const position = nextNodePosition(state.nodes, type);
 
-    const newNode = createNode(type, nodeId, position, `New ${type.replace("_", " ")}`);
+    const defaultLabelByType: Record<AdesNodeType, string> = {
+      goal: "Define the business success condition and failure boundaries",
+      task: "Specify a concrete operational step",
+      reflection: "Run a targeted self-critique before proceeding",
+      feedback: "Collect external review for this output",
+      risk: "Document a concrete failure mode and mitigation",
+      eval: "Measure this behavior with a clear eval question",
+      business_metric: "Track the business outcome this design must move",
+      assumption: "State and validate a key operating assumption",
+      handoff: "Escalate to a human with decision context",
+    };
+
+    const newNode = createNode(type, nodeId, position, defaultLabelByType[type]);
 
     set({
       nodes: [...state.nodes, newNode],
@@ -125,7 +137,7 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const nodeId = createNodeId(type);
     const position = nextNodePosition(state.nodes, type);
 
-    const newNode = createNode(type, nodeId, position, label.trim() || `New ${type.replace("_", " ")}`);
+    const newNode = createNode(type, nodeId, position, label.trim() || "Specify a concrete step");
     newNode.data.body = body.trim();
 
     set({
