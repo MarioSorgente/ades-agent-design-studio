@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { analyzeBoardQuality } from "@/lib/board/quality";
@@ -16,7 +15,6 @@ function formatDateTimeLabel(isoString: string | null) {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
 
@@ -31,6 +29,7 @@ export default function DashboardPage() {
   const [editingTitle, setEditingTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [generatingProjectId, setGeneratingProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -78,6 +77,14 @@ export default function DashboardPage() {
     };
   }, [projects.length, qualityByProject]);
 
+  useEffect(() => {
+    if (!generatingProjectId) return;
+    const generatingProject = projects.find((project) => project.id === generatingProjectId);
+    if (generatingProject?.status === "generated") {
+      setGeneratingProjectId(null);
+    }
+  }, [generatingProjectId, projects]);
+
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user || isCreating) return;
@@ -90,6 +97,7 @@ export default function DashboardPage() {
     setErrorMessage(null);
     try {
       const projectId = await createProjectForUser(user.uid, newTitle);
+      setGeneratingProjectId(projectId);
       const idToken = await getCurrentUserIdToken();
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -107,8 +115,9 @@ export default function DashboardPage() {
       setNewIdeaPrompt("");
       setNewAudience("");
       setNewConstraints("");
-      router.push(`/project/${projectId}`);
+      setGeneratingProjectId(null);
     } catch (error) {
+      setGeneratingProjectId(null);
       setErrorMessage(error instanceof Error ? error.message : "Could not create project.");
     } finally {
       setIsCreating(false);
@@ -186,6 +195,11 @@ export default function DashboardPage() {
           </section>
 
           {errorMessage ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
+          {generatingProjectId ? (
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+              Generating your project board now. You will see it below with a spinner until it is ready.
+            </div>
+          ) : null}
 
           <section className="rounded-3xl border border-slate-200/80 bg-white p-4">
             <div className="flex items-center justify-between gap-2">
@@ -201,10 +215,18 @@ export default function DashboardPage() {
               <ul className="mt-4 grid gap-3 md:grid-cols-2">
                 {qualityByProject.map(({ project, quality }) => {
                   const isEditing = editingProjectId === project.id;
+                  const isGenerating = generatingProjectId === project.id && project.status !== "generated";
                   return (
                     <li key={project.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-indigo-200 hover:bg-white">
                       <div className="flex items-center justify-between">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${project.status === "generated" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600"}`}>{project.status === "generated" ? "Generated" : "Draft"}</span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            project.status === "generated" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : isGenerating ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-300 bg-white text-slate-600"
+                          }`}
+                        >
+                          {isGenerating ? <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-indigo-600 border-t-transparent" aria-hidden /> : null}
+                          {project.status === "generated" ? "Generated" : isGenerating ? "Generating" : "Draft"}
+                        </span>
                         <span className="text-[11px] text-slate-500">Updated {formatDateTimeLabel(project.updatedAt)}</span>
                       </div>
 
@@ -220,6 +242,7 @@ export default function DashboardPage() {
                         <>
                           <h4 className="mt-2 font-semibold text-slate-900">{project.title}</h4>
                           <p className="mt-1 text-xs text-slate-500">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
+                          {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
                             <span>Concrete steps: {quality.totalSteps}</span>
                             <span>Eval coverage: {quality.evalCoveragePct}%</span>
