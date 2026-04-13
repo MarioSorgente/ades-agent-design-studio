@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { analyzeBoardQuality } from "@/lib/board/quality";
 import { createProjectForUser, deleteProjectForUser, renameProjectForUser, subscribeToUserProjects, type ProjectRecord } from "@/lib/firebase/firestore";
+import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
 
 function formatDateTimeLabel(isoString: string | null) {
@@ -21,6 +22,9 @@ export default function DashboardPage() {
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [newTitle, setNewTitle] = useState("");
+  const [newIdeaPrompt, setNewIdeaPrompt] = useState("");
+  const [newAudience, setNewAudience] = useState("");
+  const [newConstraints, setNewConstraints] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -77,12 +81,32 @@ export default function DashboardPage() {
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user || isCreating) return;
+    if (!newIdeaPrompt.trim()) {
+      setErrorMessage("Add the idea prompt so ADES can generate steps, loops, and evals.");
+      return;
+    }
 
     setIsCreating(true);
     setErrorMessage(null);
     try {
       const projectId = await createProjectForUser(user.uid, newTitle);
+      const idToken = await getCurrentUserIdToken();
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          projectId,
+          ideaPrompt: newIdeaPrompt,
+          audience: newAudience,
+          constraints: newConstraints,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Project created, but AI generation failed.");
       setNewTitle("");
+      setNewIdeaPrompt("");
+      setNewAudience("");
+      setNewConstraints("");
       router.push(`/project/${projectId}`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not create project.");
@@ -133,9 +157,20 @@ export default function DashboardPage() {
               </div>
               <form onSubmit={handleCreateProject} className="w-full max-w-xl rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start a project</label>
-                <div className="mt-2 flex flex-col gap-2 md:flex-row">
-                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="e.g., Claims Intake Agent" className="ades-input" maxLength={100} />
-                  <button type="submit" disabled={isCreating || !user} className="ades-primary-btn whitespace-nowrap disabled:opacity-50">{isCreating ? "Creating..." : "Create"}</button>
+                <div className="mt-2 space-y-2">
+                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional) e.g., Claims Intake Agent" className="ades-input" maxLength={100} />
+                  <textarea
+                    value={newIdeaPrompt}
+                    onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                    placeholder="Describe the agent idea. ADES will immediately break it into tasks, loops, reflections, and evals."
+                    className="ades-input min-h-20"
+                    maxLength={1800}
+                  />
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
+                    <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
+                  </div>
+                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn w-full whitespace-nowrap disabled:opacity-50">{isCreating ? "Creating + Generating..." : "Create and generate"}</button>
                 </div>
               </form>
             </div>
