@@ -15,6 +15,15 @@ import { analyzeBoardChecklists, analyzeBoardQuality } from "@/lib/board/quality
 import { recordOpenAIEvent } from "@/lib/server/openai-events";
 import { createOpenAIDebug } from "@/lib/server/openai-debug";
 
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/generate";
+};
+
 type GenerateRequest = {
   projectId?: string;
   ideaPrompt?: string;
@@ -213,6 +222,17 @@ function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY.");
   return new OpenAI({ apiKey });
+}
+
+function createOpenAIDebug(hasApiKey: boolean): OpenAIDebug {
+  return {
+    called: false,
+    responseId: null,
+    model: null,
+    usage: null,
+    hasApiKey,
+    route: "/api/generate",
+  };
 }
 
 function toEvalCategory(value: string): EvalCategory {

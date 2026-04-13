@@ -14,6 +14,15 @@ type CritiqueRequest = {
   board?: AdesBoardSnapshot;
 };
 
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/critique";
+};
+
 const AI_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -106,6 +115,17 @@ function getOpenAIClient() {
   }
 
   return new OpenAI({ apiKey });
+}
+
+function createOpenAIDebug(hasApiKey: boolean): OpenAIDebug {
+  return {
+    called: false,
+    responseId: null,
+    model: null,
+    usage: null,
+    hasApiKey,
+    route: "/api/critique"
+  };
 }
 
 function getCritiqueResult(outputText: string): CritiqueResult {
