@@ -103,11 +103,45 @@ function parseNodeData(value: unknown): AdesNodeData | null {
     label: data.label,
     body: typeof data.body === "string" ? data.body : "",
     tags: isStringArray(data.tags) ? data.tags : [],
-    reflectionPrompt: typeof data.reflectionPrompt === "string" ? data.reflectionPrompt : "",
-    evalMetric: typeof data.evalMetric === "string" ? data.evalMetric : "",
-    businessMetric: typeof data.businessMetric === "string" ? data.businessMetric : "",
-    confidenceCheck: typeof data.confidenceCheck === "string" ? data.confidenceCheck : "",
     owner: typeof data.owner === "string" ? data.owner : "AI system",
+    stepType:
+      data.stepType === "task" ||
+      data.stepType === "tool_use" ||
+      data.stepType === "reflection" ||
+      data.stepType === "human_feedback" ||
+      data.stepType === "eval_checkpoint" ||
+      data.stepType === "decision" ||
+      data.stepType === "output"
+        ? data.stepType
+        : "task",
+    inputs: stringOrEmpty(data.inputs),
+    outputs: stringOrEmpty(data.outputs),
+    tools: isStringArray(data.tools) ? data.tools : [],
+    assumptions: isStringArray(data.assumptions) ? data.assumptions : [],
+    risks: isStringArray(data.risks) ? data.risks : [],
+    reflectionPrompt: stringOrEmpty(data.reflectionPrompt),
+    reflectionTrigger: stringOrEmpty(data.reflectionTrigger),
+    feedbackSource: stringOrEmpty(data.feedbackSource),
+    feedbackCondition: stringOrEmpty(data.feedbackCondition),
+    feedbackAction: stringOrEmpty(data.feedbackAction),
+    evalName: stringOrEmpty(data.evalName),
+    evalQuestion: stringOrEmpty(data.evalQuestion),
+    evalMetric: stringOrEmpty(data.evalMetric),
+    evalCategory:
+      data.evalCategory === "task_success" ||
+      data.evalCategory === "reasoning_quality" ||
+      data.evalCategory === "tool_accuracy" ||
+      data.evalCategory === "efficiency" ||
+      data.evalCategory === "safety"
+        ? data.evalCategory
+        : "task_success",
+    evalScope: data.evalScope === "flow" ? "flow" : "step",
+    evalCriteria: stringOrEmpty(data.evalCriteria),
+    evalDataset: stringOrEmpty(data.evalDataset),
+    evalMethod: stringOrEmpty(data.evalMethod),
+    evalThreshold: stringOrEmpty(data.evalThreshold),
+    businessMetric: stringOrEmpty(data.businessMetric),
+    confidenceCheck: stringOrEmpty(data.confidenceCheck),
   };
 }
 

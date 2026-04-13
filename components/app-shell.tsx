@@ -17,8 +17,7 @@ type AppShellProps = {
 const primaryNav = [
   { href: "/", label: "Home", match: (pathname: string) => pathname === "/" },
   { href: "/dashboard", label: "Dashboard", match: (pathname: string) => pathname.startsWith("/dashboard") },
-  { href: "/sign-in", label: "Sign in", match: (pathname: string) => pathname.startsWith("/sign-in") },
-];
+  ];
 
 export function AppShell({ children, title, subtitle, actions, breadcrumbLabel }: AppShellProps) {
   const pathname = usePathname();
