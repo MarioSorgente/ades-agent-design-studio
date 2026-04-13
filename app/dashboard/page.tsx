@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
@@ -13,7 +14,7 @@ import {
   subscribeToUserProjects,
   type ProjectRecord,
 } from "@/lib/firebase/firestore";
-import { getCurrentUserIdToken } from "@/lib/firebase/auth";
+import { getCurrentUserIdToken, signOutUser } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
 
 type ProjectTab = "mine" | "recent" | "templates";
@@ -26,6 +27,7 @@ function formatDateTimeLabel(isoString: string | null) {
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
+  const router = useRouter();
   const userName = user?.displayName?.split(" ")[0] || "there";
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -73,20 +75,32 @@ export default function DashboardPage() {
     [projects],
   );
 
-  const stats = useMemo(() => {
-    const missingEvalCoverage = qualityByProject.filter(({ quality }) => quality.evalCoveragePct < 100).length;
-    const missingImprovementCoverage = qualityByProject.filter(({ quality }) => quality.improvementCoveragePct === 0).length;
-    const underDefined = qualityByProject.filter(({ quality }) => quality.genericStepCount > 0 || quality.stepsMissingPurpose > 0).length;
-    const readyForReview = qualityByProject.filter(({ quality }) => quality.score >= 75 && quality.hasEndToEndEval).length;
+  const recentProjectTitles = useMemo(() => {
+    return [...projects]
+      .sort((a, b) => {
+        const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      })
+      .slice(0, 3)
+      .map((project) => ({ id: project.id, title: project.title }));
+  }, [projects]);
 
-    return {
-      projects: projects.length,
-      missingEvalCoverage,
-      missingImprovementCoverage,
-      underDefined,
-      readyForReview,
-    };
-  }, [projects.length, qualityByProject]);
+  const visibleProjects = useMemo(() => {
+    if (activeTab === "recent") {
+      return [...qualityByProject].sort((a, b) => {
+        const aDate = a.project.updatedAt ? new Date(a.project.updatedAt).getTime() : 0;
+        const bDate = b.project.updatedAt ? new Date(b.project.updatedAt).getTime() : 0;
+        return bDate - aDate;
+      });
+    }
+
+    if (activeTab === "templates") {
+      return qualityByProject.filter(({ project }) => project.status === "generated");
+    }
+
+    return qualityByProject;
+  }, [activeTab, qualityByProject]);
 
   const recentProjectTitles = useMemo(() => {
     return [...projects]
@@ -207,7 +221,6 @@ export default function DashboardPage() {
             {[
               "Home",
               "Search",
-              "Resources",
               "All projects",
               "Starred",
               "Created by me",
@@ -240,10 +253,52 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50/85 p-3">
-            <p className="text-sm font-semibold text-slate-900">{user?.displayName || "ADES designer"}</p>
-            <p className="mt-1 text-xs text-slate-600">Designing reliable agent systems with ADES.</p>
-            <div className="mt-3">
-              <AuthHeaderActions />
+            <div className="flex items-center gap-2">
+              {user?.photoURL ? <img src={user.photoURL} alt={user.displayName ?? "ADES user"} className="h-8 w-8 rounded-full" /> : <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">{(user?.displayName || "A").slice(0, 1)}</span>}
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{user?.displayName || "ADES designer"}</p>
+                <p className="text-xs text-slate-600">Designing reliable agent systems with ADES.</p>
+              </div>
+
+              <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Agent design workspace</p>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">Let&apos;s design something, {userName}.</h1>
+              <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a testable agent with structured tasks, reflection loops, eval coverage, and business metrics.</p>
+
+              <form onSubmit={handleCreateProject} className="mt-6 rounded-[1.7rem] border border-slate-200/90 bg-white/95 p-4 shadow-[0_25px_55px_-42px_rgba(15,23,42,0.55)] md:p-5">
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Start a new project</label>
+                <textarea
+                  value={newIdeaPrompt}
+                  onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                  placeholder="Describe the agent you want to design… Ask ADES to draft tasks, loops, risks, and evals."
+                  className="ades-input mt-3 min-h-28 rounded-2xl"
+                  maxLength={1800}
+                />
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional)" className="ades-input" maxLength={100} />
+                  <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
+                  <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">ADES will generate a first structured board so you can refine quickly.</p>
+                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn px-5 py-3 disabled:opacity-50">
+                    {isCreating ? "Creating + Generating..." : "Create project"}
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOutUser();
+                  router.push("/sign-in");
+                }}
+                className="ades-ghost-btn w-full px-3 py-2 text-xs"
+              >
+                Sign out
+              </button>
             </div>
           </div>
         </aside>
@@ -287,13 +342,6 @@ export default function DashboardPage() {
                 </div>
               </form>
             </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            <SecondaryInsight label="Need eval coverage" value={stats.missingEvalCoverage} />
-            <SecondaryInsight label="Need improvement loops" value={stats.missingImprovementCoverage} />
-            <SecondaryInsight label="Under-defined flows" value={stats.underDefined} />
-            <SecondaryInsight label="Review-ready" value={stats.readyForReview} />
           </div>
 
           {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
@@ -381,10 +429,10 @@ export default function DashboardPage() {
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
 
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                            <ProjectSignal label="Quality score" value={`${quality.score}/100`} />
-                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} />
-                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} />
-                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} />
+                            <ProjectSignal label="Quality score" value={`${quality.score}/100`} tooltip="Composite board health score from structure, eval depth, and improvement loops." />
+                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} tooltip="Indicates whether the project has end-to-end eval logic and is ready for review." />
+                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} tooltip="Percent of key steps that are paired with explicit evaluation criteria." />
+                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} tooltip="Coverage of reflection loops and improvement paths across the flow." />
                           </div>
 
                           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
@@ -421,19 +469,18 @@ export default function DashboardPage() {
   );
 }
 
-function SecondaryInsight({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="rounded-2xl border border-slate-200/80 bg-white/80 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{value}</p>
-    </article>
-  );
-}
-
-function ProjectSignal({ label, value }: { label: string; value: string }) {
+function ProjectSignal({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold text-slate-500" tabIndex={0} aria-label={`${label} info`}>
+          ?
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-52 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-[11px] font-normal normal-case tracking-normal text-slate-600 shadow-lg group-hover:block group-focus-visible:block">
+            {tooltip}
+          </span>
+        </span>
+      </div>
       <p className="mt-1 text-xs font-medium text-slate-700">{value}</p>
     </div>
   );
