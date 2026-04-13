@@ -23,6 +23,15 @@ type OpenAIDebug = {
   route: "/api/generate";
 };
 
+type OpenAIDebug = {
+  called: boolean;
+  responseId: string | null;
+  model: string | null;
+  usage: unknown | null;
+  hasApiKey: boolean;
+  route: "/api/generate";
+};
+
 type GenerateRequest = {
   projectId?: string;
   ideaPrompt?: string;
