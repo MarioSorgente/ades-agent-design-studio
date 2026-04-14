@@ -1,240 +1,426 @@
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
-import ReactFlow, { Background, BackgroundVariant, Controls, ReactFlowProvider, SelectionMode, type Edge, type Node } from "reactflow";
-import "reactflow/dist/style.css";
-import { AdesNode } from "@/components/board/ades-node";
-import { type AdesEdge, type AdesNodeData, type AdesNodeType, type BoardViewMode } from "@/lib/board/types";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import type { AdesNode, AdesNodeType, BoardViewMode, EvalCategory } from "@/lib/board/types";
 import { useAdesBoardStore } from "@/lib/board/store";
-
-const nodeTypes = {
-  goal: AdesNode,
-  task: AdesNode,
-  reflection: AdesNode,
-  feedback: AdesNode,
-  risk: AdesNode,
-  eval: AdesNode,
-  business_metric: AdesNode,
-  assumption: AdesNode,
-  handoff: AdesNode,
-};
 
 type StudioBoardProps = {
   className?: string;
   viewMode?: BoardViewMode;
+  selectedNodeId: string | null;
+  onSelectNode: (nodeId: string | null) => void;
+  onAddStepAt: (index: number) => void;
+  onAddStepToEnd: () => void;
+  onMoveStep: (nodeId: string, direction: "left" | "right") => void;
+  onDuplicateStep: (nodeId: string) => void;
+  onDeleteNode: (nodeId: string) => void;
+  onAddConnectedNode: (sourceId: string, type: AdesNodeType) => void;
 };
 
-function getEdgeStyle(edge: AdesEdge): Edge {
-  const semanticType = edge.data?.semanticType ?? "execution";
-  if (semanticType === "reflection") return { ...edge, type: "smoothstep", style: { stroke: "#f59e0b", strokeWidth: 1.4, strokeDasharray: "4 4" } };
-  if (semanticType === "eval") return { ...edge, style: { stroke: "#10b981", strokeWidth: 1.4 } };
-  if (semanticType === "feedback") return { ...edge, type: "smoothstep", style: { stroke: "#0284c7", strokeWidth: 1.4 } };
-  if (semanticType === "business") return { ...edge, style: { stroke: "#a855f7", strokeWidth: 1.2, strokeDasharray: "3 4" } };
-  return { ...edge, style: { stroke: "#334155", strokeWidth: 1.8 } };
+type EvalFilter = "all" | "missing" | "end_to_end" | "tool_use" | "safety";
+
+const BADGE_HELPERS = {
+  tools: "External tools or data sources this step needs.",
+  evals: "Checks used to test whether this step works.",
+  reflections: "Self-critique or revision loops for uncertain outputs.",
+  risks: "Known failure modes or safety concerns.",
+};
+
+const EVAL_GROUPS: Array<{ key: string; title: string; matches: (node: AdesNode) => boolean }> = [
+  { key: "end_to_end", title: "End-to-end evals", matches: (node) => node.data.evalScope === "flow" },
+  { key: "step_level", title: "Step-level evals", matches: (node) => node.data.evalScope !== "flow" },
+  { key: "tool_use", title: "Tool-use evals", matches: (node) => node.data.evalCategory === "tool_accuracy" },
+  { key: "safety", title: "Safety/compliance evals", matches: (node) => node.data.evalCategory === "safety" || /safety|compliance|policy/i.test(`${node.data.evalName} ${node.data.evalQuestion}`) },
+  { key: "robustness", title: "Robustness evals", matches: (node) => node.data.evalCategory === "robustness" },
+];
+
+function isMainStep(node: AdesNode) {
+  return node.type === "goal" || node.type === "task" || node.type === "handoff";
 }
 
-const StudioBoardInner = memo(function StudioBoardInner({ className, viewMode = "flow" }: StudioBoardProps) {
+function isWeakEval(node: AdesNode) {
+  return !node.data.evalQuestion.trim() || !node.data.evalCriteria.trim() || !node.data.evalThreshold.trim();
+}
+
+export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSelectNode, onAddStepAt, onAddStepToEnd, onMoveStep, onDuplicateStep, onDeleteNode, onAddConnectedNode }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
-  const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
-  const onNodesChange = useAdesBoardStore((state) => state.onNodesChange);
-  const onEdgesChange = useAdesBoardStore((state) => state.onEdgesChange);
-  const onConnect = useAdesBoardStore((state) => state.onConnect);
-  const setSelectedNodeId = useAdesBoardStore((state) => state.setSelectedNodeId);
-
-  const edgesBySource = useMemo(() => {
-    const map = new Map<string, AdesEdge[]>();
-    edges.forEach((edge) => {
-      const list = map.get(edge.source) ?? [];
-      list.push(edge);
-      map.set(edge.source, list);
-    });
-    return map;
-  }, [edges]);
+  const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
+  const [flowZoom, setFlowZoom] = useState(1);
+  const flowViewportRef = useRef<HTMLDivElement | null>(null);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
-  const orderedMainNodes = useMemo(() => {
-    const mainTypes: AdesNodeType[] = ["goal", "task", "handoff"];
-    const mains = nodes.filter((node) => mainTypes.includes(node.type as AdesNodeType));
-    return mains.sort((a, b) => a.position.x - b.position.x);
-  }, [nodes]);
+  const orderedMainSteps = useMemo(
+    () => nodes.filter(isMainStep).sort((a, b) => a.position.x - b.position.x),
+    [nodes],
+  );
 
-  const flowNodes = useMemo(() => {
-    return orderedMainNodes.map((node, index) => {
-      const linked = edgesBySource.get(node.id) ?? [];
-      const attachmentIds = linked.map((edge) => edge.target);
-      const attachmentNodes = attachmentIds.map((id) => nodeById.get(id)).filter(Boolean);
+  const evalNodes = useMemo(() => nodes.filter((node) => node.type === "eval"), [nodes]);
 
-      const reflectionCount = attachmentNodes.filter((n) => n?.type === "reflection").length + (node.data.reflectionHooks?.length ?? 0);
-      const feedbackCount = attachmentNodes.filter((n) => n?.type === "feedback").length + (node.data.feedbackHooks?.length ?? 0);
-      const evalCount = attachmentNodes.filter((n) => n?.type === "eval").length + (node.data.evals?.length ?? 0);
-      const riskCount = attachmentNodes.filter((n) => n?.type === "risk").length + (node.data.risks?.length ?? 0);
+  const flowRows = useMemo(
+    () =>
+      orderedMainSteps.map((step, index) => {
+        const connected = edges
+          .filter((edge) => edge.source === step.id || edge.target === step.id)
+          .map((edge) => nodeById.get(edge.source === step.id ? edge.target : edge.source))
+          .filter((node): node is AdesNode => Boolean(node));
 
-      return {
-        ...node,
-        position: { x: 180 + index * 330, y: 180 },
-        draggable: true,
-        data: {
-          ...node.data,
-          stepIndex: index + 1,
-          attachmentSummary: {
-            reflectionCount,
-            feedbackCount,
-            evalCount,
-            riskCount,
-            toolCount: node.data.tools?.length ?? 0,
-          },
-        },
-      };
-    });
-  }, [orderedMainNodes, edgesBySource, nodeById]);
+        const evalNodes = connected.filter((node) => node.type === "eval");
+        const reflectionNodes = connected.filter((node) => node.type === "reflection");
+        const feedbackNodes = connected.filter((node) => node.type === "feedback");
+        const riskNodes = connected.filter((node) => node.type === "risk");
 
-  const flowEdges = useMemo(() => {
-    const idSet = new Set(flowNodes.map((node) => node.id));
-    return edges.filter((edge) => idSet.has(edge.source) && idSet.has(edge.target)).map(getEdgeStyle);
-  }, [edges, flowNodes]);
+        const evalCount = evalNodes.length + step.data.evals.length;
+        const reflectionCount = reflectionNodes.length + step.data.reflectionHooks.length;
+        const feedbackHandoffCount = feedbackNodes.length + step.data.feedbackHooks.length + (step.type === "handoff" ? 1 : 0);
+        const riskCount = riskNodes.length + step.data.risks.length;
+        const toolCount = step.data.tools.length;
 
-  const evalRows = useMemo(() => {
-    const evalNodes = nodes.filter((node) => node.type === "eval");
-    return evalNodes
-      .map((evalNode) => {
-        const linkedFrom = edges.find((edge) => edge.target === evalNode.id)?.source;
-        const step = linkedFrom ? nodeById.get(linkedFrom) ?? null : null;
-        return { evalNode, step };
-      })
-      .sort((a, b) => (a.step?.position.x ?? 0) - (b.step?.position.x ?? 0));
-  }, [edges, nodeById, nodes]);
+        const stepText = `${step.data.purpose} ${step.data.body} ${step.data.completionCriteria} ${step.data.reasoningRequired}`.toLowerCase();
+        const likelyNeedsReflection =
+          step.type !== "goal" &&
+          reflectionCount === 0 &&
+          (riskCount > 0 || toolCount > 0 || /uncertain|risk|policy|compliance|confidence|quality|ambig|critical/.test(stepText));
+        const likelyNeedsEval =
+          evalCount === 0 &&
+          (index > 0 || step.type === "handoff") &&
+          (riskCount > 0 || toolCount > 0 || /critical|important|success|quality|safety|output/.test(stepText));
 
-  const improvementRows = useMemo(() => {
-    const fromEdges = edges
-      .filter((edge) => edge.data?.semanticType === "reflection" || edge.data?.semanticType === "feedback")
-      .map((edge) => ({
-        id: edge.id,
-        type: edge.data?.semanticType === "reflection" ? "reflection" : "feedback",
-        step: nodeById.get(edge.source) ?? null,
-        mechanism: nodeById.get(edge.target) ?? null,
-        summary: nodeById.get(edge.target)?.data.body ?? "",
-      }))
-      .filter((row) => row.step && row.mechanism);
+        return { step, evalCount, reflectionCount, feedbackHandoffCount, riskCount, toolCount, evalNodes, reflectionNodes, feedbackNodes, riskNodes, likelyNeedsReflection, likelyNeedsEval };
+      }),
+    [edges, nodeById, orderedMainSteps],
+  );
 
-    const fromStepHooks = orderedMainNodes.flatMap((step) => {
-      const reflections = (step.data.reflectionHooks ?? []).map((hook, idx) => ({
-        id: `${step.id}-reflection-hook-${idx}`,
-        type: "reflection" as const,
-        step,
-        mechanism: null,
-        summary: `${hook.trigger} → ${hook.critiqueQuestion} → ${hook.revisionAction} (Stop: ${hook.stopCondition})`,
-      }));
-      const feedbacks = (step.data.feedbackHooks ?? []).map((hook, idx) => ({
-        id: `${step.id}-feedback-hook-${idx}`,
-        type: "feedback" as const,
-        step,
-        mechanism: null,
-        summary: `${hook.source}: ${hook.whenToRequest} · Review ${hook.whatIsReviewed} · Action ${hook.afterFeedbackAction}`,
-      }));
-      return [...reflections, ...feedbacks];
-    });
-
-    return [...fromEdges, ...fromStepHooks];
-  }, [edges, nodeById, orderedMainNodes]);
-
-  const handleNodeClick = useCallback((_: unknown, node: Node<AdesNodeData>) => setSelectedNodeId(node.id), [setSelectedNodeId]);
-  const handlePaneClick = useCallback(() => setSelectedNodeId(null), [setSelectedNodeId]);
-
-  if (viewMode === "eval") {
-    const grouped = {
-      endToEnd: evalRows.filter((row) => row.evalNode.data.evalScope === "flow"),
-      step: evalRows.filter((row) => row.evalNode.data.evalScope !== "flow"),
+  const improvementSections = useMemo(() => {
+    const linkedByType = {
+      reflections: [] as Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>,
+      feedback: [] as Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>,
+      riskSafeguards: [] as Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>,
+      escalations: [] as Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>,
     };
 
-    return (
-      <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-4"}>
-        <h3 className="text-sm font-semibold text-slate-900">Eval View · exhaustive verification framework</h3>
-        <p className="mt-1 text-xs text-slate-600">Grouped by end-to-end vs step-level. Each eval is a testable question with method, criteria, and threshold.</p>
+    orderedMainSteps.forEach((step) => {
+      step.data.reflectionHooks.forEach((hook, index) => {
+        linkedByType.reflections.push({
+          id: `${step.id}-reflection-hook-${index}`,
+          step,
+          trigger: hook.trigger || "Unclear trigger",
+          action: hook.revisionAction || "Revise response",
+          why: hook.purpose || "Reduce quality risks before moving forward",
+        });
+      });
 
-        <EvalSection title="End-to-end evals" rows={grouped.endToEnd} onSelect={setSelectedNodeId} selectedNodeId={selectedNodeId} />
-        <EvalSection title="Step-level evals" rows={grouped.step} onSelect={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+      step.data.feedbackHooks.forEach((hook, index) => {
+        linkedByType.feedback.push({
+          id: `${step.id}-feedback-hook-${index}`,
+          step,
+          trigger: hook.whenToRequest || "When confidence is low",
+          action: hook.afterFeedbackAction || "Revise using reviewer input",
+          why: hook.whatIsReviewed || "Catch quality gaps before final output",
+        });
+      });
+
+      const hasRisk = step.data.risks.length > 0;
+      if (hasRisk) {
+        linkedByType.riskSafeguards.push({
+          id: `${step.id}-risk`,
+          step,
+          trigger: step.data.risks.join("; "),
+          action: step.data.completionCriteria || "Define mitigation and fallback",
+          why: "Known failure modes should have explicit safeguards",
+        });
+      }
+
+      if (step.type === "handoff" || /escalat|human|review/i.test(`${step.data.completionCriteria} ${step.data.body}`)) {
+        linkedByType.escalations.push({
+          id: `${step.id}-escalation`,
+          step,
+          trigger: step.data.confidenceCheck || step.data.feedbackCondition || "Confidence or policy uncertainty",
+          action: step.data.feedbackAction || step.data.completionCriteria || "Escalate with context",
+          why: "Prevents risky outputs from being delivered without review",
+        });
+      }
+    });
+
+    edges.forEach((edge) => {
+      if (edge.data?.semanticType !== "reflection" && edge.data?.semanticType !== "feedback") return;
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (!source || !target || !isMainStep(source)) return;
+      const row = {
+        id: edge.id,
+        step: source,
+        trigger: edge.data?.semanticType === "reflection" ? source.data.reflectionTrigger || "Uncertain output" : source.data.feedbackCondition || "Needs human review",
+        action: target.data.body || target.data.label,
+        why: target.data.purpose || "Improve quality before continuing",
+      };
+      if (edge.data.semanticType === "reflection") linkedByType.reflections.push(row);
+      if (edge.data.semanticType === "feedback") linkedByType.feedback.push(row);
+    });
+
+    return linkedByType;
+  }, [edges, nodeById, orderedMainSteps]);
+
+  const evalRows = useMemo(() => {
+    const rows = evalNodes.map((evalNode) => {
+      const relatedStepEdge = edges.find((edge) => edge.target === evalNode.id);
+      const relatedStep = relatedStepEdge ? nodeById.get(relatedStepEdge.source) ?? null : null;
+      return { evalNode, relatedStep };
+    });
+
+    if (evalFilter === "missing") return rows.filter((row) => isWeakEval(row.evalNode));
+    if (evalFilter === "end_to_end") return rows.filter((row) => row.evalNode.data.evalScope === "flow");
+    if (evalFilter === "tool_use") return rows.filter((row) => row.evalNode.data.evalCategory === "tool_accuracy");
+    if (evalFilter === "safety") return rows.filter((row) => row.evalNode.data.evalCategory === "safety" || /safety|compliance|policy/i.test(`${row.evalNode.data.evalName} ${row.evalNode.data.evalQuestion}`));
+    return rows;
+  }, [edges, evalFilter, evalNodes, nodeById]);
+
+  function handleFitView() {
+    setFlowZoom(1);
+    const viewport = flowViewportRef.current;
+    if (!viewport) return;
+    window.requestAnimationFrame(() => {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    });
+  }
+
+  useEffect(() => {
+    if (viewMode !== "flow") return;
+    handleFitView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
+  if (viewMode === "improvement") {
+    return (
+      <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}>
+        <h3 className="text-base font-semibold text-slate-900">Improvement View</h3>
+        <p className="mt-1 text-sm text-slate-600">Where the agent reflects, asks for feedback, or escalates when quality is uncertain.</p>
+
+        <ImprovementSection title="Reflection loops" description="Self-critique checkpoints before risky outputs." rows={improvementSections.reflections} onSelectNode={onSelectNode} />
+        <ImprovementSection title="Human feedback / handoffs" description="Places where a person reviews or corrects the agent." rows={improvementSections.feedback} onSelectNode={onSelectNode} />
+        <ImprovementSection title="Risks and safeguards" description="Known risks mapped to mitigation logic." rows={improvementSections.riskSafeguards} onSelectNode={onSelectNode} />
+        <ImprovementSection title="Escalation conditions" description="Confidence or policy triggers that route to a safer path." rows={improvementSections.escalations} onSelectNode={onSelectNode} />
       </div>
     );
   }
 
-  if (viewMode === "improvement") {
+  if (viewMode === "eval") {
     return (
-      <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-4"}>
-        <h3 className="text-sm font-semibold text-slate-900">Improvement View · reflection, feedback, escalation</h3>
-        <p className="mt-1 text-xs text-slate-600">This view surfaces where the design self-critiques, asks humans for input, and revises outputs.</p>
-        <div className="mt-3 space-y-2">
-          {improvementRows.length ? (
-            improvementRows.map((row) => (
-              <button key={row.id} type="button" onClick={() => setSelectedNodeId(row.mechanism?.id ?? row.step!.id)} className={`w-full rounded-2xl border p-3 text-left ${row.type === "reflection" ? "border-amber-200 bg-amber-50/30" : "border-sky-200 bg-sky-50/30"}`}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{row.type === "reflection" ? "Reflection loop" : "External feedback"}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{row.step!.data.label}{row.mechanism ? ` → ${row.mechanism.data.label}` : ""}</p>
-                <p className="mt-1 text-xs text-slate-700">{row.summary}</p>
+      <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Eval View</h3>
+            <p className="mt-1 text-sm text-slate-600">Questions and checks used to test the agent before implementation.</p>
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+            {([
+              ["all", "All"],
+              ["missing", "Missing/weak"],
+              ["end_to_end", "End-to-end"],
+              ["tool_use", "Tool-use"],
+              ["safety", "Safety"],
+            ] as Array<[EvalFilter, string]>).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setEvalFilter(key)} className={`rounded-lg px-3 py-1 text-xs font-medium ${evalFilter === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                {label}
               </button>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">No improvement mechanisms found yet. Generate a flow to add reflection hooks, feedback checkpoints, and escalation logic.</div>
-          )}
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {EVAL_GROUPS.map((group) => {
+            const groupRows = evalRows.filter((row) => group.matches(row.evalNode));
+            return (
+              <section key={group.key}>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.title}</h4>
+                <div className="mt-2 space-y-2">
+                  {groupRows.length ? (
+                    groupRows.map(({ evalNode, relatedStep }) => (
+                      <button
+                        key={evalNode.id}
+                        type="button"
+                        onClick={() => onSelectNode(evalNode.id)}
+                        className={`w-full rounded-2xl border bg-white p-3 text-left ${selectedNodeId === evalNode.id ? "border-emerald-300" : "border-slate-200 hover:border-emerald-200"}`}
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{relatedStep ? `Related step: ${relatedStep.data.label}` : "Flow-level eval"}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{evalNode.data.evalQuestion || evalNode.data.evalName || evalNode.data.label}</p>
+                        <p className="mt-1 text-xs text-slate-600">Category: {prettyEvalCategory(evalNode.data.evalCategory)} · Scope: {evalNode.data.evalScope === "flow" ? "End-to-end" : "Step-level"}</p>
+                        <p className="mt-1 text-xs text-slate-600">Pass criteria: {evalNode.data.evalCriteria || "Add pass criteria"}</p>
+                        <p className="mt-1 text-xs text-slate-600">Threshold/scoring: {evalNode.data.evalThreshold || "Add threshold"} · Method: {evalNode.data.evalMethod || "Define scoring method"}</p>
+                        <p className="mt-1 text-xs text-slate-600">Failure example / dataset notes: {evalNode.data.evalDataset || "Add failure examples or dataset notes"}</p>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No evals in this group yet.</div>
+                  )}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
     );
   }
 
   return (
-    <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-hidden rounded-[28px] border border-slate-200/90 bg-[#f3f5fa]"}>
-      <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.55}
-        maxZoom={2.2}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.95 }}
-        selectionOnDrag
-        panOnDrag
-        panOnScroll
-        selectionMode={SelectionMode.Partial}
-        nodesDraggable
-        onlyRenderVisibleElements
-        deleteKeyCode={null}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1.1} color="#d4dbe8" />
-        <Controls position="bottom-right" className="!rounded-xl !border !border-slate-200 !shadow-sm" />
-      </ReactFlow>
-    </div>
-  );
-});
+    <div
+      id="ades-canvas-export"
+      className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}
+      style={{
+        backgroundImage:
+          "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)",
+        backgroundSize: "36px 36px",
+      }}
+    >
+      <h3 className="text-base font-semibold text-slate-900">Flow View</h3>
+      <p className="mt-1 text-sm text-slate-600">Main steps the agent performs to complete the job.</p>
 
-function EvalSection({ title, rows, onSelect, selectedNodeId }: { title: string; rows: Array<{ evalNode: Node<AdesNodeData>; step: Node<AdesNodeData> | null }>; onSelect: (id: string | null) => void; selectedNodeId: string | null }) {
-  return (
-    <div className="mt-3">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
-      <div className="mt-2 space-y-2">
-        {rows.length ? rows.map(({ evalNode, step }) => (
-          <button key={evalNode.id} type="button" onClick={() => onSelect(evalNode.id)} className={`w-full rounded-2xl border bg-white p-3 text-left transition ${selectedNodeId === evalNode.id ? "border-emerald-300" : "border-slate-200 hover:border-emerald-200"}`}>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{step ? `Step: ${step.data.label}` : "Flow-level eval"}</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{evalNode.data.evalName || evalNode.data.label}</p>
-            <p className="mt-1 text-sm text-slate-700">Q: {evalNode.data.evalQuestion || "Define the eval question."}</p>
-            <p className="mt-1 text-xs text-slate-500">Category: {evalNode.data.evalCategory} · Method: {evalNode.data.evalMethod || "N/A"} · Threshold: {evalNode.data.evalThreshold || "Set threshold"}</p>
-            <p className="mt-1 text-xs text-slate-500">Pass criteria: {evalNode.data.evalCriteria || "Define pass criteria"} · Dataset/test notes: {evalNode.data.evalDataset || "Add cases"}</p>
-          </button>
-        )) : <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No evals in this group yet.</p>}
-      </div>
+      {!flowRows.length ? (
+        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/90 p-6 text-center">
+          <p className="text-sm text-slate-600">No main steps yet.</p>
+          <button type="button" onClick={() => onAddStepAt(0)} className="ades-primary-btn mt-3 px-3 py-2 text-xs">+ Add first step</button>
+        </div>
+      ) : (
+        <div ref={flowViewportRef} className="relative mt-6 overflow-auto pb-4">
+          <div className="flex min-w-max items-start gap-5 px-2 py-4" style={{ zoom: flowZoom }}>
+            <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
+
+            {flowRows.map((row, index) => (
+              <div key={row.step.id} className="flex items-center gap-5">
+                <button
+                  type="button"
+                  onClick={() => onSelectNode(row.step.id)}
+                  className={`w-[360px] rounded-2xl border bg-white/95 p-4 text-left shadow-[0_20px_45px_-36px_rgba(15,23,42,0.55)] ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                      <h4 className="mt-1 text-base font-semibold text-slate-900">{row.step.data.label}</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step left">← Move</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step right">Move →</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px]">Duplicate</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px] text-rose-600">Delete</button>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-sm text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
+                  <p className="mt-2 text-xs text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    <LabeledBadge label={`${row.toolCount} tools`} tooltip={BADGE_HELPERS.tools} />
+                    <LabeledBadge label={`${row.evalCount} evals`} tooltip={BADGE_HELPERS.evals} />
+                    <LabeledBadge label={`${row.reflectionCount} reflections`} tooltip={BADGE_HELPERS.reflections} />
+                    <LabeledBadge label={`${row.feedbackHandoffCount} feedback/handoffs`} tooltip="Human feedback requests or handoff points attached to this step." />
+                    <LabeledBadge label={`${row.riskCount} risks`} tooltip={BADGE_HELPERS.risks} />
+                  </div>
+
+                  {(row.evalNodes.length || row.reflectionNodes.length || row.feedbackNodes.length || row.riskNodes.length) ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {row.evalNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Eval: ${node.data.label}`} />)}
+                      {row.reflectionNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Reflection: ${node.data.label}`} />)}
+                      {row.feedbackNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Feedback: ${node.data.label}`} />)}
+                      {row.riskNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Risk: ${node.data.label}`} />)}
+                    </div>
+                  ) : null}
+
+                  {row.likelyNeedsReflection ? (
+                    <SuggestionHint
+                      text="Suggested: add reflection here"
+                      reason="This step has uncertainty/risk/output-quality dependency."
+                      actionLabel="+ Reflection"
+                      onAction={(event) => {
+                        event.stopPropagation();
+                        onAddConnectedNode(row.step.id, "reflection");
+                      }}
+                    />
+                  ) : null}
+                  {row.likelyNeedsEval ? (
+                    <SuggestionHint
+                      text="Suggested: add eval"
+                      reason="This step is critical to task success."
+                      actionLabel="+ Eval"
+                      onAction={(event) => {
+                        event.stopPropagation();
+                        onAddConnectedNode(row.step.id, "eval");
+                      }}
+                    />
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-100 pt-2">
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "eval"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Eval</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "reflection"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Reflection</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "feedback"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Feedback</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "risk"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Safeguard</button>
+                  </div>
+                </button>
+
+                <div className="flex items-center gap-5">
+                  <div className="h-[2px] w-10 bg-slate-300" />
+                  <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} />
+                  {index < flowRows.length - 1 ? <div className="h-[2px] w-10 bg-slate-300" /> : null}
+                </div>
+              </div>
+            ))}
+
+            <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
+          </div>
+          <div className="sticky bottom-2 float-right mr-2 mt-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+            <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}>−</button>
+            <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
+            <button type="button" className="ades-ghost-btn h-7 px-2 py-0 text-xs" onClick={handleFitView}>Fit</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export function StudioBoard(props: StudioBoardProps) {
+function LabeledBadge({ label, tooltip }: { label: string; tooltip: string }) {
+  return <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700" title={tooltip}>{label}</span>;
+}
+
+function AddStepChip({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="whitespace-nowrap rounded-full border border-dashed border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700">{label}</button>;
+}
+
+function MiniAttachment({ label }: { label: string }) {
+  return <span className="max-w-[210px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">{label}</span>;
+}
+
+function SuggestionHint({ text, reason, actionLabel, onAction }: { text: string; reason: string; actionLabel: string; onAction: (event: MouseEvent<HTMLButtonElement>) => void }) {
   return (
-    <ReactFlowProvider>
-      <StudioBoardInner {...props} />
-    </ReactFlowProvider>
+    <div className="mt-2 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-2.5 py-2">
+      <p className="text-[11px] font-semibold text-indigo-800">{text}</p>
+      <p className="mt-0.5 text-[11px] text-indigo-700">{reason}</p>
+      <button type="button" onClick={onAction} className="ades-ghost-btn mt-1 px-2 py-1 text-[11px]">{actionLabel}</button>
+    </div>
   );
+}
+
+function ImprovementSection({ title, description, rows, onSelectNode }: { title: string; description: string; rows: Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>; onSelectNode: (nodeId: string | null) => void }) {
+  return (
+    <section className="mt-4">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <p className="mt-1 text-xs text-slate-500">{description}</p>
+      <div className="mt-2 space-y-2">
+        {rows.length ? rows.map((row) => (
+          <button key={row.id} type="button" onClick={() => onSelectNode(row.step.id)} className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-200">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Related step</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{row.step.data.label}</p>
+            <p className="mt-1 text-xs text-slate-700"><strong>Trigger:</strong> {row.trigger}</p>
+            <p className="mt-1 text-xs text-slate-700"><strong>Why it matters:</strong> {row.why}</p>
+            <p className="mt-1 text-xs text-slate-700"><strong>Action taken:</strong> {row.action}</p>
+          </button>
+        )) : <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No items in this section yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+function prettyEvalCategory(value: EvalCategory) {
+  return value.replace(/_/g, " ");
 }
