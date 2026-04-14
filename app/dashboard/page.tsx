@@ -16,6 +16,15 @@ import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
 
 type ProjectTab = "mine" | "recent" | "templates";
+type SidebarNavItem = { label: string; href?: string };
+
+const sidebarNavItems: SidebarNavItem[] = [
+  { label: "Home" },
+  { label: "Search" },
+  { label: "All projects" },
+  { label: "Starred" },
+  { label: "Knowledge", href: "/knowledge" },
+];
 
 function formatDateTimeLabel(isoString: string | null) {
   if (!isoString) return "Just now";
@@ -193,16 +202,29 @@ export default function DashboardPage() {
           </div>
 
           <nav className="mt-6 space-y-1 text-sm">
-            {["Home", "Search", "All projects", "Starred", "Created by me", "Shared with me"].map((item, idx) => (
-              <button
-                key={item}
-                type="button"
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${idx === 0 ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
-              >
-                <span>{item}</span>
-                {item === "Search" ? <span className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px]">⌘K</span> : null}
-              </button>
-            ))}
+            {sidebarNavItems.map((item, idx) => {
+              const className = `flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition ${idx === 0 ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`;
+              const content = (
+                <>
+                  <span>{item.label}</span>
+                  {item.label === "Search" ? <span className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px]">⌘K</span> : null}
+                </>
+              );
+
+              if (item.href) {
+                return (
+                  <Link key={item.label} href={item.href} className={className}>
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <button key={item.label} type="button" className={className}>
+                  {content}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="mt-6 border-t border-slate-200/80 pt-4">
