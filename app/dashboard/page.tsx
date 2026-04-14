@@ -409,16 +409,40 @@ export default function DashboardPage() {
 
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
                             <ProjectSignal
-                              label="Quality score"
-                              value={`${quality.score}/100`}
-                              tooltip="Overall project quality based on clarity, reflection loops, risk coverage, and eval readiness."
+                              label="Design readiness"
+                              value={`${quality.designReadinessScore}/100`}
+                              tooltip="How ready this agent design is for testing. Calculated as 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards. It keeps planning honest before any runtime metrics exist."
                             />
-                            <ProjectSignal label="Readiness" value={quality.hasEndToEndEval ? "Review-ready" : "Needs evals"} tooltip="Shows whether the project has enough end-to-end eval definition to be review-ready." />
-                            <ProjectSignal label="Eval coverage" value={`${quality.evalCoveragePct}%`} tooltip="Percent of core steps that have explicit evaluation criteria defined." />
-                            <ProjectSignal label="Improvement" value={`${quality.improvementCoveragePct}%`} tooltip="Percent of steps that include feedback loops and concrete improvement actions." />
+                            <ProjectSignal
+                              label="Workflow clarity"
+                              value={quality.workflowClarityLabel}
+                              tooltip="Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps."
+                            />
+                            <ProjectSignal
+                              label="Eval readiness"
+                              value={quality.evalReadinessLabel}
+                              tooltip="Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail."
+                            />
+                            <ProjectSignal
+                              label="Safeguards"
+                              value={quality.safeguardsLabel}
+                              tooltip="Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps."
+                            />
                           </div>
 
-                          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">Weakest area: {quality.weakestArea}</p>
+                          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+                            <p className="flex items-center gap-1 font-semibold uppercase tracking-[0.12em] text-amber-700">
+                              Weakest area
+                              <span
+                                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-amber-300 bg-white/90 text-[10px] font-bold normal-case text-amber-700"
+                                title="The most important gap to fix before this agent design is ready to test."
+                                aria-label="The most important gap to fix before this agent design is ready to test."
+                              >
+                                i
+                              </span>
+                            </p>
+                            <p className="mt-1 text-[12px] normal-case text-amber-900">{quality.weakestArea.replace(/^Weakest area:\s*/i, "")}</p>
+                          </div>
 
                           <div className="mt-4 flex flex-wrap items-center gap-2">
                             <button
