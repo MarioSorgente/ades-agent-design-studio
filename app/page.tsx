@@ -49,16 +49,16 @@ export default function HomePage() {
             <span className="ml-2 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 bg-clip-text text-transparent">
               structure, critique, and confidence
             </span>
-            .
+            
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-            ADES helps PMs and founders turn a fuzzy idea into an editable board with tasks, reflections,
-            feedback loops, risks, evals, and business metrics—before runtime implementation.
+            ADES helps builders break an AI agent into clear tasks, reflection loops, human checkpoints 
+            and evals. Before engineering starts
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link href="/dashboard" className="ades-primary-btn px-6 py-3">
-              Try ADES Studio
+              Design an agent
             </Link>
             <a href="https://mariosorgente.carrd.co/" target="_blank" rel="noreferrer" className="ades-ghost-btn px-6 py-3">
               Request a demo flow
@@ -66,9 +66,9 @@ export default function HomePage() {
           </div>
 
           <div className="mt-10 grid gap-3 md:grid-cols-3">
-            <InteractiveCard title="Canvas-first workspace" description="Miro-like center canvas with premium side panels and inspector rhythm." />
-            <InteractiveCard title="Reflection + critique" description="Keep uncertainty checks and critique loops first-class, not hidden in docs." />
-            <InteractiveCard title="Eval + business metrics" description="Define quality and outcome targets early so execution can be measured." />
+            <InteractiveCard title="Break down the agent" description="Canvas-first visualizaition mapping the goal into tasks and loops" />
+            <InteractiveCard title="Improve the workflow" description="Add reflection loops, critique points and human feedback where quality can fail" />
+            <InteractiveCard title="Define the evals" description="Create evaluations for success, safety and robustness" />
           </div>
         </div>
       </section>
