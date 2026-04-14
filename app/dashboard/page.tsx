@@ -41,49 +41,44 @@ function getProjectUpdatedAt(updatedAt?: string | null) {
   return updatedAt ? new Date(updatedAt).getTime() : 0;
 }
 
-function parseFractionLabel(value: string) {
-  const [numeratorRaw, denominatorRaw] = value.split("/");
-  const numerator = Number.parseInt(numeratorRaw ?? "0", 10);
-  const denominator = Number.parseInt(denominatorRaw ?? "0", 10);
-  return {
-    numerator: Number.isNaN(numerator) ? 0 : numerator,
-    denominator: Number.isNaN(denominator) ? 0 : denominator,
-  };
-}
-
 const driverDescriptions: Array<{ key: string; label: string; tooltip: string }> = [
   {
-    key: "workflow",
+    key: "workflowClarity",
     label: "Workflow clarity",
     tooltip:
-      "Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps.",
+      "Checks whether each step has clear purpose, inputs, outputs, success condition, and rationale.",
   },
   {
-    key: "eval",
+    key: "decompositionQuality",
+    label: "Decomposition",
+    tooltip:
+      "Checks whether the workflow granularity is balanced: not too broad, not too fragmented, and usually 5–9 main steps.",
+  },
+  {
+    key: "toolLogic",
+    label: "Tool logic",
+    tooltip:
+      "Checks whether tool-use steps define tool choice, reason, exact inputs/outputs, result handling, and failure modes.",
+  },
+  {
+    key: "reflectionFeedback",
+    label: "Reflection/feedback",
+    tooltip: "Checks whether reflection loops and human handoffs are used only where risk or uncertainty justifies them.",
+  },
+  {
+    key: "evalReadiness",
     label: "Eval readiness",
-    tooltip:
-      "Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail.",
-  },
-  {
-    key: "safeguards",
-    label: "Safeguards",
-    tooltip:
-      "Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps.",
+    tooltip: "Checks end-to-end success evals plus step-level, tool-accuracy, safety, and robustness eval quality.",
   },
 ];
 
 const designReadinessTooltip =
-  "Design Readiness is a weighted composite score based on workflow clarity (40%), eval readiness (40%), and safeguards (20%).";
+  "Design Readiness is the average of workflow clarity, decomposition quality, tool logic, reflection/feedback quality, and eval readiness (each scored 0–100).";
 
 function buildScoreDrivers(quality: BoardQualityReport) {
   return driverDescriptions.map((driver) => {
-    if (driver.key === "workflow") {
-      return { ...driver, value: quality.workflowClarityLabel, percent: quality.workflowClarityPct };
-    }
-    if (driver.key === "eval") {
-      return { ...driver, value: quality.evalReadinessLabel, percent: quality.evalReadinessPct };
-    }
-    return { ...driver, value: quality.safeguardsLabel, percent: quality.safeguardsPct };
+    const category = quality[driver.key as keyof Pick<BoardQualityReport, "workflowClarity" | "decompositionQuality" | "toolLogic" | "reflectionFeedback" | "evalReadiness">];
+    return { ...driver, value: `${category.score}/100`, percent: category.score };
   });
 }
 
@@ -496,11 +491,14 @@ export default function DashboardPage() {
 
 function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; projectId: string }) {
   const clampedScore = Math.max(0, Math.min(100, quality.designReadinessScore));
-  const workflowContribution = Math.round(quality.workflowClarityPct * 0.4);
-  const evalContribution = Math.round(quality.evalReadinessPct * 0.4);
-  const safeguardContribution = Math.round(quality.safeguardsPct * 0.2);
-  const knownContribution = Math.min(100, workflowContribution + evalContribution + safeguardContribution);
-  const missing = Math.max(0, 100 - knownContribution);
+  const categoryScores = [
+    quality.workflowClarity.score,
+    quality.decompositionQuality.score,
+    quality.toolLogic.score,
+    quality.reflectionFeedback.score,
+    quality.evalReadiness.score,
+  ];
+  const segmentWidth = `${100 / categoryScores.length}%`;
 
   return (
     <div className="grid gap-3 lg:grid-cols-[220px_minmax(340px,1fr)_300px] lg:items-center">
@@ -525,28 +523,32 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
         <div
           className="flex h-3 w-full overflow-hidden rounded-full border border-indigo-100 bg-slate-100"
           role="progressbar"
-          aria-label={`Design readiness composition. Workflow contribution ${workflowContribution}, eval contribution ${evalContribution}, safeguards contribution ${safeguardContribution}, missing ${missing}, out of 100.`}
+          aria-label="Design readiness composition across workflow, decomposition, tool logic, reflection feedback, and eval readiness."
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={clampedScore}
         >
-          <span className="h-full bg-indigo-500/90" style={{ width: `${workflowContribution}%` }} />
-          <span className="h-full bg-violet-500/90" style={{ width: `${evalContribution}%` }} />
-          <span className="h-full bg-sky-500/90" style={{ width: `${safeguardContribution}%` }} />
-          <span className="h-full bg-slate-200" style={{ width: `${missing}%` }} />
+          <span className="h-full bg-indigo-500/90" style={{ width: segmentWidth, opacity: categoryScores[0] / 100 }} />
+          <span className="h-full bg-violet-500/90" style={{ width: segmentWidth, opacity: categoryScores[1] / 100 }} />
+          <span className="h-full bg-sky-500/90" style={{ width: segmentWidth, opacity: categoryScores[2] / 100 }} />
+          <span className="h-full bg-amber-500/90" style={{ width: segmentWidth, opacity: categoryScores[3] / 100 }} />
+          <span className="h-full bg-emerald-500/90" style={{ width: segmentWidth, opacity: categoryScores[4] / 100 }} />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600">
           <span className="inline-flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-indigo-500" aria-hidden /> Workflow
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-violet-500" aria-hidden /> Eval
+            <span className="h-2 w-2 rounded-full bg-violet-500" aria-hidden /> Decomposition
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden /> Safeguards
+            <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden /> Tool logic
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-slate-300" aria-hidden /> Missing
+            <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden /> Reflection
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Evals
           </span>
         </div>
       </div>
@@ -557,7 +559,6 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
 }
 
 function ScoreDriverChip({ label, value, percent, tooltip }: { label: string; value: string; percent: number; tooltip: string }) {
-  const { numerator, denominator } = parseFractionLabel(value);
   const clampedPercent = Math.max(0, Math.min(100, percent));
 
   return (
@@ -574,14 +575,11 @@ function ScoreDriverChip({ label, value, percent, tooltip }: { label: string; va
           </span>
         </p>
       </div>
-      <p className="text-sm font-semibold text-slate-800">
-        {numerator}
-        <span className="text-xs font-medium text-slate-500">/{denominator}</span>
-      </p>
+      <p className="text-sm font-semibold text-slate-800">{value}</p>
       <div
         className="ml-auto h-1.5 w-[70px] overflow-hidden rounded-full bg-slate-200"
         role="progressbar"
-        aria-label={`${label} ${numerator} out of ${denominator}`}
+        aria-label={`${label} ${clampedPercent} out of 100`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={clampedPercent}
@@ -593,8 +591,15 @@ function ScoreDriverChip({ label, value, percent, tooltip }: { label: string; va
 }
 
 function WeakestAreaInsight({ weakestArea, projectId }: { weakestArea: string; projectId: string }) {
-  const cleanWeakestArea = weakestArea.replace(/^Weakest area:\s*/i, "");
-  const isReady = /none\.\s*design is ready to test\./i.test(weakestArea);
+  const areaLabelMap: Record<string, string> = {
+    workflowClarity: "Workflow clarity",
+    decompositionQuality: "Decomposition quality",
+    toolLogic: "Tool logic",
+    reflectionFeedback: "Reflection/feedback placement",
+    evalReadiness: "Eval readiness",
+  };
+  const cleanWeakestArea = areaLabelMap[weakestArea] ?? weakestArea;
+  const isReady = false;
 
   return (
     <aside className="rounded-xl border border-amber-200/90 bg-amber-50/60 px-3 py-2.5">
