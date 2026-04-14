@@ -10,7 +10,7 @@ const sections = [
   },
   {
     title: "What are agent evals?",
-    body: "Agent evals measure end-to-end behavior across multiple steps, not just one prompt/response. Strong evals track task success, reasoning quality, tool-use accuracy, efficiency, safety/compliance, and robustness under edge cases.",
+    body: "Agent evals measure end-to-end behavior across multiple steps, not just one prompt/response. Strong evals track task success, reasoning quality, tool-use accuracy, safety/compliance, robustness, and output quality.",
   },
   {
     title: "How reflection loops work",
@@ -30,6 +30,29 @@ const sections = [
       "Use reflection for uncertainty and difficult reasoning.",
       "Add human handoff for high-stakes or low-confidence cases.",
     ],
+  },
+] as const;
+
+const readinessSections = [
+  {
+    title: "Design Readiness",
+    body: "Design Readiness is the main score used on the dashboard. It estimates whether your agent design is ready to test using: 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards.",
+  },
+  {
+    title: "Workflow Clarity",
+    body: "Strong designs need explicit steps. A step is clear only when it has a purpose, input, output, and a success condition or completion criteria.",
+  },
+  {
+    title: "Eval Readiness",
+    body: "Eval plans should test the full workflow plus key details: end-to-end success, important steps, tool use, safety/compliance, robustness, and output quality.",
+  },
+  {
+    title: "Safeguards",
+    body: "Risky or uncertain steps should include reflection, human feedback, confidence checks, or escalation paths. These guardrails lower design risk before implementation.",
+  },
+  {
+    title: "Weakest Area",
+    body: "The dashboard highlights one most important gap to fix next so teams can improve quickly before running real evaluations.",
   },
 ] as const;
 
@@ -86,6 +109,23 @@ export default function KnowledgePage() {
               ) : null}
             </article>
           ))}
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-[0_18px_40px_-45px_rgba(15,23,42,0.75)]">
+          <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design-time metrics for agent readiness</p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            These are design-time planning metrics, not production performance metrics. They help teams decide whether an agent design is ready to test. Real runtime evals and
+            production metrics come later after implementation or simulation.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {readinessSections.map((section) => (
+              <article key={section.title} className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">{section.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{section.body}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4">
