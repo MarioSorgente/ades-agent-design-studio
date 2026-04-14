@@ -73,6 +73,9 @@ export default function ProjectPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [showAllQualityIssues, setShowAllQualityIssues] = useState(false);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
+  const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
 
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
 
@@ -175,6 +178,14 @@ export default function ProjectPage() {
   }, [currentBoardHash, getBoardSnapshot, project, user]);
 
   const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Ready";
+  const hasGeneratedDesign = project?.status === "generated" || nodes.length > 0;
+
+  function getRecommendedViewFromText(text: string): BoardViewMode {
+    const clean = text.toLowerCase();
+    if (/eval|test|threshold|coverage|dataset|score/.test(clean)) return "eval";
+    if (/reflection|feedback|handoff|risk|safeguard|escalat/.test(clean)) return "improvement";
+    return "flow";
+  }
 
   function handleInsertMainStep(index: number) {
     const snapshot = getBoardSnapshot();
@@ -193,9 +204,7 @@ export default function ProjectPage() {
 
   function handleReviewGaps() {
     const firstIssue = qualityReport.issues[0]?.toLowerCase() || "";
-    if (firstIssue.includes("eval")) setViewMode("eval");
-    else if (firstIssue.includes("risk") || firstIssue.includes("reflection") || firstIssue.includes("feedback") || firstIssue.includes("safeguard")) setViewMode("improvement");
-    else setViewMode("flow");
+    setViewMode(getRecommendedViewFromText(firstIssue));
   }
 
   async function handleGenerateBoard() {
@@ -244,6 +253,7 @@ export default function ProjectPage() {
       if (!response.ok || !("critique" in payload)) throw new Error("error" in payload && payload.error ? payload.error : "Critique failed.");
 
       setCritiqueResult(payload.critique);
+      setDismissedFindingIds([]);
       setProject((previous) => (previous ? { ...previous, critique: payload.critique } : previous));
       setViewMode("improvement");
     } catch (error) {
@@ -321,7 +331,7 @@ export default function ProjectPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Improving…" : "Improve design"}</button>
+                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Reviewing…" : "Review design"}</button>
 
                   <details className="relative">
                     <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">Export</summary>
@@ -370,12 +380,15 @@ export default function ProjectPage() {
               </div>
             </section>
 
-            <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <section className={`grid gap-3 ${isDetailsPanelOpen ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[minmax(0,1fr)_48px]"}`}>
               <div className="min-w-0">
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
-                  onSelectNode={setSelectedNodeId}
+                  onSelectNode={(nodeId) => {
+                    setSelectedNodeId(nodeId);
+                    if (nodeId) setIsDetailsPanelOpen(true);
+                  }}
                   onAddStepAt={handleInsertMainStep}
                   onAddStepToEnd={() => handleInsertMainStep(nodes.filter(isMainStep).length)}
                   onMoveStep={moveMainStep}
@@ -386,31 +399,65 @@ export default function ProjectPage() {
                 />
               </div>
 
-              <aside className="rounded-2xl border border-slate-200/80 bg-white/95 p-4">
-                <BoardInspector viewMode={viewMode} />
-              </aside>
+              {isDetailsPanelOpen ? (
+                <aside className="rounded-2xl border border-slate-200/80 bg-white/95 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details</p>
+                    <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsDetailsPanelOpen(false)}>Collapse</button>
+                  </div>
+                  <BoardInspector viewMode={viewMode} />
+                </aside>
+              ) : (
+                <aside className="flex items-center justify-center">
+                  <button type="button" onClick={() => setIsDetailsPanelOpen(true)} className="h-full min-h-[180px] rounded-2xl border border-slate-200/90 bg-white/95 px-2 text-xs font-semibold tracking-wide text-slate-600 [writing-mode:vertical-rl]">
+                    Details
+                  </button>
+                </aside>
+              )}
             </section>
 
             <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">AI actions</h3>
-              <p className="mt-1 text-xs text-slate-600">Generate for an empty/rough project. Improve design (Run critique) to patch missing evals, safeguards, and clarity.</p>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                  <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
-                  <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
-                  {generationError ? <p className="mt-1 text-xs text-rose-600">{generationError}</p> : null}
+              {!hasGeneratedDesign ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Generate agent design</h3>
+                    <p className="mt-1 text-xs text-slate-600">Create the first workflow, evals, and safeguards from your idea.</p>
+                    <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
+                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
+                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating design…" : "Generate agent design"}</button>
+                    {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
+                  </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating design…" : "Generate agent design"}</button>
-                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-ghost-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Improving design…" : "Improve design"}</button>
-                  {critiqueError ? <p className="mt-1 text-xs text-rose-600">{critiqueError}</p> : null}
-                  {exportError ? <p className="mt-1 text-xs text-rose-600">{exportError}</p> : null}
+              ) : (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Design actions</h3>
+                  <p className="mt-1 text-xs text-slate-600">Review design (Run critique) checks the current board for unclear steps, missing evals, and missing safeguards. Regenerate from idea creates a new board and may replace the current design.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Reviewing…" : "Review design"}</button>
+                    <button type="button" onClick={() => setShowRegenerateForm((prev) => !prev)} className="ades-ghost-btn px-3 py-2 text-xs">{showRegenerateForm ? "Hide regenerate form" : "Regenerate from idea"}</button>
+                    <button type="button" onClick={handleExportMarkdown} className="ades-ghost-btn px-3 py-2 text-xs">Export</button>
+                  </div>
+                  {showRegenerateForm ? (
+                    <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-3">
+                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
+                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
+                      <div>
+                        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
+                        <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from idea"}</button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
+                  {critiqueError ? <p className="mt-2 text-xs text-rose-600">{critiqueError}</p> : null}
+                  {exportError ? <p className="mt-2 text-xs text-rose-600">{exportError}</p> : null}
                 </div>
-              </div>
+              )}
             </section>
 
-            {critiqueResult ? <section className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">Improvement suggestions</h3><p className="mt-1 text-xs text-slate-600">{critiqueResult.summary}</p><div className="mt-3 grid gap-3 lg:grid-cols-2"><div><ul className="space-y-2">{critiqueResult.critiqueItems.map((item) => <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p><p className="mt-1 text-sm text-slate-800">{item.message}</p><p className="mt-1 text-xs text-slate-600">{item.recommendation}</p></li>)}</ul></div><div className="space-y-3"><SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections} onAdd={handleAddSuggestionToBoard} /><SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals} onAdd={handleAddSuggestionToBoard} /><SuggestionSection title="Missing business metrics" suggestions={critiqueResult.missingBusinessMetrics} onAdd={handleAddSuggestionToBoard} /></div></div></section> : null}
+            {critiqueResult ? <section className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">Design review findings</h3><p className="mt-1 text-xs text-slate-600">{critiqueResult.summary}</p><div className="mt-3 grid gap-3 lg:grid-cols-2"><div><ul className="space-y-2">{critiqueResult.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)).map((item) => <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p><p className="mt-1 text-sm text-slate-800">{item.message}</p><p className="mt-1 text-xs text-slate-600">{item.recommendation}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode(getRecommendedViewFromText(`${item.message} ${item.recommendation}`))}>Go to relevant view</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDismissedFindingIds((prev) => [...prev, item.id])}>Dismiss</button></div></li>)}</ul></div><div className="space-y-3"><SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as reflection" /><SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as eval" /><SuggestionSection title="Missing business metrics" suggestions={critiqueResult.missingBusinessMetrics.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as step" /></div></div></section> : null}
           </div>
         ) : null}
       </ProtectedRoute>
@@ -418,7 +465,7 @@ export default function ProjectPage() {
   );
 }
 
-function SuggestionSection({ title, suggestions, onAdd }: { title: string; suggestions: CritiqueSuggestion[]; onAdd: (suggestion: CritiqueSuggestion) => void }) {
+function SuggestionSection({ title, suggestions, onAdd, onDismiss, onNavigate, ctaLabel }: { title: string; suggestions: CritiqueSuggestion[]; onAdd: (suggestion: CritiqueSuggestion) => void; onDismiss: (id: string) => void; onNavigate: (text: string) => void; ctaLabel: string }) {
   if (!suggestions.length) return null;
-  return <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4><ul className="mt-2 space-y-2">{suggestions.map((suggestion) => <li key={suggestion.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="text-sm font-medium text-slate-800">{suggestion.title}</p><p className="mt-1 text-xs text-slate-600">{suggestion.body}</p><button type="button" className="ades-ghost-btn mt-2 px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>Add to board</button></li>)}</ul></div>;
+  return <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4><ul className="mt-2 space-y-2">{suggestions.map((suggestion) => <li key={suggestion.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="text-sm font-medium text-slate-800">{suggestion.title}</p><p className="mt-1 text-xs text-slate-600">{suggestion.body}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>{ctaLabel}</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>Add to board</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onNavigate(`${suggestion.title} ${suggestion.body}`)}>Go to relevant view</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onDismiss(suggestion.id)}>Dismiss</button></div></li>)}</ul></div>;
 }

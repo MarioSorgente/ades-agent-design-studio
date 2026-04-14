@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { AdesNode, AdesNodeType, BoardViewMode, EvalCategory } from "@/lib/board/types";
 import { useAdesBoardStore } from "@/lib/board/store";
 
@@ -46,6 +46,8 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
+  const [flowZoom, setFlowZoom] = useState(1);
+  const flowViewportRef = useRef<HTMLDivElement | null>(null);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
@@ -174,6 +176,22 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
     return rows;
   }, [edges, evalFilter, evalNodes, nodeById]);
 
+  function handleFitView() {
+    setFlowZoom(1);
+    const viewport = flowViewportRef.current;
+    if (!viewport) return;
+    window.requestAnimationFrame(() => {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    });
+  }
+
+  useEffect(() => {
+    if (viewMode !== "flow") return;
+    handleFitView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
   if (viewMode === "improvement") {
     return (
       <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}>
@@ -265,8 +283,8 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
           <button type="button" onClick={() => onAddStepAt(0)} className="ades-primary-btn mt-3 px-3 py-2 text-xs">+ Add first step</button>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto pb-4">
-          <div className="flex min-w-max items-start gap-5 px-2 py-4">
+        <div ref={flowViewportRef} className="relative mt-6 overflow-auto pb-4">
+          <div className="flex min-w-max items-start gap-5 px-2 py-4" style={{ zoom: flowZoom }}>
             <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
 
             {flowRows.map((row, index) => (
@@ -349,6 +367,11 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
             ))}
 
             <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
+          </div>
+          <div className="sticky bottom-2 float-right mr-2 mt-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+            <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}>−</button>
+            <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
+            <button type="button" className="ades-ghost-btn h-7 px-2 py-0 text-xs" onClick={handleFitView}>Fit</button>
           </div>
         </div>
       )}
