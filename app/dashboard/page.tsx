@@ -407,27 +407,32 @@ export default function DashboardPage() {
                           <p className="mt-1 text-sm text-slate-600">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
 
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                            <ProjectSignal
-                              label="Design readiness"
-                              value={`${quality.designReadinessScore}/100`}
-                              tooltip="How ready this agent design is for testing. Calculated as 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards. It keeps planning honest before any runtime metrics exist."
-                            />
-                            <ProjectSignal
-                              label="Workflow clarity"
-                              value={quality.workflowClarityLabel}
-                              tooltip="Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps."
-                            />
-                            <ProjectSignal
-                              label="Eval readiness"
-                              value={quality.evalReadinessLabel}
-                              tooltip="Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail."
-                            />
-                            <ProjectSignal
-                              label="Safeguards"
-                              value={quality.safeguardsLabel}
-                              tooltip="Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps."
-                            />
+                          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/60 p-2.5">
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                              <ProjectSignal
+                                label="Workflow clarity"
+                                value={quality.workflowClarityLabel}
+                                tooltip="Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps."
+                              />
+                              <ProjectSignal
+                                label="Design readiness"
+                                value={`${quality.designReadinessScore}/100`}
+                                tooltip="How ready this agent design is for testing. Calculated as 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards. It keeps planning honest before any runtime metrics exist."
+                                className="md:row-span-2 md:min-h-[108px] md:justify-center md:border-indigo-200 md:bg-gradient-to-br md:from-indigo-50/70 md:to-violet-50/70"
+                                valueClassName="text-sm font-semibold text-slate-900"
+                              />
+                              <ProjectSignal
+                                label="Safeguards"
+                                value={quality.safeguardsLabel}
+                                tooltip="Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps."
+                              />
+                              <ProjectSignal
+                                label="Eval readiness"
+                                value={quality.evalReadinessLabel}
+                                tooltip="Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail."
+                                className="md:col-span-1"
+                              />
+                            </div>
                           </div>
 
                           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
@@ -476,9 +481,21 @@ export default function DashboardPage() {
   );
 }
 
-function ProjectSignal({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
+function ProjectSignal({
+  label,
+  value,
+  tooltip,
+  className,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  tooltip: string;
+  className?: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+    <div className={`rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 ${className ?? ""}`}>
       <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
         {label}
         <span
@@ -489,7 +506,7 @@ function ProjectSignal({ label, value, tooltip }: { label: string; value: string
           i
         </span>
       </p>
-      <p className="mt-1 text-xs font-medium text-slate-700">{value}</p>
+      <p className={`mt-1 text-xs font-medium text-slate-700 ${valueClassName ?? ""}`}>{value}</p>
     </div>
   );
 }
