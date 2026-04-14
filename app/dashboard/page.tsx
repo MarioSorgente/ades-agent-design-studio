@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { analyzeBoardQuality } from "@/lib/board/quality";
+import { analyzeBoardQuality, type BoardQualityReport } from "@/lib/board/quality";
 import {
   createProjectForUser,
   deleteProjectForUser,
@@ -39,6 +39,49 @@ function formatDateTimeLabel(isoString: string | null) {
 
 function getProjectUpdatedAt(updatedAt?: string | null) {
   return updatedAt ? new Date(updatedAt).getTime() : 0;
+}
+
+function parseFractionLabel(value: string) {
+  const [numeratorRaw, denominatorRaw] = value.split("/");
+  const numerator = Number.parseInt(numeratorRaw ?? "0", 10);
+  const denominator = Number.parseInt(denominatorRaw ?? "0", 10);
+  return {
+    numerator: Number.isNaN(numerator) ? 0 : numerator,
+    denominator: Number.isNaN(denominator) ? 0 : denominator,
+  };
+}
+
+const driverDescriptions: Array<{ key: string; label: string; tooltip: string }> = [
+  {
+    key: "workflow",
+    label: "Workflow clarity",
+    tooltip:
+      "Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps.",
+  },
+  {
+    key: "eval",
+    label: "Eval readiness",
+    tooltip:
+      "Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail.",
+  },
+  {
+    key: "safeguards",
+    label: "Safeguards",
+    tooltip:
+      "Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps.",
+  },
+];
+
+function buildScoreDrivers(quality: BoardQualityReport) {
+  return driverDescriptions.map((driver) => {
+    if (driver.key === "workflow") {
+      return { ...driver, value: quality.workflowClarityLabel, percent: quality.workflowClarityPct };
+    }
+    if (driver.key === "eval") {
+      return { ...driver, value: quality.evalReadinessLabel, percent: quality.evalReadinessPct };
+    }
+    return { ...driver, value: quality.safeguardsLabel, percent: quality.safeguardsPct };
+  });
 }
 
 export default function DashboardPage() {
@@ -407,49 +450,26 @@ export default function DashboardPage() {
                           <p className="mt-1 text-sm text-slate-600">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
 
-                          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/60 p-2.5">
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              <ProjectSignal
-                                label="Workflow clarity"
-                                value={quality.workflowClarityLabel}
-                                tooltip="Checks whether each main workflow step has a clear purpose, input, output, and success condition. Calculated as clear workflow steps ÷ total main workflow steps."
-                              />
-                              <ProjectSignal
-                                label="Design readiness"
-                                value={`${quality.designReadinessScore}/100`}
-                                tooltip="How ready this agent design is for testing. Calculated as 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards. It keeps planning honest before any runtime metrics exist."
-                                className="md:row-span-2 md:min-h-[108px] md:justify-center md:border-indigo-200 md:bg-gradient-to-br md:from-indigo-50/70 md:to-violet-50/70"
-                                valueClassName="text-sm font-semibold text-slate-900"
-                              />
-                              <ProjectSignal
-                                label="Safeguards"
-                                value={quality.safeguardsLabel}
-                                tooltip="Checks whether risky or uncertain steps have reflection, human feedback, confidence checks, or escalation. Calculated as safeguarded risky steps ÷ risky or uncertain steps."
-                              />
-                              <ProjectSignal
-                                label="Eval readiness"
-                                value={quality.evalReadinessLabel}
-                                tooltip="Checks whether the design has enough evals for testing: end-to-end success, important steps, tool accuracy, safety when risk exists, clear question + pass criteria, and threshold/dataset/failure detail."
-                                className="md:col-span-1"
-                              />
+                          <section className="mt-4 rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white via-indigo-50/[0.18] to-white p-3 shadow-[0_16px_35px_-30px_rgba(15,23,42,0.75)]">
+                            <div className="grid gap-3 lg:grid-cols-[1.35fr_1fr]">
+                              <DesignReadinessHero score={quality.designReadinessScore} />
+                              <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={project.id} />
                             </div>
-                          </div>
 
-                          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
-                            <p className="flex items-center gap-1 font-semibold uppercase tracking-[0.12em] text-amber-700">
-                              Weakest area
-                              <span
-                                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-amber-300 bg-white/90 text-[10px] font-bold normal-case text-amber-700"
-                                title="The most important gap to fix before this agent design is ready to test."
-                                aria-label="The most important gap to fix before this agent design is ready to test."
-                              >
-                                i
-                              </span>
-                            </p>
-                            <p className="mt-1 text-[12px] normal-case text-amber-900">{quality.weakestArea.replace(/^Weakest area:\s*/i, "")}</p>
-                          </div>
+                            <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/90 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">What feeds this score</p>
+                              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                {buildScoreDrivers(quality).map((driver) => (
+                                  <ScoreDriverChip key={driver.key} label={driver.label} value={driver.value} percent={driver.percent} tooltip={driver.tooltip} />
+                                ))}
+                              </div>
+                            </div>
+                          </section>
 
                           <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">
+                              Open studio
+                            </Link>
                             <button
                               type="button"
                               onClick={() => {
@@ -463,9 +483,6 @@ export default function DashboardPage() {
                             <button type="button" onClick={() => void handleDeleteProject(project.id)} className="ades-ghost-btn px-3 py-2 text-xs text-rose-700">
                               Delete
                             </button>
-                            <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">
-                              Open studio
-                            </Link>
                           </div>
                         </>
                       )}
@@ -481,32 +498,105 @@ export default function DashboardPage() {
   );
 }
 
-function ProjectSignal({
-  label,
-  value,
-  tooltip,
-  className,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  tooltip: string;
-  className?: string;
-  valueClassName?: string;
-}) {
+function DesignReadinessHero({ score }: { score: number }) {
+  const clampedScore = Math.max(0, Math.min(100, score));
+  const radius = 39;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (clampedScore / 100) * circumference;
+
   return (
-    <div className={`rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 ${className ?? ""}`}>
+    <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-white to-violet-50/50 p-3.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700/80">Design readiness</p>
+      <div className="mt-3 flex items-center justify-between gap-4">
+        <div className="relative grid h-[96px] w-[96px] place-items-center">
+          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
+            <circle cx="50" cy="50" r={radius} strokeWidth="8" className="stroke-indigo-100" fill="none" />
+            <circle
+              cx="50"
+              cy="50"
+              r={radius}
+              strokeWidth="8"
+              strokeLinecap="round"
+              className="stroke-indigo-600"
+              fill="none"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+            />
+          </svg>
+          <p className="absolute text-center text-lg font-semibold text-slate-900">
+            {clampedScore}
+            <span className="text-xs text-slate-500">/100</span>
+          </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-700">Main outcome score</p>
+          <p className="mt-1 text-xs text-slate-600">40% Workflow clarity + 40% Eval readiness + 20% Safeguards</p>
+          <div
+            className="mt-3 h-2 w-full overflow-hidden rounded-full bg-indigo-100"
+            role="progressbar"
+            aria-label={`Design readiness ${clampedScore} out of 100`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={clampedScore}
+          >
+            <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${clampedScore}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreDriverChip({ label, value, percent, tooltip }: { label: string; value: string; percent: number; tooltip: string }) {
+  const { numerator, denominator } = parseFractionLabel(value);
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+
+  return (
+    <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 py-2">
       <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        {label}
+        <span>{label}</span>
         <span
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600"
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600 opacity-60 transition hover:opacity-100 focus-visible:opacity-100"
           title={tooltip}
           aria-label={tooltip}
         >
           i
         </span>
       </p>
-      <p className={`mt-1 text-xs font-medium text-slate-700 ${valueClassName ?? ""}`}>{value}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-800">
+        {numerator}
+        <span className="text-xs font-medium text-slate-500">/{denominator}</span>
+      </p>
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"
+        role="progressbar"
+        aria-label={`${label} ${numerator} out of ${denominator}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={clampedPercent}
+      >
+        <div className="h-full rounded-full bg-slate-500" style={{ width: `${clampedPercent}%` }} />
+      </div>
     </div>
+  );
+}
+
+function WeakestAreaInsight({ weakestArea, projectId }: { weakestArea: string; projectId: string }) {
+  const cleanWeakestArea = weakestArea.replace(/^Weakest area:\s*/i, "");
+  const isReady = /none\.\s*design is ready to test\./i.test(weakestArea);
+
+  return (
+    <aside className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-white p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">Main improvement needed</p>
+      <p className="mt-2 text-sm text-amber-900">{isReady ? "No major gaps detected. Keep this design updated as workflows evolve." : cleanWeakestArea}</p>
+      {!isReady ? (
+        <Link
+          href={`/project/${projectId}`}
+          className="mt-3 inline-flex items-center rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:border-amber-400 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
+          Review eval gaps
+        </Link>
+      ) : null}
+    </aside>
   );
 }
