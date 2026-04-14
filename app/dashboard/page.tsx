@@ -72,6 +72,9 @@ const driverDescriptions: Array<{ key: string; label: string; tooltip: string }>
   },
 ];
 
+const designReadinessTooltip =
+  "Design Readiness is a weighted composite score based on workflow clarity (40%), eval readiness (40%), and safeguards (20%).";
+
 function buildScoreDrivers(quality: BoardQualityReport) {
   return driverDescriptions.map((driver) => {
     if (driver.key === "workflow") {
@@ -402,7 +405,7 @@ export default function DashboardPage() {
             ) : null}
 
             {!isLoadingProjects && visibleProjects.length ? (
-              <ul className="mt-5 grid gap-3 lg:grid-cols-2">
+              <ul className="mt-5 grid gap-3 grid-cols-1">
                 {visibleProjects.map(({ project, quality }) => {
                   const isEditing = editingProjectId === project.id;
                   const isGenerating = generatingProjectId === project.id && project.status !== "generated";
@@ -450,19 +453,12 @@ export default function DashboardPage() {
                           <p className="mt-1 text-sm text-slate-600">{project.summary || "Open this flow to define steps, improvement loops, and eval criteria."}</p>
                           {isGenerating ? <p className="mt-2 text-xs font-semibold text-indigo-700">AI is generating tasks, loops, reflections, and evals…</p> : null}
 
-                          <section className="mt-4 rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white via-indigo-50/[0.18] to-white p-3 shadow-[0_16px_35px_-30px_rgba(15,23,42,0.75)]">
-                            <div className="grid gap-3 lg:grid-cols-[1.35fr_1fr]">
-                              <DesignReadinessHero score={quality.designReadinessScore} />
-                              <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={project.id} />
-                            </div>
-
-                            <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/90 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">What feeds this score</p>
-                              <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                {buildScoreDrivers(quality).map((driver) => (
-                                  <ScoreDriverChip key={driver.key} label={driver.label} value={driver.value} percent={driver.percent} tooltip={driver.tooltip} />
-                                ))}
-                              </div>
+                          <section className="mt-4 rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-indigo-50/[0.14] to-white p-3.5 shadow-[0_16px_35px_-30px_rgba(15,23,42,0.75)]">
+                            <MainScoringRow quality={quality} projectId={project.id} />
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {buildScoreDrivers(quality).map((driver) => (
+                                <ScoreDriverChip key={driver.key} label={driver.label} value={driver.value} percent={driver.percent} tooltip={driver.tooltip} />
+                              ))}
                             </div>
                           </section>
 
@@ -498,51 +494,64 @@ export default function DashboardPage() {
   );
 }
 
-function DesignReadinessHero({ score }: { score: number }) {
-  const clampedScore = Math.max(0, Math.min(100, score));
-  const radius = 39;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (clampedScore / 100) * circumference;
+function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; projectId: string }) {
+  const clampedScore = Math.max(0, Math.min(100, quality.designReadinessScore));
+  const workflowContribution = Math.round(quality.workflowClarityPct * 0.4);
+  const evalContribution = Math.round(quality.evalReadinessPct * 0.4);
+  const safeguardContribution = Math.round(quality.safeguardsPct * 0.2);
+  const knownContribution = Math.min(100, workflowContribution + evalContribution + safeguardContribution);
+  const missing = Math.max(0, 100 - knownContribution);
 
   return (
-    <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-white to-violet-50/50 p-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700/80">Design readiness</p>
-      <div className="mt-3 flex items-center justify-between gap-4">
-        <div className="relative grid h-[96px] w-[96px] place-items-center">
-          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
-            <circle cx="50" cy="50" r={radius} strokeWidth="8" className="stroke-indigo-100" fill="none" />
-            <circle
-              cx="50"
-              cy="50"
-              r={radius}
-              strokeWidth="8"
-              strokeLinecap="round"
-              className="stroke-indigo-600"
-              fill="none"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-            />
-          </svg>
-          <p className="absolute text-center text-lg font-semibold text-slate-900">
-            {clampedScore}
-            <span className="text-xs text-slate-500">/100</span>
-          </p>
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-700">Main outcome score</p>
-          <p className="mt-1 text-xs text-slate-600">40% Workflow clarity + 40% Eval readiness + 20% Safeguards</p>
-          <div
-            className="mt-3 h-2 w-full overflow-hidden rounded-full bg-indigo-100"
-            role="progressbar"
-            aria-label={`Design readiness ${clampedScore} out of 100`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={clampedScore}
+    <div className="grid gap-3 lg:grid-cols-[220px_minmax(340px,1fr)_300px] lg:items-center">
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2.5">
+        <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700/85">
+          <span>Design Readiness</span>
+          <span
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-indigo-200 bg-white text-[10px] font-bold normal-case text-indigo-600 opacity-70 transition hover:opacity-100 focus-visible:opacity-100"
+            title={designReadinessTooltip}
+            aria-label={designReadinessTooltip}
           >
-            <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${clampedScore}%` }} />
-          </div>
+            i
+          </span>
+        </p>
+        <p className="mt-1 text-3xl font-semibold leading-none text-slate-900">
+          {clampedScore}
+          <span className="text-base font-medium text-slate-500">/100</span>
+        </p>
+      </div>
+
+      <div>
+        <div
+          className="flex h-3 w-full overflow-hidden rounded-full border border-indigo-100 bg-slate-100"
+          role="progressbar"
+          aria-label={`Design readiness composition. Workflow contribution ${workflowContribution}, eval contribution ${evalContribution}, safeguards contribution ${safeguardContribution}, missing ${missing}, out of 100.`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={clampedScore}
+        >
+          <span className="h-full bg-indigo-500/90" style={{ width: `${workflowContribution}%` }} />
+          <span className="h-full bg-violet-500/90" style={{ width: `${evalContribution}%` }} />
+          <span className="h-full bg-sky-500/90" style={{ width: `${safeguardContribution}%` }} />
+          <span className="h-full bg-slate-200" style={{ width: `${missing}%` }} />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-indigo-500" aria-hidden /> Workflow
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-violet-500" aria-hidden /> Eval
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden /> Safeguards
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-slate-300" aria-hidden /> Missing
+          </span>
         </div>
       </div>
+
+      <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
     </div>
   );
 }
@@ -552,23 +561,25 @@ function ScoreDriverChip({ label, value, percent, tooltip }: { label: string; va
   const clampedPercent = Math.max(0, Math.min(100, percent));
 
   return (
-    <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 py-2">
-      <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        <span>{label}</span>
-        <span
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600 opacity-60 transition hover:opacity-100 focus-visible:opacity-100"
-          title={tooltip}
-          aria-label={tooltip}
-        >
-          i
-        </span>
-      </p>
-      <p className="mt-1 text-sm font-semibold text-slate-800">
+    <div className="inline-flex min-w-[172px] flex-1 items-center gap-2 rounded-full border border-slate-200/90 bg-white px-2.5 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="flex min-w-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <span className="truncate">{label}</span>
+          <span
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600 opacity-60 transition hover:opacity-100 focus-visible:opacity-100"
+            title={tooltip}
+            aria-label={tooltip}
+          >
+            i
+          </span>
+        </p>
+      </div>
+      <p className="text-sm font-semibold text-slate-800">
         {numerator}
         <span className="text-xs font-medium text-slate-500">/{denominator}</span>
       </p>
       <div
-        className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"
+        className="ml-auto h-1.5 w-[70px] overflow-hidden rounded-full bg-slate-200"
         role="progressbar"
         aria-label={`${label} ${numerator} out of ${denominator}`}
         aria-valuemin={0}
@@ -586,13 +597,13 @@ function WeakestAreaInsight({ weakestArea, projectId }: { weakestArea: string; p
   const isReady = /none\.\s*design is ready to test\./i.test(weakestArea);
 
   return (
-    <aside className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-white p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">Main improvement needed</p>
-      <p className="mt-2 text-sm text-amber-900">{isReady ? "No major gaps detected. Keep this design updated as workflows evolve." : cleanWeakestArea}</p>
+    <aside className="rounded-xl border border-amber-200/90 bg-amber-50/60 px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-amber-700">Main improvement needed</p>
+      <p className="mt-1 text-sm text-amber-900">{isReady ? "No major gaps detected. Keep this design updated as workflows evolve." : cleanWeakestArea}</p>
       {!isReady ? (
         <Link
           href={`/project/${projectId}`}
-          className="mt-3 inline-flex items-center rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:border-amber-400 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800 transition hover:border-amber-400 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
         >
           Review eval gaps
         </Link>
