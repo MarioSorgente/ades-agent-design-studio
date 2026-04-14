@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toPng } from "html-to-image";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
@@ -32,6 +32,7 @@ type CritiqueResponse = { critique: CritiqueResult };
 
 export default function ProjectPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
+  const searchParams = useSearchParams();
   const projectId = normalizeRouteParam(routeParams?.id);
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
@@ -115,6 +116,13 @@ export default function ProjectPage() {
     setGenerationSummary(project.summary);
     setCritiqueResult(project.critique);
   }, [isLoading, loadBoardSnapshot, project]);
+
+  useEffect(() => {
+    const requestedView = searchParams.get("view");
+    if (requestedView === "flow" || requestedView === "eval" || requestedView === "improvement") {
+      setViewMode(requestedView);
+    }
+  }, [searchParams]);
 
   const currentBoardHash = useMemo(() => (!isBoardInitialized || !hasHydratedBoardRef.current ? null : JSON.stringify({ nodes, edges })), [edges, isBoardInitialized, nodes]);
 

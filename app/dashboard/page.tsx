@@ -483,16 +483,77 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <MetricRow label="Workflow Clarity" value={`${workflowScore}/100`} score={workflowScore} tooltip={workflowClarityTooltip} />
-          <MetricRow label="Eval Readiness" value={`${evalScore}/100`} score={evalScore} tooltip={evalReadinessTooltip} />
-          <MetricRow label="Safeguards" value={safeguardsValue} score={quality.safeguardsApplicable ? safeguardsScore : null} tooltip={safeguardsTooltip} />
+          <MetricRow
+            label="Workflow Clarity"
+            value={`${workflowScore}/100`}
+            score={workflowScore}
+            tooltip={workflowClarityTooltip}
+            tip={getWorkflowClarityTip(quality)}
+            cta={workflowScore < 80 ? { label: "Fix steps", href: `/project/${projectId}?view=flow` } : null}
+          />
+          <MetricRow
+            label="Eval Readiness"
+            value={`${evalScore}/100`}
+            score={evalScore}
+            tooltip={evalReadinessTooltip}
+            tip={getEvalReadinessTip(quality)}
+            cta={evalScore < 80 ? { label: "Review evals", href: `/project/${projectId}?view=eval` } : null}
+          />
+          <MetricRow
+            label="Safeguards"
+            value={safeguardsValue}
+            score={quality.safeguardsApplicable ? safeguardsScore : null}
+            tooltip={safeguardsTooltip}
+            tip={getSafeguardsTip(quality)}
+            cta={quality.safeguardsApplicable && safeguardsScore < 80 ? { label: "Review safeguards", href: `/project/${projectId}?view=improvement` } : null}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function MetricRow({ label, value, score, tooltip }: { label: string; value: string; score: number | null; tooltip: string }) {
+function getWorkflowClarityTip(quality: BoardQualityReport) {
+  if (quality.workflowClarityPct >= 80) return "Looks good";
+  if (quality.clearWorkflowSteps < quality.totalMainWorkflowSteps) {
+    const unclearCount = quality.totalMainWorkflowSteps - quality.clearWorkflowSteps;
+    return unclearCount === 1 ? "1 step has unclear output" : `${unclearCount} steps need clearer IO`;
+  }
+  return "Tighten step clarity";
+}
+
+function getEvalReadinessTip(quality: BoardQualityReport) {
+  if (quality.evalReadinessPct >= 80) return "Ready";
+  const topIssue = quality.evalReadiness.issues[0] || "";
+  if (/safety/i.test(topIssue) && /tool/i.test(topIssue)) return "Missing safety + tool evals";
+  if (/safety/i.test(topIssue)) return "Missing safety eval";
+  if (/tool/i.test(topIssue)) return "Missing tool eval";
+  if (/end-to-end/i.test(topIssue)) return "Missing end-to-end eval";
+  return "Eval coverage needs work";
+}
+
+function getSafeguardsTip(quality: BoardQualityReport) {
+  if (!quality.safeguardsApplicable) return "Ready";
+  if (quality.safeguardsPct >= 80) return "Covered";
+  const missingCount = Math.max(0, quality.riskyOrUncertainSteps - quality.safeguardedRiskySteps);
+  return missingCount <= 1 ? "1 risky step missing safeguard" : `${missingCount} risky steps missing safeguards`;
+}
+
+function MetricRow({
+  label,
+  value,
+  score,
+  tooltip,
+  tip,
+  cta,
+}: {
+  label: string;
+  value: string;
+  score: number | null;
+  tooltip: string;
+  tip: string;
+  cta: { label: string; href: string } | null;
+}) {
   const barValue = score === null ? 0 : Math.max(0, Math.min(100, score));
 
   return (
@@ -510,6 +571,14 @@ function MetricRow({ label, value, score, tooltip }: { label: string; value: str
       <p className="mt-1 text-lg font-semibold leading-none text-slate-900">{value}</p>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-indigo-400/80" style={{ width: `${barValue}%` }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="truncate text-[11px] text-slate-600">{tip}</p>
+        {cta ? (
+          <Link href={cta.href} className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 transition hover:border-indigo-300 hover:text-indigo-800">
+            {cta.label}
+          </Link>
+        ) : null}
       </div>
     </article>
   );
