@@ -220,12 +220,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-auto border-t border-slate-200/80 pt-3">
-            <Link href="/account" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-indigo-200 hover:text-indigo-700">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] font-semibold text-white">{userInitial || "A"}</span>
-              {userName}
-            </Link>
-          </div>
         </aside>
 
         <section className="flex-1">

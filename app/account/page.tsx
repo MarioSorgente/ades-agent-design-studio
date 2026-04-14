@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuthStore } from "@/lib/auth/store";
 import { signOutUser } from "@/lib/firebase/auth";
@@ -29,6 +29,7 @@ function formatTrialDate(isoString: string | null) {
 }
 
 export default function AccountPage() {
+  const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
   const [profile, setProfile] = useState<ProfileForm>(EMPTY_PROFILE);
@@ -119,6 +120,21 @@ export default function AccountPage() {
     }
   }
 
+  function handleBack() {
+    const hasSameOriginReferrer =
+      typeof document !== "undefined" &&
+      typeof window !== "undefined" &&
+      Boolean(document.referrer) &&
+      URL.canParse(document.referrer) &&
+      new URL(document.referrer).origin === window.location.origin;
+    if (hasSameOriginReferrer) {
+      router.back();
+      return;
+    }
+
+    router.push("/dashboard");
+  }
+
   return (
     <ProtectedRoute>
       <main className="mx-auto min-h-screen w-full max-w-5xl p-4 md:p-6">
@@ -129,9 +145,9 @@ export default function AccountPage() {
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Account</h1>
               <p className="mt-2 text-sm text-slate-600">Manage your profile, plan, and feedback.</p>
             </div>
-            <Link href="/dashboard" className="ades-ghost-btn px-4 py-2 text-sm">
-              ← Back to dashboard
-            </Link>
+            <button type="button" onClick={handleBack} className="ades-ghost-btn px-4 py-2 text-sm">
+              ← Back
+            </button>
           </div>
         </section>
 
