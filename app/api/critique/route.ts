@@ -25,6 +25,20 @@ const AI_SCHEMA = {
   additionalProperties: false,
   properties: {
     summary: { type: "string" },
+    categoryReviews: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          category: { type: "string", enum: ["workflowClarity", "decompositionQuality", "toolLogic", "reflectionFeedback", "evalReadiness"] },
+          verdict: { type: "string", enum: ["pass", "needs_work"] },
+          finding: { type: "string" },
+          recommendation: { type: "string" }
+        },
+        required: ["category", "verdict", "finding", "recommendation"]
+      }
+    },
     critiqueItems: {
       type: "array",
       items: {
@@ -82,7 +96,7 @@ const AI_SCHEMA = {
       }
     }
   },
-  required: ["summary", "critiqueItems", "missingReflections", "missingEvals", "missingBusinessMetrics"]
+  required: ["summary", "categoryReviews", "critiqueItems", "missingReflections", "missingEvals", "missingBusinessMetrics"]
 } as const;
 
 function parseAuthToken(request: Request): string | null {
@@ -130,6 +144,7 @@ function getCritiqueResult(outputText: string): CritiqueResult {
 
   if (
     !parsed.summary ||
+    !Array.isArray(parsed.categoryReviews) ||
     !Array.isArray(parsed.critiqueItems) ||
     !Array.isArray(parsed.missingReflections) ||
     !Array.isArray(parsed.missingEvals) ||
@@ -140,6 +155,7 @@ function getCritiqueResult(outputText: string): CritiqueResult {
 
   return {
     summary: parsed.summary,
+    categoryReviews: parsed.categoryReviews,
     critiqueItems: parsed.critiqueItems,
     missingReflections: parsed.missingReflections,
     missingEvals: parsed.missingEvals,
@@ -193,6 +209,16 @@ export async function POST(request: Request) {
       type: node.type,
       label: node.data.label,
       body: node.data.body,
+      purpose: node.data.purpose,
+      whyThisStepExists: node.data.whyThisStepExists,
+      inputs: node.data.inputs,
+      outputs: node.data.outputs,
+      tools: node.data.tools,
+      completionCriteria: node.data.completionCriteria,
+      commonFailureModes: node.data.commonFailureModes,
+      reflectionHooks: node.data.reflectionHooks,
+      feedbackHooks: node.data.feedbackHooks,
+      stepEvals: node.data.evals,
       reflectionPrompt: node.data.reflectionPrompt,
       evalMetric: node.data.evalMetric,
       businessMetric: node.data.businessMetric,
@@ -210,7 +236,7 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You critique ADES boards for PM users. Return JSON only. Focus on gaps in reflection loops, eval completeness, and business metric clarity."
+            "You critique ADES boards for PM users. Return JSON only. Review with this five-question framework: workflow clarity, decomposition quality, tool logic, reflection/feedback placement, eval readiness. For each category, mark pass or needs_work and provide one concrete recommendation. Focus critique items on highest-impact failures and keep suggestions actionable."
         },
         {
           role: "user",
