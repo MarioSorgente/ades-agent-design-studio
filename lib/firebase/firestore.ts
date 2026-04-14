@@ -37,6 +37,19 @@ export type ProjectRecord = {
   updatedAt: string | null;
 };
 
+export type UserProfileRecord = {
+  fullName: string;
+  company: string;
+  role: string;
+  useCase: string;
+  websiteOrLinkedIn: string;
+  plan: "free" | "trial" | "pro" | string;
+  trialEndsAt: string | null;
+  status: "active" | "trial" | "paused" | string;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 function getDbOrNull() {
   const app = getFirebaseAppOrNull();
   if (!app) return null;
@@ -219,6 +232,23 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
   };
 }
 
+function mapUserProfileSnapshot(data: Record<string, unknown>): UserProfileRecord {
+  const plan = stringOrEmpty(data.plan) || "free";
+  const trialEndsAt = toIsoStringOrNull(data.trialEndsAt);
+  return {
+    fullName: stringOrEmpty(data.fullName),
+    company: stringOrEmpty(data.company),
+    role: stringOrEmpty(data.role),
+    useCase: stringOrEmpty(data.useCase),
+    websiteOrLinkedIn: stringOrEmpty(data.websiteOrLinkedIn),
+    plan,
+    trialEndsAt,
+    status: trialEndsAt && new Date(trialEndsAt).getTime() > Date.now() ? "trial" : "active",
+    createdAt: toIsoStringOrNull(data.createdAt),
+    updatedAt: toIsoStringOrNull(data.updatedAt),
+  };
+}
+
 export async function upsertUserDocument(user: User) {
   const db = getDbOrNull();
   if (!db) return;
@@ -233,6 +263,72 @@ export async function upsertUserDocument(user: User) {
     lastSeenAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   }, { merge: true });
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfileRecord | null> {
+  const db = getDbOrNull();
+  if (!db) return null;
+
+  const userRef = doc(db, "users", uid);
+  const snapshot = await getDoc(userRef);
+  if (!snapshot.exists()) return null;
+
+  return mapUserProfileSnapshot(snapshot.data() as Record<string, unknown>);
+}
+
+type UpdateUserProfileInput = {
+  fullName: string;
+  company: string;
+  role: string;
+  useCase: string;
+  websiteOrLinkedIn: string;
+};
+
+export async function updateUserProfile(uid: string, input: UpdateUserProfileInput) {
+  const db = getDbOrNull();
+  if (!db) throw new Error("Firestore is not configured.");
+
+  const userRef = doc(db, "users", uid);
+  const snapshot = await getDoc(userRef);
+
+  const fullName = input.fullName.trim().slice(0, 120);
+  const company = input.company.trim().slice(0, 120);
+  const role = input.role.trim().slice(0, 120);
+  const useCase = input.useCase.trim().slice(0, 500);
+  const websiteOrLinkedIn = input.websiteOrLinkedIn.trim().slice(0, 240);
+
+  await setDoc(
+    userRef,
+    {
+      uid,
+      fullName,
+      company,
+      role,
+      useCase,
+      websiteOrLinkedIn,
+      updatedAt: serverTimestamp(),
+      createdAt: snapshot.exists() ? snapshot.data().createdAt ?? serverTimestamp() : serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function submitAccountFeedback(input: { uid: string; email: string; message: string }) {
+  const db = getDbOrNull();
+  if (!db) throw new Error("Firestore is not configured.");
+
+  const message = input.message.trim().slice(0, 4000);
+  if (!message) throw new Error("Please add feedback before sending.");
+
+  const feedbackRef = doc(collection(db, "feedback"));
+  await setDoc(feedbackRef, {
+    id: feedbackRef.id,
+    uid: input.uid,
+    email: input.email,
+    message,
+    source: "account",
+    createdAt: serverTimestamp(),
+  });
 }
 
 export async function createProjectForUser(ownerUid: string, title: string) {
