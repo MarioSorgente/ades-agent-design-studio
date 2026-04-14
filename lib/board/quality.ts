@@ -30,6 +30,7 @@ export type BoardQualityReport = {
   riskyOrUncertainSteps: number;
   safeguardsLabel: string;
   safeguardsPct: number;
+  safeguardsApplicable: boolean;
   designReadinessScore: number;
   score: number;
 };
@@ -110,6 +111,7 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
       riskyOrUncertainSteps: 0,
       safeguardsLabel: "0/0",
       safeguardsPct: 0,
+      safeguardsApplicable: false,
       designReadinessScore: 0,
       score: 0,
     };
@@ -173,8 +175,13 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
   if (reflectionOverused) reflectionIssues.push("Reflection loops are attached to every step; only add them where quality risk or uncertainty exists.");
   const unjustifiedHandoffCount = handoffSteps.filter((step) => !/risk|safety|policy|compliance|confidence|uncertain|escalat/i.test([step.data.purpose, step.data.completionCriteria, step.data.body].join(" ").toLowerCase())).length;
   if (unjustifiedHandoffCount > 0) reflectionIssues.push("Human handoff appears without clear risk/compliance/confidence justification.");
-  const safeguardsPct = riskyOrUncertainSteps === 0 ? 100 : Math.round((safeguardedRiskySteps / riskyOrUncertainSteps) * 100);
-  const reflectionFeedback = toCategoryReport(safeguardsPct - (reflectionOverused ? 20 : 0) - unjustifiedHandoffCount * 15, reflectionIssues, 75);
+  const safeguardsApplicable = riskyOrUncertainSteps > 0;
+  const safeguardsPct = safeguardsApplicable ? Math.round((safeguardedRiskySteps / riskyOrUncertainSteps) * 100) : 0;
+  if (!safeguardsApplicable) {
+    reflectionIssues.push("No risky or uncertain steps were identified yet, so safeguards are currently not applicable.");
+  }
+  const reflectionFeedbackScore = safeguardsApplicable ? safeguardsPct - (reflectionOverused ? 20 : 0) - unjustifiedHandoffCount * 15 : 0;
+  const reflectionFeedback = toCategoryReport(reflectionFeedbackScore, reflectionIssues, safeguardsApplicable ? 75 : 0);
 
   const hasEndToEndEval = evalNodes.some((node) => node.data.evalScope === "flow" && node.data.evalCategory === "task_success");
   const importantSteps = mainSteps.filter((step) => step.data.risks.length > 0 || step.data.stepType === "tool_use" || /critical|important|priority|high\s*risk/i.test(step.data.tags.join(" ")));
@@ -207,7 +214,16 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
     ["evalReadiness", evalReadiness],
   ];
 
-  const overallScore = Math.round(categoryEntries.reduce((sum, [, report]) => sum + report.score, 0) / categoryEntries.length);
+  const userFacingWorkflowClarity = Math.round((workflowClarity.score * 0.5) + (decompositionQuality.score * 0.25) + (toolLogic.score * 0.25));
+  const userFacingSafeguards = safeguardsApplicable ? reflectionFeedback.score : 0;
+  const readinessWeights = safeguardsApplicable
+    ? ({ workflow: 0.4, eval: 0.4, safeguards: 0.2 } as const)
+    : ({ workflow: 0.5, eval: 0.5, safeguards: 0 } as const);
+  const overallScore = Math.round(
+    userFacingWorkflowClarity * readinessWeights.workflow +
+      evalReadiness.score * readinessWeights.eval +
+      userFacingSafeguards * readinessWeights.safeguards,
+  );
   const weakestArea = categoryEntries.reduce((lowest, current) => (current[1].score < lowest[1].score ? current : lowest))[0];
   const issues = categoryEntries.flatMap(([, report]) => report.issues);
 
@@ -222,16 +238,17 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
     issues,
     totalMainWorkflowSteps: mainSteps.length,
     clearWorkflowSteps,
-    workflowClarityLabel: `${clearWorkflowSteps}/${mainSteps.length}`,
-    workflowClarityPct,
+    workflowClarityLabel: `${userFacingWorkflowClarity}/100`,
+    workflowClarityPct: userFacingWorkflowClarity,
     passedEvalChecks: Math.max(0, passedEvalChecks),
     requiredEvalChecks,
-    evalReadinessLabel: `${Math.max(0, passedEvalChecks)}/${requiredEvalChecks}`,
-    evalReadinessPct,
+    evalReadinessLabel: `${evalReadiness.score}/100`,
+    evalReadinessPct: evalReadiness.score,
     safeguardedRiskySteps,
     riskyOrUncertainSteps,
-    safeguardsLabel: `${safeguardedRiskySteps}/${riskyOrUncertainSteps}`,
-    safeguardsPct,
+    safeguardsLabel: safeguardsApplicable ? `${userFacingSafeguards}/100` : "N/A",
+    safeguardsPct: userFacingSafeguards,
+    safeguardsApplicable,
     designReadinessScore: overallScore,
     score: overallScore,
   };

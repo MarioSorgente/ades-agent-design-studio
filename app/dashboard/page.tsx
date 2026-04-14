@@ -41,7 +41,15 @@ function getProjectUpdatedAt(updatedAt?: string | null) {
   return updatedAt ? new Date(updatedAt).getTime() : 0;
 }
 
-const designReadinessTooltip = "Design Readiness is an internal quality score from 0–100 summarizing generation quality checks.";
+const designReadinessTooltip =
+  "How ready this agent design is for testing. Calculated from Workflow Clarity, Eval Readiness, and Safeguards. This is a design-time readiness score, not runtime agent performance.";
+const workflowClarityTooltip =
+  "Checks whether the agent workflow is specific enough to build and test. A clear step has a purpose, input, output, and success condition. Backend also checks decomposition quality and tool logic.";
+const evalReadinessTooltip =
+  "Checks whether the design has meaningful evals for the full workflow and important steps. Good evals include a clear question, pass criteria, threshold or scoring rule, and failure examples or dataset notes.";
+const safeguardsTooltip =
+  "Checks whether risky or uncertain steps include reflection, human feedback, confidence checks, or escalation. Safeguards should appear where quality, safety, or ambiguity risk exists — not everywhere.";
+const weakestAreaTooltip = "The most important gap to fix next before this design is ready to test.";
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -447,9 +455,13 @@ export default function DashboardPage() {
 
 function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; projectId: string }) {
   const clampedScore = Math.max(0, Math.min(100, quality.designReadinessScore));
+  const workflowScore = Math.max(0, Math.min(100, quality.workflowClarityPct));
+  const evalScore = Math.max(0, Math.min(100, quality.evalReadinessPct));
+  const safeguardsScore = Math.max(0, Math.min(100, quality.safeguardsPct));
+  const safeguardsValue = quality.safeguardsApplicable ? `${safeguardsScore}/100` : "N/A";
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[220px_1fr] lg:items-center">
+    <div className="grid gap-3 lg:grid-cols-[220px_1fr] lg:items-start">
       <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2.5">
         <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700/85">
           <span>Design readiness</span>
@@ -467,7 +479,30 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
         </p>
       </div>
 
-      <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
+      <div className="grid gap-2">
+        <MetricRow label="Workflow Clarity" value={`${workflowScore}/100`} tooltip={workflowClarityTooltip} />
+        <MetricRow label="Eval Readiness" value={`${evalScore}/100`} tooltip={evalReadinessTooltip} />
+        <MetricRow label="Safeguards" value={safeguardsValue} tooltip={safeguardsTooltip} />
+        <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200/90 bg-white px-3 py-2">
+      <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+        <span>{label}</span>
+        <span
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold normal-case text-slate-600 opacity-70 transition hover:opacity-100 focus-visible:opacity-100"
+          title={tooltip}
+          aria-label={tooltip}
+        >
+          i
+        </span>
+      </p>
+      <p className="text-sm font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
@@ -475,9 +510,9 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
 function WeakestAreaInsight({ weakestArea, projectId }: { weakestArea: string; projectId: string }) {
   const areaLabelMap: Record<string, string> = {
     workflowClarity: "Workflow clarity",
-    decompositionQuality: "Decomposition quality",
-    toolLogic: "Tool logic",
-    reflectionFeedback: "Reflection/feedback placement",
+    decompositionQuality: "Workflow clarity",
+    toolLogic: "Workflow clarity",
+    reflectionFeedback: "Safeguards",
     evalReadiness: "Eval readiness",
   };
   const cleanWeakestArea = areaLabelMap[weakestArea] ?? weakestArea;
@@ -485,7 +520,16 @@ function WeakestAreaInsight({ weakestArea, projectId }: { weakestArea: string; p
 
   return (
     <aside className="rounded-xl border border-amber-200/90 bg-amber-50/60 px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-amber-700">Main improvement needed</p>
+      <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.13em] text-amber-700">
+        <span>Main improvement needed</span>
+        <span
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-amber-300 bg-white text-[10px] font-bold normal-case text-amber-700 opacity-70 transition hover:opacity-100 focus-visible:opacity-100"
+          title={weakestAreaTooltip}
+          aria-label={weakestAreaTooltip}
+        >
+          i
+        </span>
+      </p>
       <p className="mt-1 text-sm text-amber-900">{isReady ? "No major gaps detected. Keep this design updated as workflows evolve." : cleanWeakestArea}</p>
       {!isReady ? (
         <Link
