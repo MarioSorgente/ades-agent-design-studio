@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 import { analyzeBoardQuality } from "@/lib/board/quality";
 import {
   createProjectForUser,
@@ -31,6 +30,7 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
   const userName = user?.displayName?.split(" ")[0] || "there";
+  const userInitial = userName.slice(0, 1).toUpperCase();
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [newTitle, setNewTitle] = useState("");
@@ -220,24 +220,17 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50/85 p-3">
-            <p className="text-sm font-semibold text-slate-900">{user?.displayName || "ADES designer"}</p>
-            <p className="mt-1 text-xs text-slate-600">Designing reliable agent systems with ADES.</p>
-            <div className="mt-3">
-              <AuthHeaderActions />
-            </div>
-          </div>
         </aside>
 
         <section className="flex-1">
           <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(99,102,241,0.22),transparent_42%),radial-gradient(circle_at_82%_20%,rgba(147,51,234,0.22),transparent_36%),radial-gradient(circle_at_50%_96%,rgba(56,189,248,0.14),transparent_38%)]" />
             <div className="relative">
-              <div className="mb-5 flex items-center justify-between gap-2 lg:hidden">
-                <Link href="/" className="inline-flex items-center gap-2" aria-label="Go to ADES landing page">
-                  <Image src="/logo-ades.svg" alt="ADES logo" width={124} height={34} className="h-8 w-auto" priority />
+              <div className="mb-5 flex items-center justify-end gap-2">
+                <Link href="/account" className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/95 px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] text-white">{userInitial || "A"}</span>
+                  {userName}
                 </Link>
-                <AuthHeaderActions />
               </div>
 
               <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Agent design workspace</p>

@@ -5,8 +5,8 @@ import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 const floatingSignals = [
   { label: "Reflection loop", className: "left-[10%] top-[24%] animate-float-slow" },
   { label: "Eval coverage", className: "right-[12%] top-[20%] animate-float" },
-  { label: "Business metric", className: "left-[16%] bottom-[16%] animate-float-delayed" },
-  { label: "Human handoff", className: "right-[18%] bottom-[18%] animate-float-slow" }
+  { label: "Business metric", className: "left-[12%] bottom-[46%] lg:bottom-[42%] animate-float-delayed" },
+  { label: "Human handoff", className: "right-[12%] bottom-[47%] lg:bottom-[43%] animate-float-slow" }
 ];
 
 export default function HomePage() {
