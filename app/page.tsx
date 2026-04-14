@@ -42,7 +42,7 @@ export default function HomePage() {
 
         <div className="relative z-10 mx-auto max-w-4xl text-center">
           <p className="mx-auto inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">
-            Visual planning for AI product teams
+            Agent design for product teams
           </p>
           <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
             Build agent designs with
