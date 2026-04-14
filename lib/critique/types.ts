@@ -16,6 +16,12 @@ export type CritiqueSuggestion = {
 
 export type CritiqueResult = {
   summary: string;
+  categoryReviews: Array<{
+    category: "workflowClarity" | "decompositionQuality" | "toolLogic" | "reflectionFeedback" | "evalReadiness";
+    verdict: "pass" | "needs_work";
+    finding: string;
+    recommendation: string;
+  }>;
   critiqueItems: CritiqueItem[];
   missingReflections: CritiqueSuggestion[];
   missingEvals: CritiqueSuggestion[];

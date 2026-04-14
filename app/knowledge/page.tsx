@@ -36,42 +36,46 @@ const sections = [
 const readinessSections = [
   {
     title: "Design Readiness",
-    body: "Design Readiness is the main score used on the dashboard. It estimates whether your agent design is ready to test using: 40% Workflow Clarity + 40% Eval Readiness + 20% Safeguards.",
+    body: "Design-time readiness metrics help you decide if a workflow is ready to build and test. They are pre-implementation checks, not runtime agent performance metrics.",
   },
   {
-    title: "Workflow Clarity",
-    body: "Strong designs need explicit steps. A step is clear only when it has a purpose, input, output, and a success condition or completion criteria.",
+    title: "What these checks measure",
+    body: "ADES scores workflow specificity, eval quality, and safeguards placement. Internally, it also checks decomposition quality and tool logic to keep plans implementation-ready.",
   },
   {
-    title: "Eval Readiness",
-    body: "Eval plans should test the full workflow plus key details: end-to-end success, important steps, tool use, safety/compliance, robustness, and output quality.",
+    title: "What runtime evals should measure later",
+    body: "After implementation, evaluate final response quality, step trajectory, tool-call accuracy, safety behavior, and end-to-end task success on realistic scenarios.",
   },
   {
-    title: "Safeguards",
-    body: "Risky or uncertain steps should include reflection, human feedback, confidence checks, or escalation paths. These guardrails lower design risk before implementation.",
+    title: "Why trace-level grading matters",
+    body: "Workflow or trace grading helps teams pinpoint where agent behavior failed (planning, tool call, or decision path), not just whether the final answer looked good.",
   },
   {
-    title: "Weakest Area",
-    body: "The dashboard highlights one most important gap to fix next so teams can improve quickly before running real evaluations.",
+    title: "Practical loop",
+    body: "Define expected behavior → run representative test cases → review failures by trace and step → update prompts/workflow/tools/evals → retest.",
   },
 ] as const;
 
 const sources = [
   {
-    label: "OpenAI — A practical guide to building agents",
-    href: "https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf",
+    label: "OpenAI — Agent evals guide",
+    href: "https://platform.openai.com/docs/guides/agents",
   },
   {
-    label: "ReAct paper (Yao et al., 2022)",
-    href: "https://arxiv.org/abs/2210.03629",
+    label: "OpenAI — Trace grading guide",
+    href: "https://platform.openai.com/docs/guides/agents#trace-grading",
   },
   {
-    label: "Reflexion paper (Shinn et al., 2023)",
-    href: "https://arxiv.org/abs/2303.11366",
+    label: "OpenAI — Working with evals guide",
+    href: "https://platform.openai.com/docs/guides/evals",
   },
   {
-    label: "NIST AI Risk Management Framework",
-    href: "https://www.nist.gov/itl/ai-risk-management-framework",
+    label: "LangSmith — Evaluate an agent",
+    href: "https://docs.smith.langchain.com/evaluation/how_to_guides/evaluate_chatbot",
+  },
+  {
+    label: "LangChain / LangSmith — Complex agent evaluation concepts",
+    href: "https://docs.langchain.com/langsmith/evaluation-concepts",
   },
 ] as const;
 
@@ -112,10 +116,9 @@ export default function KnowledgePage() {
         </section>
 
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-[0_18px_40px_-45px_rgba(15,23,42,0.75)]">
-          <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design-time metrics for agent readiness</p>
+          <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Design-time readiness metrics</p>
           <p className="mt-3 text-sm leading-relaxed text-slate-600">
-            These are design-time planning metrics, not production performance metrics. They help teams decide whether an agent design is ready to test. Real runtime evals and
-            production metrics come later after implementation or simulation.
+            ADES readiness metrics are planning checks used before implementation. They answer: “Is this design ready to test?” They do not measure production agent quality.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -125,6 +128,13 @@ export default function KnowledgePage() {
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{section.body}</p>
               </article>
             ))}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-indigo-100/90 bg-indigo-50/50 p-3">
+            <h3 className="text-sm font-semibold text-slate-900">PM example</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              If an agent misses edge cases, a final-output score alone cannot show whether the issue came from planning, a tool call, or a bad handoff. Trace-level evals make the fix path obvious.
+            </p>
           </div>
         </section>
 
