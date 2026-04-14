@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import type { AdesNode, AdesNodeType, BoardViewMode, EvalCategory } from "@/lib/board/types";
 import { useAdesBoardStore } from "@/lib/board/store";
 
@@ -58,19 +58,34 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
 
   const flowRows = useMemo(
     () =>
-      orderedMainSteps.map((step) => {
+      orderedMainSteps.map((step, index) => {
         const connected = edges
           .filter((edge) => edge.source === step.id || edge.target === step.id)
           .map((edge) => nodeById.get(edge.source === step.id ? edge.target : edge.source))
           .filter((node): node is AdesNode => Boolean(node));
 
-        const evalCount = connected.filter((node) => node.type === "eval").length + step.data.evals.length;
-        const reflectionCount = connected.filter((node) => node.type === "reflection").length + step.data.reflectionHooks.length;
-        const feedbackCount = connected.filter((node) => node.type === "feedback").length + step.data.feedbackHooks.length;
-        const riskCount = connected.filter((node) => node.type === "risk").length + step.data.risks.length;
+        const evalNodes = connected.filter((node) => node.type === "eval");
+        const reflectionNodes = connected.filter((node) => node.type === "reflection");
+        const feedbackNodes = connected.filter((node) => node.type === "feedback");
+        const riskNodes = connected.filter((node) => node.type === "risk");
+
+        const evalCount = evalNodes.length + step.data.evals.length;
+        const reflectionCount = reflectionNodes.length + step.data.reflectionHooks.length;
+        const feedbackHandoffCount = feedbackNodes.length + step.data.feedbackHooks.length + (step.type === "handoff" ? 1 : 0);
+        const riskCount = riskNodes.length + step.data.risks.length;
         const toolCount = step.data.tools.length;
 
-        return { step, evalCount, reflectionCount: reflectionCount + feedbackCount, riskCount, toolCount };
+        const stepText = `${step.data.purpose} ${step.data.body} ${step.data.completionCriteria} ${step.data.reasoningRequired}`.toLowerCase();
+        const likelyNeedsReflection =
+          step.type !== "goal" &&
+          reflectionCount === 0 &&
+          (riskCount > 0 || toolCount > 0 || /uncertain|risk|policy|compliance|confidence|quality|ambig|critical/.test(stepText));
+        const likelyNeedsEval =
+          evalCount === 0 &&
+          (index > 0 || step.type === "handoff") &&
+          (riskCount > 0 || toolCount > 0 || /critical|important|success|quality|safety|output/.test(stepText));
+
+        return { step, evalCount, reflectionCount, feedbackHandoffCount, riskCount, toolCount, evalNodes, reflectionNodes, feedbackNodes, riskNodes, likelyNeedsReflection, likelyNeedsEval };
       }),
     [edges, nodeById, orderedMainSteps],
   );
@@ -281,8 +296,41 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                     <LabeledBadge label={`${row.toolCount} tools`} tooltip={BADGE_HELPERS.tools} />
                     <LabeledBadge label={`${row.evalCount} evals`} tooltip={BADGE_HELPERS.evals} />
                     <LabeledBadge label={`${row.reflectionCount} reflections`} tooltip={BADGE_HELPERS.reflections} />
+                    <LabeledBadge label={`${row.feedbackHandoffCount} feedback/handoffs`} tooltip="Human feedback requests or handoff points attached to this step." />
                     <LabeledBadge label={`${row.riskCount} risks`} tooltip={BADGE_HELPERS.risks} />
                   </div>
+
+                  {(row.evalNodes.length || row.reflectionNodes.length || row.feedbackNodes.length || row.riskNodes.length) ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {row.evalNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Eval: ${node.data.label}`} />)}
+                      {row.reflectionNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Reflection: ${node.data.label}`} />)}
+                      {row.feedbackNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Feedback: ${node.data.label}`} />)}
+                      {row.riskNodes.slice(0, 2).map((node) => <MiniAttachment key={node.id} label={`Risk: ${node.data.label}`} />)}
+                    </div>
+                  ) : null}
+
+                  {row.likelyNeedsReflection ? (
+                    <SuggestionHint
+                      text="Suggested: add reflection here"
+                      reason="This step has uncertainty/risk/output-quality dependency."
+                      actionLabel="+ Reflection"
+                      onAction={(event) => {
+                        event.stopPropagation();
+                        onAddConnectedNode(row.step.id, "reflection");
+                      }}
+                    />
+                  ) : null}
+                  {row.likelyNeedsEval ? (
+                    <SuggestionHint
+                      text="Suggested: add eval"
+                      reason="This step is critical to task success."
+                      actionLabel="+ Eval"
+                      onAction={(event) => {
+                        event.stopPropagation();
+                        onAddConnectedNode(row.step.id, "eval");
+                      }}
+                    />
+                  ) : null}
 
                   <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-100 pt-2">
                     <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "eval"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Eval</button>
@@ -314,6 +362,20 @@ function LabeledBadge({ label, tooltip }: { label: string; tooltip: string }) {
 
 function AddStepChip({ label, onClick }: { label: string; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="whitespace-nowrap rounded-full border border-dashed border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700">{label}</button>;
+}
+
+function MiniAttachment({ label }: { label: string }) {
+  return <span className="max-w-[210px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">{label}</span>;
+}
+
+function SuggestionHint({ text, reason, actionLabel, onAction }: { text: string; reason: string; actionLabel: string; onAction: (event: MouseEvent<HTMLButtonElement>) => void }) {
+  return (
+    <div className="mt-2 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-2.5 py-2">
+      <p className="text-[11px] font-semibold text-indigo-800">{text}</p>
+      <p className="mt-0.5 text-[11px] text-indigo-700">{reason}</p>
+      <button type="button" onClick={onAction} className="ades-ghost-btn mt-1 px-2 py-1 text-[11px]">{actionLabel}</button>
+    </div>
+  );
 }
 
 function ImprovementSection({ title, description, rows, onSelectNode }: { title: string; description: string; rows: Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>; onSelectNode: (nodeId: string | null) => void }) {
