@@ -3,10 +3,10 @@ import Link from "next/link";
 import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
 
 const floatingSignals = [
-  { label: "Reflection loop", className: "left-[10%] top-[24%] animate-float-slow" },
-  { label: "Eval coverage", className: "right-[12%] top-[20%] animate-float" },
-  { label: "Business metric", className: "left-[12%] bottom-[46%] lg:bottom-[42%] animate-float-delayed" },
-  { label: "Human handoff", className: "right-[12%] bottom-[47%] lg:bottom-[43%] animate-float-slow" }
+  { label: "Reflection loop", className: "left-[5%] top-[20%] animate-float-slow 2xl:left-[10%]" },
+  { label: "Eval coverage", className: "right-[6%] top-[18%] animate-float 2xl:right-[12%]" },
+  { label: "Business metric", className: "left-[8%] bottom-[35%] animate-float-delayed 2xl:left-[12%] 2xl:bottom-[40%]" },
+  { label: "Human handoff", className: "right-[8%] bottom-[36%] animate-float-slow 2xl:right-[12%] 2xl:bottom-[41%]" }
 ];
 
 export default function HomePage() {
@@ -34,17 +34,17 @@ export default function HomePage() {
         {floatingSignals.map((chip) => (
           <div
             key={chip.label}
-            className={`pointer-events-none absolute hidden rounded-full border border-indigo-200/70 bg-white/85 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm md:block ${chip.className}`}
+            className={`pointer-events-none absolute hidden rounded-full border border-indigo-200/70 bg-white/85 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm xl:block ${chip.className}`}
           >
             {chip.label}
           </div>
         ))}
 
-        <div className="relative mx-auto max-w-4xl text-center">
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
           <p className="mx-auto inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">
             Visual planning for AI product teams
           </p>
-          <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight text-slate-900 md:text-6xl">
+          <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
             Build agent designs with
             <span className="ml-2 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 bg-clip-text text-transparent">
               structure, critique, and confidence
