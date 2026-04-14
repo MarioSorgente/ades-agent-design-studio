@@ -26,6 +26,12 @@ const sidebarNavItems: SidebarNavItem[] = [
   { label: "Knowledge", href: "/knowledge" },
 ];
 
+const mobileQuickLinks = [
+  { label: "Home", href: "/" },
+  { label: "Knowledge", href: "/knowledge" },
+  { label: "Account", href: "/account" },
+] as const;
+
 function formatDateTimeLabel(isoString: string | null) {
   if (!isoString) return "Just now";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(isoString));
@@ -247,21 +253,15 @@ export default function DashboardPage() {
         <section className="flex-1">
           <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-[0_14px_36px_-36px_rgba(15,23,42,0.75)] lg:hidden">
             <div className="flex flex-wrap items-center gap-2">
-              {sidebarNavItems.map((item, idx) => {
-                const className = `rounded-xl px-3 py-2 text-xs font-medium transition ${idx === 0 ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`;
-                if (item.href) {
-                  return (
-                    <Link key={item.label} href={item.href} className={className}>
-                      {item.label}
-                    </Link>
-                  );
-                }
-                return (
-                  <button key={item.label} type="button" className={className}>
-                    {item.label}
-                  </button>
-                );
-              })}
+              {mobileQuickLinks.map((item, idx) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${idx === 0 ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
             <div className="mt-3 border-t border-slate-200 pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Recent projects</p>
