@@ -232,58 +232,88 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
   }
 
   return (
-    <div id="ades-canvas-export" className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}>
+    <div
+      id="ades-canvas-export"
+      className={className ?? "h-[calc(100vh-11rem)] min-h-[700px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5"}
+      style={{
+        backgroundImage:
+          "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)",
+        backgroundSize: "36px 36px",
+      }}
+    >
       <h3 className="text-base font-semibold text-slate-900">Flow View</h3>
       <p className="mt-1 text-sm text-slate-600">Main steps the agent performs to complete the job.</p>
 
-      <div className="mt-4 space-y-2">
-        <button type="button" onClick={() => onAddStepAt(0)} className="w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:border-indigo-300">+ Add step at the beginning</button>
+      {!flowRows.length ? (
+        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/90 p-6 text-center">
+          <p className="text-sm text-slate-600">No main steps yet.</p>
+          <button type="button" onClick={() => onAddStepAt(0)} className="ades-primary-btn mt-3 px-3 py-2 text-xs">+ Add first step</button>
+        </div>
+      ) : (
+        <div className="mt-6 overflow-x-auto pb-4">
+          <div className="flex min-w-max items-start gap-5 px-2 py-4">
+            <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
 
-        {flowRows.map((row, index) => (
-          <div key={row.step.id} className="space-y-2">
-            <button type="button" onClick={() => onSelectNode(row.step.id)} className={`w-full rounded-2xl border bg-white p-4 text-left ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
-                  <h4 className="mt-1 text-base font-semibold text-slate-900">{row.step.data.label}</h4>
+            {flowRows.map((row, index) => (
+              <div key={row.step.id} className="flex items-center gap-5">
+                <button
+                  type="button"
+                  onClick={() => onSelectNode(row.step.id)}
+                  className={`w-[360px] rounded-2xl border bg-white/95 p-4 text-left shadow-[0_20px_45px_-36px_rgba(15,23,42,0.55)] ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                      <h4 className="mt-1 text-base font-semibold text-slate-900">{row.step.data.label}</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step left">← Move</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step right">Move →</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px]">Duplicate</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px] text-rose-600">Delete</button>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-sm text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
+                  <p className="mt-2 text-xs text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    <LabeledBadge label={`${row.toolCount} tools`} tooltip={BADGE_HELPERS.tools} />
+                    <LabeledBadge label={`${row.evalCount} evals`} tooltip={BADGE_HELPERS.evals} />
+                    <LabeledBadge label={`${row.reflectionCount} reflections`} tooltip={BADGE_HELPERS.reflections} />
+                    <LabeledBadge label={`${row.riskCount} risks`} tooltip={BADGE_HELPERS.risks} />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-100 pt-2">
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "eval"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Eval</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "reflection"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Reflection</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "feedback"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Feedback</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "risk"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Safeguard</button>
+                  </div>
+                </button>
+
+                <div className="flex items-center gap-5">
+                  <div className="h-[2px] w-10 bg-slate-300" />
+                  <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} />
+                  {index < flowRows.length - 1 ? <div className="h-[2px] w-10 bg-slate-300" /> : null}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step left">← Move</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step right">Move →</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px]">Duplicate</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px] text-rose-600">Delete</button>
-                </div>
               </div>
-              <p className="mt-2 text-sm text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
-              <p className="mt-2 text-xs text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+            ))}
 
-              <div className="mt-3 flex flex-wrap gap-1">
-                <LabeledBadge label={`${row.toolCount} tools`} tooltip={BADGE_HELPERS.tools} />
-                <LabeledBadge label={`${row.evalCount} evals`} tooltip={BADGE_HELPERS.evals} />
-                <LabeledBadge label={`${row.reflectionCount} reflections`} tooltip={BADGE_HELPERS.reflections} />
-                <LabeledBadge label={`${row.riskCount} risks`} tooltip={BADGE_HELPERS.risks} />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-100 pt-2">
-                <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "eval"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Add eval</button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "reflection"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Add reflection</button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "feedback"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Add feedback</button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "risk"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Add safeguard</button>
-              </div>
-            </button>
-            <button type="button" onClick={() => onAddStepAt(index + 1)} className="w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:border-indigo-300">+ Add step here</button>
+            <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
           </div>
-        ))}
-
-        {!flowRows.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm text-slate-600">No main steps yet. Generate an agent design or add your first step.</p> : null}
-        <button type="button" onClick={onAddStepToEnd} className="w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:border-indigo-300">+ Add step at the end</button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function LabeledBadge({ label, tooltip }: { label: string; tooltip: string }) {
   return <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700" title={tooltip}>{label}</span>;
+}
+
+function AddStepChip({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="whitespace-nowrap rounded-full border border-dashed border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700">{label}</button>;
 }
 
 function ImprovementSection({ title, description, rows, onSelectNode }: { title: string; description: string; rows: Array<{ id: string; step: AdesNode; trigger: string; action: string; why: string }>; onSelectNode: (nodeId: string | null) => void }) {
