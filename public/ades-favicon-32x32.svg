@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="ADES favicon 32">
+  <rect width="128" height="128" rx="28" fill="#f5f7fb"/>
+  <path d="M71 13c16 1 30 14 30 31 0 5-1 10-3 14 3 6 4 12 4 18 0 20-12 32-24 39-11 6-27 8-37-2-7-7-8-17-4-26 2-5 3-9 3-14 0-9-4-16-4-25 0-19 15-35 35-35Z" fill="#343A43"/>
+  <path d="M74 16c10 4 17 11 21 21" stroke="#f5f7fb" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="53" cy="58" r="4" fill="#f5f7fb"/>
+  <path d="M47 67c5 3 10 3 16 0" stroke="#f5f7fb" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="57" cy="85" r="5" fill="none" stroke="#f5f7fb" stroke-width="3"/>
+  <circle cx="79" cy="82" r="5" fill="none" stroke="#f5f7fb" stroke-width="3"/>
+</svg>

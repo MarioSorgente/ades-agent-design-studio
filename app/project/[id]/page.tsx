@@ -269,16 +269,17 @@ export default function ProjectPage() {
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{boardSummary.evals} evals</span>
                   <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700">quality {qualityReport.score}/100</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {BOARD_VIEW_MODES.map((mode) => (
-                    <button key={mode} type="button" onClick={() => setViewMode(mode)} className={viewMode === mode ? "ades-primary-btn px-3 py-1.5 text-[11px]" : "ades-ghost-btn px-3 py-1.5 text-[11px]"}>
-                      {mode === "flow" ? "Flow View" : mode === "eval" ? "Eval View" : "Improvement View"}
-                    </button>
-                  ))}
-                  <button type="button" className="ades-ghost-btn px-3 py-1.5 text-[11px]" onClick={() => setIsBottomPanelOpen((prev) => !prev)}>{isBottomPanelOpen ? "Hide tools" : "Tools"}</button>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {BOARD_VIEW_MODES.map((mode) => (
+                  <button key={mode} type="button" onClick={() => setViewMode(mode)} className={viewMode === mode ? "ades-primary-btn px-3 py-1.5 text-[11px]" : "ades-ghost-btn px-3 py-1.5 text-[11px]"}>
+                    {mode === "flow" ? "Flow View" : mode === "eval" ? "Eval View" : "Improvement View"}
+                  </button>
+                ))}
+                <button type="button" className="ades-ghost-btn px-3 py-1.5 text-[11px]" onClick={() => setIsBottomPanelOpen((prev) => !prev)}>{isBottomPanelOpen ? "Hide tools" : "Tools"}</button>
+                <button type="button" className="ades-ghost-btn px-3 py-1.5 text-[11px] lg:hidden" onClick={() => setIsRightPanelPinned((prev) => !prev)}>{isRightPanelPinned ? "Hide inspector" : "Inspector"}</button>
               </div>
-            </section>
+            </div>
+          </section>
 
             {qualityReport.issues.length ? (
               <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
@@ -291,8 +292,8 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            <section className="flex gap-3">
-              <aside className={`rounded-2xl border border-slate-200/80 bg-white/90 p-2 ${isLeftToolbarExpanded ? "w-[220px]" : "w-[54px]"}`}>
+            <section className="flex flex-col gap-3 lg:flex-row">
+              <aside className={`hidden rounded-2xl border border-slate-200/80 bg-white/90 p-2 lg:block ${isLeftToolbarExpanded ? "w-[220px]" : "w-[54px]"}`}>
                 <button type="button" onClick={() => setIsLeftToolbarExpanded((prev) => !prev)} className="mb-2 flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">{isLeftToolbarExpanded ? "Collapse" : "☰"}</button>
                 <div className="space-y-1.5">
                   {CORE_NODE_TYPES.map((type) => {
@@ -307,12 +308,32 @@ export default function ProjectPage() {
                 </div>
               </aside>
 
+              <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-2 lg:hidden">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Add node</p>
+                  <button type="button" onClick={() => setIsLeftToolbarExpanded((prev) => !prev)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                    {isLeftToolbarExpanded ? "Hide labels" : "Show labels"}
+                  </button>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {CORE_NODE_TYPES.map((type) => {
+                    const theme = getNodeTheme(type);
+                    return (
+                      <button key={type} type="button" onClick={() => addNode(type)} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                        <span className={`h-2 w-2 rounded-full ${theme.dotClass}`} />
+                        {isLeftToolbarExpanded ? theme.label : type.replace("_", " ")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="relative min-w-0 flex-1">
-                <StudioBoard viewMode={viewMode} className="h-[calc(100vh-11rem)] min-h-[700px] overflow-hidden rounded-[28px] border border-slate-200/90 bg-[#f3f5fa]" />
+                <StudioBoard viewMode={viewMode} className="h-[65vh] min-h-[440px] overflow-hidden rounded-[28px] border border-slate-200/90 bg-[#f3f5fa] lg:h-[calc(100vh-11rem)] lg:min-h-[700px]" />
               </div>
 
               {isRightPanelPinned || selectedNodeId ? (
-                <aside className="w-[340px] rounded-2xl border border-slate-200/80 bg-white/95 p-3">
+                <aside className="w-full rounded-2xl border border-slate-200/80 bg-white/95 p-3 lg:w-[340px]">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inspector</p>
                     <button type="button" onClick={() => setIsRightPanelPinned((prev) => !prev)} className="ades-ghost-btn px-2 py-1 text-[10px]">{isRightPanelPinned ? "Unpin" : "Pin"}</button>

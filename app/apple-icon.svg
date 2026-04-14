@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="ADES apple icon">
+  <rect width="180" height="180" rx="40" fill="#f5f7fb"/>
+  <path d="M98 20c22 1 42 20 42 43 0 7-2 14-4 20 4 8 6 16 6 25 0 28-16 46-35 56-16 9-38 11-52-2-10-10-11-24-6-36 3-6 5-13 5-20 0-13-6-23-6-36 0-27 21-50 50-50Z" fill="#343A43"/>
+  <path d="M102 24c14 5 24 16 30 29" stroke="#f5f7fb" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="75" cy="81" r="6" fill="#f5f7fb"/>
+  <path d="M66 94c8 5 15 5 24 0" stroke="#f5f7fb" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="80" cy="120" r="8" fill="none" stroke="#f5f7fb" stroke-width="4"/>
+  <circle cx="111" cy="116" r="8" fill="none" stroke="#f5f7fb" stroke-width="4"/>
+</svg>

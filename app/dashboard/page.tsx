@@ -26,6 +26,12 @@ const sidebarNavItems: SidebarNavItem[] = [
   { label: "Knowledge", href: "/knowledge" },
 ];
 
+const mobileQuickLinks = [
+  { label: "Home", href: "/" },
+  { label: "Knowledge", href: "/knowledge" },
+  { label: "Account", href: "/account" },
+] as const;
+
 function formatDateTimeLabel(isoString: string | null) {
   if (!isoString) return "Just now";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(isoString));
@@ -192,7 +198,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <main className="mx-auto flex min-h-screen w-full max-w-[1500px] gap-4 p-4 md:p-6">
+      <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 p-4 md:p-6 lg:flex-row">
         <aside className="hidden w-[270px] shrink-0 flex-col rounded-[2rem] border border-slate-200/80 bg-white/85 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur lg:flex">
           <div className="flex items-center justify-between">
             <Link href="/" className="inline-flex items-center gap-2" aria-label="Go to ADES landing page">
@@ -245,6 +251,38 @@ export default function DashboardPage() {
         </aside>
 
         <section className="flex-1">
+          <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-[0_14px_36px_-36px_rgba(15,23,42,0.75)] lg:hidden">
+            <div className="flex flex-wrap items-center gap-2">
+              {mobileQuickLinks.map((item, idx) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${idx === 0 ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Recent projects</p>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {recentProjectTitles.length ? (
+                  recentProjectTitles.map((project) => (
+                    <Link
+                      key={project.id}
+                      href={`/project/${project.id}`}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                    >
+                      {project.title}
+                    </Link>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500">Your recents will appear here.</p>
+                )}
+              </div>
+            </div>
+          </section>
+
           <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(99,102,241,0.22),transparent_42%),radial-gradient(circle_at_82%_20%,rgba(147,51,234,0.22),transparent_36%),radial-gradient(circle_at_50%_96%,rgba(56,189,248,0.14),transparent_38%)]" />
             <div className="relative">

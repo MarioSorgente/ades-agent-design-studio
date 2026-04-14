@@ -166,9 +166,9 @@ export default function AccountPage() {
                 <dt className="text-slate-500">Account status</dt>
                 <dd className="font-medium text-slate-900 capitalize">{profileMeta?.status || "active"}</dd>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2">
                 <dt className="text-slate-500">Email</dt>
-                <dd className="font-medium text-slate-900">{user?.email || "—"}</dd>
+                <dd className="break-all text-right font-medium text-slate-900">{user?.email || "—"}</dd>
               </div>
             </dl>
           </article>
