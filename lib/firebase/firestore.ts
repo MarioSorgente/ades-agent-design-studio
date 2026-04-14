@@ -197,6 +197,21 @@ function isCritiqueSuggestion(value: unknown): value is CritiqueSuggestion {
   return typeof item.id === "string" && (item.type === "reflection" || item.type === "eval" || item.type === "business_metric") && typeof item.title === "string" && typeof item.body === "string";
 }
 
+function isCategoryReview(value: unknown): value is CritiqueResult["categoryReviews"][number] {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    (item.category === "workflowClarity" ||
+      item.category === "decompositionQuality" ||
+      item.category === "toolLogic" ||
+      item.category === "reflectionFeedback" ||
+      item.category === "evalReadiness") &&
+    (item.verdict === "pass" || item.verdict === "needs_work") &&
+    typeof item.finding === "string" &&
+    typeof item.recommendation === "string"
+  );
+}
+
 function parseCritique(value: unknown): CritiqueResult | null {
   if (!value || typeof value !== "object") return null;
   const critique = value as Record<string, unknown>;
@@ -205,6 +220,7 @@ function parseCritique(value: unknown): CritiqueResult | null {
 
   return {
     summary: critique.summary,
+    categoryReviews: Array.isArray(critique.categoryReviews) ? critique.categoryReviews.filter(isCategoryReview) : [],
     critiqueItems: critique.critiqueItems.filter(isCritiqueItem),
     missingReflections: critique.missingReflections.filter(isCritiqueSuggestion),
     missingEvals: critique.missingEvals.filter(isCritiqueSuggestion),
