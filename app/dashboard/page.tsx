@@ -509,8 +509,6 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
           />
         </div>
       </div>
-
-      <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
     </div>
   );
 }
