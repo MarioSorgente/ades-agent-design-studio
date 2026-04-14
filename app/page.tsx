@@ -66,7 +66,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-10 grid gap-3 md:grid-cols-3">
-            <InteractiveCard title="Break down the agent" description="Canvas-first visualizaition mapping the goal into tasks and loops" />
+            <InteractiveCard title="Break down the agent" description="Canvas-first visualizaition, mapping the goal into tasks and loops" />
             <InteractiveCard title="Improve the workflow" description="Add reflection loops, critique points and human feedback where quality can fail" />
             <InteractiveCard title="Define the evals" description="Create evaluations for success, safety and robustness" />
           </div>
