@@ -420,6 +420,47 @@ function getGeneratedDesign(outputText: string): GeneratedDesign {
   };
 }
 
+function buildQualityWarnings(quality: ReturnType<typeof analyzeBoardQuality>) {
+  const warnings: Array<{ category: string; message: string; correctiveSuggestion: string }> = [];
+  if (!quality.workflowClarity.passed) {
+    warnings.push({
+      category: "workflowClarity",
+      message: "Some steps are missing purpose, inputs/outputs, success criteria, or rationale.",
+      correctiveSuggestion: "Rewrite each unclear step with explicit purpose, input, output, completion criteria, and why it exists.",
+    });
+  }
+  if (!quality.decompositionQuality.passed) {
+    warnings.push({
+      category: "decompositionQuality",
+      message: "Step granularity is unbalanced (too broad, too tiny, or wrong step count).",
+      correctiveSuggestion: "Split broad steps, merge noisy micro-steps, and target a coherent 5–9 main-step flow unless complexity justifies more.",
+    });
+  }
+  if (!quality.toolLogic.passed) {
+    warnings.push({
+      category: "toolLogic",
+      message: "Tool-use logic is incomplete or not testable.",
+      correctiveSuggestion: "For each tool step, specify tool, why it is used, exact inputs, expected output, result handling, and failure fallback.",
+    });
+  }
+  if (!quality.reflectionFeedback.passed) {
+    warnings.push({
+      category: "reflectionFeedback",
+      message: "Reflection/handoff coverage is either missing on risky steps or overused globally.",
+      correctiveSuggestion: "Add reflection only where uncertainty or quality risk exists, and justify human handoffs with risk/compliance/confidence triggers.",
+    });
+  }
+  if (!quality.evalReadiness.passed) {
+    warnings.push({
+      category: "evalReadiness",
+      message: "Eval plan does not fully support verification readiness.",
+      correctiveSuggestion:
+        "Add end-to-end task success evals, critical step evals, tool-accuracy evals, risk-based safety evals, and robustness tests with pass criteria, thresholds, dataset guidance, and failure examples.",
+    });
+  }
+  return warnings;
+}
+
 export async function POST(request: Request) {
   const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
   const openaiDebug = createOpenAIDebug(hasApiKey);
@@ -465,11 +506,11 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are ADES design engine. Build a concrete agent design spec from fuzzy prompts using this pipeline: interpret job/context; decompose into ordered concrete steps; refine broad steps; add reflection/feedback/escalation mechanisms only when useful; generate exhaustive evals (step + end-to-end) across task_success, reasoning_quality, tool_accuracy, output_quality, efficiency, safety, escalation, reflection_effectiveness, feedback_usefulness, robustness; run design quality checks mentally and fill gaps before output. Never emit placeholder step names like New task, New goal, Step 1, Analyze request unless expanded into specific operational language.",
+            "You are the ADES design engine. Output JSON only and optimize for five quality gates: (1) workflow clarity: every step must include purpose, why this step exists, inputs, outputs, and completion criteria; (2) decomposition quality: avoid giant vague steps and noisy micro-steps, target 5-9 main steps unless complexity clearly needs more; (3) tool logic: for tool-use steps include tool name/category, why needed, exact input, expected output, how results are used, and failure mode handling; (4) reflection/feedback: include reflection loops only where uncertainty/quality risk exists, and human handoff only with explicit risk/policy/compliance/confidence justification, each with trigger, critique/review question, revision action, and stop condition; (5) eval readiness: include at least one end-to-end task-success eval plus critical step evals, tool-accuracy evals for tool steps, safety/compliance evals when risk exists, and robustness evals with clear verification question, pass criteria, threshold/scoring rule, dataset notes, and failure examples. Hard rules: never use placeholder names like New task/New goal/Step 1; never omit pass criteria; never imply score over 100.",
         },
         {
           role: "user",
-          content: `Idea: ${ideaPrompt}\nAudience: ${audience || "General users"}\nConstraints: ${constraints || "None"}\nReturn concrete operational steps with clear inputs/outputs and quality checks.`,
+          content: `Idea: ${ideaPrompt}\nAudience: ${audience || "General users"}\nConstraints: ${constraints || "None"}\nReturn an implementation-ready, PM-testable workflow that satisfies all five quality gates.`,
         },
       ],
       text: {
@@ -497,12 +538,14 @@ export async function POST(request: Request) {
     const generatedDesign = getGeneratedDesign(outputText);
     const board = normalizeDesign(generatedDesign);
     const quality = analyzeBoardQuality(board);
+    const qualityWarnings = buildQualityWarnings(quality);
 
     await projectRef.update({
       title: generatedDesign.title,
       summary: generatedDesign.summary,
       assumptions: generatedDesign.assumptions,
       critiqueSeed: generatedDesign.critiqueSeed,
+      quality,
       ideaPrompt,
       audience,
       constraints,
@@ -517,6 +560,7 @@ export async function POST(request: Request) {
       assumptions: generatedDesign.assumptions,
       critiqueSeed: generatedDesign.critiqueSeed,
       quality,
+      qualityWarnings,
       openaiDebug,
     });
   } catch (error) {
