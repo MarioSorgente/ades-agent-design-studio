@@ -226,10 +226,7 @@ export default function DashboardPage() {
           <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(99,102,241,0.22),transparent_42%),radial-gradient(circle_at_82%_20%,rgba(147,51,234,0.22),transparent_36%),radial-gradient(circle_at_50%_96%,rgba(56,189,248,0.14),transparent_38%)]" />
             <div className="relative">
-              <div className="mb-5 flex items-center justify-between gap-2">
-                <Link href="/" className="inline-flex items-center gap-2" aria-label="Go to ADES landing page">
-                  <Image src="/logo-ades.svg" alt="ADES logo" width={124} height={34} className="h-8 w-auto" priority />
-                </Link>
+              <div className="mb-5 flex items-center justify-end gap-2">
                 <Link href="/account" className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/95 px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] text-white">{userInitial || "A"}</span>
                   {userName}
