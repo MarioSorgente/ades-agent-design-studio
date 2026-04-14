@@ -488,8 +488,6 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
           <MetricRow label="Safeguards" value={safeguardsValue} score={quality.safeguardsApplicable ? safeguardsScore : null} tooltip={safeguardsTooltip} />
         </div>
       </div>
-
-      <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
     </div>
   );
 }
