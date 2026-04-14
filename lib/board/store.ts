@@ -32,6 +32,10 @@ type AdesBoardState = {
   setSelectedNodeId: (nodeId: string | null) => void;
   addNode: (type: AdesNodeType) => void;
   addNodeWithContent: (type: AdesNodeType, label: string, body: string) => void;
+  addConnectedNode: (sourceId: string, type: AdesNodeType) => void;
+  deleteNodeById: (nodeId: string) => void;
+  duplicateNodeById: (nodeId: string) => void;
+  moveMainStep: (nodeId: string, direction: "left" | "right") => void;
   deleteSelectedNode: () => void;
   updateNode: (nodeId: string, updater: (node: AdesNode) => AdesNode) => void;
 };
@@ -50,6 +54,20 @@ function nextNodePosition(nodes: AdesNode[], type: AdesNodeType) {
   const y = yBase + Math.floor(laneIndex / 4) * 160;
 
   return { x, y };
+}
+
+function isMainStep(node: AdesNode) {
+  return node.type === "goal" || node.type === "task" || node.type === "handoff";
+}
+
+function getOrderedMainSteps(nodes: AdesNode[]) {
+  return nodes.filter(isMainStep).sort((a, b) => a.position.x - b.position.x);
+}
+
+function normalizeMainStepPositions(nodes: AdesNode[]) {
+  const ordered = getOrderedMainSteps(nodes);
+  const positionMap = new Map(ordered.map((node, index) => [node.id, 180 + index * 320]));
+  return nodes.map((node) => (positionMap.has(node.id) ? { ...node, position: { ...node.position, x: positionMap.get(node.id)!, y: 180 } } : node));
 }
 
 export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
@@ -128,7 +146,7 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const newNode = createNode(type, nodeId, position, defaultLabelByType[type]);
 
     set({
-      nodes: [...state.nodes, newNode],
+      nodes: normalizeMainStepPositions([...state.nodes, newNode]),
       selectedNodeId: newNode.id,
     });
   },
@@ -141,8 +159,88 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     newNode.data.body = body.trim();
 
     set({
-      nodes: [...state.nodes, newNode],
+      nodes: normalizeMainStepPositions([...state.nodes, newNode]),
       selectedNodeId: newNode.id,
+    });
+  },
+  addConnectedNode: (sourceId, type) => {
+    const state = get();
+    const sourceNode = state.nodes.find((node) => node.id === sourceId);
+    if (!sourceNode) return;
+
+    const nodeId = createNodeId(type);
+    const lane = getNodeLane(type);
+    const y = lane === "quality" ? sourceNode.position.y + 220 : lane === "business" ? Math.max(80, sourceNode.position.y - 120) : sourceNode.position.y;
+    const position = { x: sourceNode.position.x + 40, y };
+    const newNode = createNode(type, nodeId, position, type === "eval" ? `Eval for ${sourceNode.data.label}` : `New ${type.replace("_", " ")}`);
+
+    const newEdge: AdesEdge = {
+      id: `e-${crypto.randomUUID().slice(0, 8)}`,
+      source: sourceId,
+      target: nodeId,
+      data: { semanticType: getDefaultEdgeSemanticByNodes(sourceNode.type, type) },
+    };
+
+    set({
+      nodes: normalizeMainStepPositions([...state.nodes, newNode]),
+      edges: [...state.edges, newEdge],
+      selectedNodeId: nodeId,
+    });
+  },
+  deleteNodeById: (nodeId) => {
+    set((state) => ({
+      nodes: normalizeMainStepPositions(state.nodes.filter((node) => node.id !== nodeId)),
+      edges: state.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+      selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+    }));
+  },
+  duplicateNodeById: (nodeId) => {
+    const state = get();
+    const original = state.nodes.find((node) => node.id === nodeId);
+    if (!original) return;
+
+    const cloneId = createNodeId(original.type);
+    const copy: AdesNode = {
+      ...original,
+      id: cloneId,
+      position: { x: original.position.x + 70, y: original.position.y + 20 },
+      data: {
+        ...original.data,
+        label: `${original.data.label} (copy)`,
+        shortLabel: `${original.data.shortLabel || original.data.label} (copy)`,
+      },
+    };
+
+    set({
+      nodes: normalizeMainStepPositions([...state.nodes, copy]),
+      selectedNodeId: cloneId,
+    });
+  },
+  moveMainStep: (nodeId, direction) => {
+    const state = get();
+    const ordered = getOrderedMainSteps(state.nodes);
+    const currentIndex = ordered.findIndex((node) => node.id === nodeId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === "left" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= ordered.length) return;
+
+    const reordered = [...ordered];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    const xMap = new Map(reordered.map((node, index) => [node.id, 180 + index * 320]));
+
+    set({
+      nodes: state.nodes.map((node) =>
+        xMap.has(node.id)
+          ? {
+              ...node,
+              position: { ...node.position, x: xMap.get(node.id)!, y: 180 },
+            }
+          : node,
+      ),
+      selectedNodeId: nodeId,
     });
   },
   deleteSelectedNode: () => {
@@ -151,11 +249,7 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
       return;
     }
 
-    set((state) => ({
-      nodes: state.nodes.filter((node) => node.id !== selectedNodeId),
-      edges: state.edges.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId),
-      selectedNodeId: null,
-    }));
+    get().deleteNodeById(selectedNodeId);
   },
   updateNode: (nodeId, updater) => {
     set((state) => ({
