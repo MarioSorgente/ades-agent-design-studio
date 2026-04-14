@@ -60,9 +60,9 @@ export default function HomePage() {
             <Link href="/dashboard" className="ades-primary-btn px-6 py-3">
               Try ADES Studio
             </Link>
-            <Link href="/sign-in" className="ades-ghost-btn px-6 py-3">
+            <a href="https://mariosorgente.carrd.co/" target="_blank" rel="noreferrer" className="ades-ghost-btn px-6 py-3">
               Request a demo flow
-            </Link>
+            </a>
           </div>
 
           <div className="mt-10 grid gap-3 md:grid-cols-3">
