@@ -29,7 +29,7 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
   }
 
   const nodeTheme = getNodeTheme(selectedNode.type as AdesNodeType);
-  const panelTitle = selectedNode.type === "eval" ? "Eval details" : selectedNode.type === "reflection" || selectedNode.type === "feedback" || selectedNode.type === "risk" ? "Improvement details" : "Step details";
+  const panelTitle = "Card details";
 
   const updateField = (
     field:
@@ -45,6 +45,7 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
       | "reflectionTrigger"
       | "reflectionPrompt"
       | "reflectionLoopTarget"
+      | "reflectionRevisionAction"
       | "feedbackSource"
       | "feedbackCondition"
       | "feedbackAction"
@@ -87,17 +88,17 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
           updateField("purpose", event.target.value);
           updateField("body", event.target.value);
         }
-      }} rows={3} className="ades-input resize-none" /></Field>
+      }} rows={4} className="ades-input min-h-[92px] resize-y text-sm" /></Field>
 
-      <Field label="Why this exists"><textarea value={selectedNode.data.whyThisStepExists} onChange={(event) => updateField("whyThisStepExists", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
+      <Field label="Why this exists"><textarea value={selectedNode.data.whyThisStepExists} onChange={(event) => updateField("whyThisStepExists", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
 
       {selectedNode.type !== "eval" ? (
         <>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <Field label="Inputs"><input value={selectedNode.data.inputs} onChange={(event) => updateField("inputs", event.target.value)} className="ades-input" /></Field>
-            <Field label="Outputs"><input value={selectedNode.data.outputs} onChange={(event) => updateField("outputs", event.target.value)} className="ades-input" /></Field>
+            <Field label="Inputs"><textarea value={selectedNode.data.inputs} onChange={(event) => updateField("inputs", event.target.value)} rows={4} className="ades-input min-h-[92px] resize-y text-sm" /></Field>
+            <Field label="Outputs"><textarea value={selectedNode.data.outputs} onChange={(event) => updateField("outputs", event.target.value)} rows={4} className="ades-input min-h-[92px] resize-y text-sm" /></Field>
           </div>
-          <Field label="Completion criteria"><input value={selectedNode.data.completionCriteria} onChange={(event) => updateField("completionCriteria", event.target.value)} className="ades-input" /></Field>
+          <Field label="Completion criteria"><textarea value={selectedNode.data.completionCriteria} onChange={(event) => updateField("completionCriteria", event.target.value)} rows={4} className="ades-input min-h-[92px] resize-y text-sm" /></Field>
           <ReadOnlyList title="Tools" items={selectedNode.data.tools} emptyMessage="No tools listed." />
           <ReadOnlyList title="Attached evals" items={selectedNode.data.evals.map((item) => item.name)} emptyMessage="No attached eval definitions." />
           <ReadOnlyList title="Reflections / feedback" items={[...selectedNode.data.reflectionHooks.map((hook) => hook.trigger), ...selectedNode.data.feedbackHooks.map((hook) => hook.whenToRequest)]} emptyMessage="No reflection or feedback hooks yet." />
@@ -118,16 +119,17 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
               <option value="flow">End-to-end</option>
             </select>
           </Field>
-          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
-          <Field label="Threshold / scoring rule"><input value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} className="ades-input" /></Field>
-          <Field label="Failure examples / dataset notes"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={2} className="ades-input resize-none" /></Field>
+          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
+          <Field label="Threshold / scoring rule"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
+          <Field label="Failure examples / dataset notes"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
         </Section>
       ) : null}
 
       {selectedNode.type === "reflection" ? (
         <Section title="Reflection details">
           <Field label="Trigger"><input value={selectedNode.data.reflectionTrigger} onChange={(event) => updateField("reflectionTrigger", event.target.value)} className="ades-input" /></Field>
-          <Field label="Prompt"><textarea value={selectedNode.data.reflectionPrompt} onChange={(event) => updateField("reflectionPrompt", event.target.value)} rows={3} className="ades-input resize-none" /></Field>
+          <Field label="Reflection prompt"><textarea value={selectedNode.data.reflectionPrompt} onChange={(event) => updateField("reflectionPrompt", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
+          <Field label="Revision action"><textarea value={selectedNode.data.reflectionRevisionAction} onChange={(event) => updateField("reflectionRevisionAction", event.target.value)} rows={3} className="ades-input min-h-[84px] resize-y text-sm" /></Field>
           <Field label="Loop target">
             <select value={selectedNode.data.reflectionLoopTarget} onChange={(event) => updateField("reflectionLoopTarget", event.target.value)} className="ades-input">
               <option value="same_step">Same step</option>

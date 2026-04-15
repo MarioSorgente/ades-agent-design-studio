@@ -9,6 +9,7 @@ type StudioBoardProps = {
   viewMode?: BoardViewMode;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string | null) => void;
+  onOpenDetails: () => void;
   onAddStepAt: (index: number) => void;
   onAddStepToEnd: () => void;
   onMoveStep: (nodeId: string, direction: "left" | "right") => void;
@@ -19,16 +20,6 @@ type StudioBoardProps = {
 
 type EvalFilter = "all" | "missing" | "end_to_end" | "tool_use" | "safety";
 type AttachmentKind = "evals" | "reflections" | "feedback" | "risks";
-
-type LoopHint = {
-  id: string;
-  kind: "reflection" | "feedback";
-  target: "same_step" | "previous_step";
-  sourceLabel: string;
-};
-
-const STEP_CARD_WIDTH = 360;
-const STEP_GAP = 220;
 
 const BADGE_HELPERS = {
   tools: "External tools or data sources this step needs.",
@@ -53,7 +44,7 @@ function isWeakEval(node: AdesNode) {
   return !node.data.evalQuestion.trim() || !node.data.evalCriteria.trim() || !node.data.evalThreshold.trim();
 }
 
-export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSelectNode, onAddStepAt, onAddStepToEnd, onMoveStep, onDuplicateStep, onDeleteNode, onAddConnectedNode }: StudioBoardProps) {
+export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSelectNode, onOpenDetails, onAddStepAt, onAddStepToEnd, onMoveStep, onDuplicateStep, onDeleteNode, onAddConnectedNode }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const updateNode = useAdesBoardStore((state) => state.updateNode);
@@ -118,7 +109,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
           (index > 0 || step.type === "handoff") &&
           (riskCount > 0 || toolCount > 0 || /critical|important|success|quality|safety|output/.test(stepText));
 
-        return { step, evalCount, reflectionCount, feedbackCount, riskCount, toolCount, evalNodes, reflectionNodes, feedbackNodes, riskNodes, likelyNeedsReflection, likelyNeedsEval, loopHints };
+        return { step, evalCount, reflectionCount, feedbackCount, riskCount, toolCount, evalNodes, reflectionNodes, feedbackNodes, riskNodes, likelyNeedsReflection, likelyNeedsEval };
       }),
     [edges, nodeById, orderedMainSteps],
   );
@@ -231,6 +222,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
           reflectionLoopTarget: loopTarget,
           reflectionTrigger: reflectionTrigger?.trim() || node.data.reflectionTrigger,
           reflectionPrompt: reflectionAction?.trim() || node.data.reflectionPrompt,
+          reflectionRevisionAction: reflectionAction?.trim() || node.data.reflectionRevisionAction,
         },
       }));
     }, 0);
@@ -350,17 +342,18 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                           className={`relative w-[360px] rounded-2xl border bg-white/95 p-4 text-left shadow-[0_20px_45px_-36px_rgba(15,23,42,0.55)] ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
-                              <h4 className="mt-1 text-[17px] font-semibold text-slate-900">{row.step.data.label}</h4>
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-xs" aria-label="Move step left">←</button>
-                              <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-xs" aria-label="Move step right">→</button>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                            <h4 className="mt-1 text-[17px] font-semibold text-slate-900">{row.step.data.label}</h4>
+                          </div>
+                          {selectedNodeId === row.step.id ? (
+                            <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onOpenDetails(); }} className="ades-ghost-btn px-2 py-1 text-xs" aria-label="Open card details">📝 Details</button>
                               <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-xs">Duplicate</button>
                               <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-xs text-rose-600">Delete</button>
                             </div>
-                          </div>
+                          ) : null}
+                        </div>
 
                           <p className="mt-2 text-[14px] text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
                           <p className="mt-2 text-[13px] text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
@@ -372,23 +365,25 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                             <PillButton label={`${row.riskCount} safeguards`} active={openAttachment === "risks"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "risks"); }} />
                           </div>
 
-                          <details className="mt-3" onClick={(event) => event.stopPropagation()}>
-                            <summary className="cursor-pointer list-none text-[13px] font-medium text-slate-700">+ Add</summary>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "eval")}>Eval</button>
-                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => handleQuickAdd(row.step.id, "reflection")}>Reflection loop</button>
-                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "feedback")}>Feedback loop</button>
-                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "risk")}>Safeguard</button>
-                            </div>
-                          </details>
+                          {selectedNodeId === row.step.id ? (
+                            <details className="mt-3" onClick={(event) => event.stopPropagation()}>
+                              <summary className="cursor-pointer list-none text-[13px] font-medium text-slate-700">+ Add</summary>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "eval")}>Eval</button>
+                                <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => handleQuickAdd(row.step.id, "reflection")}>Reflection loop</button>
+                                <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "feedback")}>Feedback loop</button>
+                                <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "risk")}>Safeguard</button>
+                              </div>
+                            </details>
+                          ) : null}
                         </button>
 
-                        {openAttachment ? (
+                        {openAttachment && openAttachment !== "reflections" ? (
                           <div className="absolute left-0 top-full z-20 mt-2 w-[360px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
                             {openAttachment === "evals" ? (
                               <div className="space-y-2">
                                 {row.evalNodes.length ? row.evalNodes.map((node) => (
-                                  <button key={node.id} type="button" onClick={() => onSelectNode(node.id)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
+                                  <button key={node.id} type="button" onClick={() => { onSelectNode(node.id); onOpenDetails(); }} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
                                     <p className="text-[13px] font-semibold text-slate-900">{node.data.evalQuestion || node.data.evalName || node.data.label}</p>
                                     <p className="mt-0.5 text-xs text-slate-600">Category: {prettyEvalCategory(node.data.evalCategory)}</p>
                                     <p className="mt-0.5 text-xs text-slate-600">Threshold: {node.data.evalThreshold || "Add threshold"} · Pass: {node.data.evalCriteria || "Add pass criteria"}</p>
@@ -397,9 +392,38 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                                 <button type="button" onClick={() => onAddConnectedNode(row.step.id, "eval")} className="ades-ghost-btn px-2 py-1 text-xs">+ Add eval</button>
                               </div>
                             ) : null}
-                            {openAttachment === "reflections" ? <AttachmentList emptyMessage="No reflections attached yet." items={row.reflectionNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.reflectionTrigger || "Trigger not defined" }))} onSelectNode={onSelectNode} /> : null}
-                            {openAttachment === "feedback" ? <AttachmentList emptyMessage="No feedback loops attached yet." items={row.feedbackNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.feedbackCondition || "Trigger not defined" }))} onSelectNode={onSelectNode} /> : null}
-                            {openAttachment === "risks" ? <AttachmentList emptyMessage="No safeguards attached yet." items={row.riskNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.confidenceCheck || "Mitigation not defined" }))} onSelectNode={onSelectNode} /> : null}
+                            {openAttachment === "feedback" ? <AttachmentList emptyMessage="No feedback loops attached yet." items={row.feedbackNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.feedbackCondition || "Trigger not defined" }))} onSelectNode={onSelectNode} onOpenDetails={onOpenDetails} /> : null}
+                            {openAttachment === "risks" ? <AttachmentList emptyMessage="No safeguards attached yet." items={row.riskNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.confidenceCheck || "Mitigation not defined" }))} onSelectNode={onSelectNode} onOpenDetails={onOpenDetails} /> : null}
+                          </div>
+                        ) : null}
+
+                        {(openAttachment === "reflections" || Boolean(selectedNodeId && row.reflectionNodes.some((node) => node.id === selectedNodeId))) ? (
+                          <div className="absolute left-0 top-full z-20 mt-3 w-[360px] space-y-3">
+                            {row.reflectionNodes.length ? row.reflectionNodes.map((node) => (
+                              <button key={node.id} type="button" onClick={() => { onSelectNode(node.id); onOpenDetails(); }} className="relative w-full rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-left shadow-sm">
+                                <svg className="pointer-events-none absolute -top-8 left-1/2 h-8 w-8 -translate-x-1/2" viewBox="0 0 32 32" fill="none">
+                                  <path d="M16 30V4" stroke="#6366f1" strokeWidth="1.8" />
+                                  <path d="M12 8L16 4L20 8" stroke="#6366f1" strokeWidth="1.8" />
+                                </svg>
+                                <p className="text-sm font-semibold text-indigo-900">{node.data.label}</p>
+                                <p className="mt-1 text-xs text-indigo-900">Trigger: {node.data.reflectionTrigger || "Not defined"}</p>
+                                <p className="mt-1 text-xs text-indigo-900">Action: {node.data.reflectionRevisionAction || node.data.reflectionPrompt || "Revise and retry"}</p>
+                                <p className="mt-1 text-xs font-semibold text-indigo-800">{node.data.reflectionLoopTarget === "previous_step" ? "Back to previous step" : "Back to same step"}</p>
+                                <svg className="pointer-events-none absolute -bottom-8 left-1/2 h-8 w-44 -translate-x-1/2" viewBox="0 0 176 32" fill="none">
+                                  {node.data.reflectionLoopTarget === "previous_step" ? (
+                                    <>
+                                      <path d="M88 2C70 20 34 20 8 20" stroke="#6366f1" strokeWidth="1.8" />
+                                      <path d="M12 16L6 20L12 24" stroke="#6366f1" strokeWidth="1.8" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <path d="M88 2C88 22 88 22 88 30" stroke="#6366f1" strokeWidth="1.8" />
+                                      <path d="M84 26L88 30L92 26" stroke="#6366f1" strokeWidth="1.8" />
+                                    </>
+                                  )}
+                                </svg>
+                              </button>
+                            )) : <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-600">No reflections attached yet.</p>}
                           </div>
                         ) : null}
                       </div>
@@ -438,25 +462,6 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                   <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
                 </div>
 
-                <svg className="pointer-events-none absolute left-0 top-0 z-10 h-full w-full overflow-visible">
-                  {flowRows.flatMap((row, index) => {
-                    const openAttachment = openAttachments[row.step.id];
-                    const show = openAttachment === "reflections" || Boolean(selectedNodeId && row.reflectionNodes.some((node) => node.id === selectedNodeId));
-                    if (!show) return [];
-
-                    const cardLeft = 128 + index * STEP_GAP;
-                    const cardRight = cardLeft + STEP_CARD_WIDTH;
-                    const topY = 72;
-                    const bottomY = 232;
-                    return row.loopHints.filter((loop) => loop.kind === "reflection").map((loop) => {
-                      if (loop.target === "same_step") {
-                        return <path key={`${row.step.id}-${loop.id}`} d={`M ${cardRight - 22} ${bottomY} C ${cardRight + 54} ${bottomY - 2}, ${cardRight + 52} ${topY + 6}, ${cardRight - 18} ${topY + 2}`} stroke="#818cf8" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.65" />;
-                      }
-                      const previousRight = 128 + (index - 1) * STEP_GAP + STEP_CARD_WIDTH;
-                      return <path key={`${row.step.id}-${loop.id}`} d={`M ${cardLeft + 18} ${bottomY - 4} C ${cardLeft - 70} ${bottomY + 16}, ${previousRight + 16} ${bottomY + 16}, ${previousRight + 8} ${topY + 8}`} stroke="#818cf8" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.7" />;
-                    });
-                  })}
-                </svg>
               </div>
             </div>
           </div>
@@ -479,32 +484,17 @@ function PillButton({ label, active, onClick }: { label: string; active?: boolea
   return <button type="button" onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-slate-50 text-slate-700"}`} title={BADGE_HELPERS.evals}>{label}</button>;
 }
 
-function AttachmentList({ items, emptyMessage, onSelectNode }: { items: Array<{ id: string; label: string; subLabel: string }>; emptyMessage: string; onSelectNode: (nodeId: string | null) => void }) {
+function AttachmentList({ items, emptyMessage, onSelectNode, onOpenDetails }: { items: Array<{ id: string; label: string; subLabel: string }>; emptyMessage: string; onSelectNode: (nodeId: string | null) => void; onOpenDetails: () => void }) {
   if (!items.length) return <p className="text-xs text-slate-600">{emptyMessage}</p>;
   return (
     <div className="space-y-1.5">
       {items.map((item) => (
-        <button key={item.id} type="button" onClick={() => onSelectNode(item.id)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
+        <button key={item.id} type="button" onClick={() => { onSelectNode(item.id); onOpenDetails(); }} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
           <p className="text-xs font-semibold text-slate-900">{item.label}</p>
           <p className="mt-0.5 text-[11px] text-slate-600">{item.subLabel}</p>
         </button>
       ))}
     </div>
-  );
-}
-
-function LoopGlyph({ target }: { target: "same_step" | "previous_step" }) {
-  if (target === "same_step") {
-    return (
-      <svg width="30" height="18" viewBox="0 0 30 18" aria-hidden>
-        <path d="M2 9c0-4 3-7 8-7h9v3l7-4-7-4v3h-9C4-2 0 3 0 9s4 11 10 11h6v-2h-6c-5 0-8-3-8-9Z" fill="#6366f1" opacity="0.45" transform="scale(1,-1) translate(0,-18)" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="30" height="18" viewBox="0 0 30 18" aria-hidden>
-      <path d="M28 8H10l4-4-1.5-1.5L6 9l6.5 6.5L14 14l-4-4h18V8Z" fill="#6366f1" opacity="0.45" />
-    </svg>
   );
 }
 

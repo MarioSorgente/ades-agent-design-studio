@@ -73,6 +73,7 @@ export default function ProjectPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
+  const [isCardDetailsOpen, setIsCardDetailsOpen] = useState(false);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
 
@@ -389,15 +390,15 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            <section className={`relative grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-1"}`}>
+            <section className={`relative grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-1 xl:pr-16"}`}>
               <div className="min-w-0">
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(nodeId) => {
                     setSelectedNodeId(nodeId);
-                    if (nodeId) setIsGuidanceOpen(true);
                   }}
+                  onOpenDetails={() => setIsCardDetailsOpen(true)}
                   onAddStepAt={handleInsertMainStep}
                   onAddStepToEnd={() => handleInsertMainStep(nodes.filter(isMainStep).length)}
                   onMoveStep={moveMainStep}
@@ -445,9 +446,9 @@ export default function ProjectPage() {
               ) : null}
 
               {!isGuidanceOpen ? (
-                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-0 top-8 hidden h-44 w-11 rounded-l-2xl border border-slate-200/90 bg-white/95 px-1 text-center text-xs font-semibold text-slate-700 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-3 top-14 hidden h-48 w-12 rounded-2xl border border-blue-300 bg-blue-50 px-1 text-center text-xs font-semibold text-blue-800 shadow-md xl:flex xl:flex-col xl:items-center xl:justify-center">
                   <span className="[writing-mode:vertical-rl]">Guidance</span>
-                  <span className="mt-2 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
+                  <span className="mt-2 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
                   <span className="mt-2 text-sm">‹</span>
                 </button>
               ) : null}
@@ -496,11 +497,11 @@ export default function ProjectPage() {
               </div>
             ) : null}
 
-            {selectedNodeId ? (
-              <div className="fixed inset-y-0 right-0 z-40 w-full max-w-[380px] border-l border-slate-200 bg-white/95 p-4 shadow-xl">
+            {selectedNodeId && isCardDetailsOpen ? (
+              <div className="fixed inset-y-0 left-0 z-40 w-full max-w-[420px] border-r border-slate-200 bg-white/95 p-4 shadow-xl">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-900">Details inspector</p>
-                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setSelectedNodeId(null)}>Close</button>
+                  <p className="text-sm font-semibold text-slate-900">Card details</p>
+                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsCardDetailsOpen(false)}>✕</button>
                 </div>
                 <div className="h-[calc(100%-2.5rem)] overflow-auto pr-1">
                   <BoardInspector viewMode={viewMode} />
