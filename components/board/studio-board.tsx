@@ -182,10 +182,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
   return (
     <div
       id="ades-canvas-export"
-      className={className ?? "relative h-[calc(100vh-9rem)] min-h-[650px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-4"}
+      className={`relative h-[calc(100vh-9rem)] min-h-[650px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
       style={{ backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)", backgroundSize: "36px 36px" }}
     >
-      <div ref={flowViewportRef} className="relative h-full overflow-auto pb-16" style={{ paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0, transition: "padding-left 180ms ease" }}>
+      <div ref={flowViewportRef} className="relative h-full overflow-auto pb-24" style={{ paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0, transition: "padding-left 180ms ease" }}>
         <div className="origin-top-left" style={{ transform: `scale(${flowZoom})`, width: `${100 / flowZoom}%` }}>
           <div
             ref={flowContentRef}
@@ -308,10 +308,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
       </div>
 
       <div
-        className="pointer-events-none absolute bottom-4 z-30"
+        className="pointer-events-none absolute bottom-5 left-4 z-[80]"
         style={{ left: isDetailsPanelOpen ? detailsInsetPx + 16 : 16, transition: "left 180ms ease" }}
       >
-        <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md">
           <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
           <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
           <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
