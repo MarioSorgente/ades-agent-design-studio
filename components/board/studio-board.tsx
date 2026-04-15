@@ -262,7 +262,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
         </div>
       </div>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30">
+      <div
+        className="pointer-events-none absolute bottom-4 z-30"
+        style={{ left: isDetailsPanelOpen ? detailsInsetPx + 16 : 16, transition: "left 180ms ease" }}
+      >
         <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
           <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
           <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
