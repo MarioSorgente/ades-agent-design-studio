@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AdesNode, AdesNodeType, BoardViewMode } from "@/lib/board/types";
 import { useAdesBoardStore } from "@/lib/board/store";
 
@@ -176,7 +176,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
   return (
     <div
       id="ades-canvas-export"
-      className={className ?? "relative h-[calc(100vh-9rem)] min-h-[650px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4"}
+      className={className ?? "relative h-[calc(100vh-9rem)] min-h-[650px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-4"}
       style={{
         backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)",
         backgroundSize: "36px 36px",
@@ -204,23 +204,17 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                             type="button"
                             onClick={() => onSelectNode(row.step.id)}
                             onDoubleClick={() => onOpenDetails(row.step.id)}
-                            className={`relative w-[350px] rounded-2xl border bg-white p-4 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
+                            className={`relative z-20 w-[350px] rounded-2xl border bg-white p-4 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
                           >
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
                             <h4 className="mt-1 text-base font-semibold text-slate-900">{row.step.data.label}</h4>
                             <p className="mt-2 text-sm text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
                             <p className="mt-2 text-xs text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              <PillButton label={`${row.evalCount} evals`} active={openAttachment === "evals"} onClick={(event) => { event.stopPropagation(); setOpenAttachments((prev) => ({ ...prev, [row.step.id]: prev[row.step.id] === "evals" ? null : "evals" })); }} />
-                              <PillButton label={`${row.reflectionCount} reflections`} active={openAttachment === "reflections"} onClick={(event) => { event.stopPropagation(); setOpenAttachments((prev) => ({ ...prev, [row.step.id]: prev[row.step.id] === "reflections" ? null : "reflections" })); }} />
-                              <PillButton label={`${row.feedbackCount} feedback`} active={openAttachment === "feedback"} onClick={(event) => { event.stopPropagation(); setOpenAttachments((prev) => ({ ...prev, [row.step.id]: prev[row.step.id] === "feedback" ? null : "feedback" })); }} />
-                              <PillButton label={`${row.riskCount} safeguards`} active={openAttachment === "risks"} onClick={(event) => { event.stopPropagation(); setOpenAttachments((prev) => ({ ...prev, [row.step.id]: prev[row.step.id] === "risks" ? null : "risks" })); }} />
-                            </div>
                           </button>
 
                           {isSelected ? (
-                            <div className="absolute -top-10 right-2 z-30 flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/95 p-1 shadow-md">
-                              <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="ades-ghost-btn h-7 w-7 px-0 py-0 text-xs">⤢</button>
+                            <div className="absolute right-2 top-2 z-50 flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/98 p-1 shadow-lg">
+                              <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-7 w-7 cursor-pointer rounded-md border border-slate-300 bg-white text-sm font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
                               <details className="relative" onClick={(event) => event.stopPropagation()}>
                                 <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2 py-1 text-xs [&::-webkit-details-marker]:hidden">+ Add</summary>
                                 <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
@@ -235,8 +229,8 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                             </div>
                           ) : null}
 
-                          {openAttachment ? (
-                            <div className="absolute left-0 top-full z-20 mt-2 w-[350px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                          {openAttachment && isSelected ? (
+                            <div className="absolute left-0 top-full z-40 mt-2 w-[350px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
                               {openAttachment === "evals" ? (
                                 <AttachmentList items={row.evalNodes.map((node) => ({ id: node.id, label: node.data.evalQuestion || node.data.evalName || node.data.label, subLabel: `Threshold: ${node.data.evalThreshold || "Add threshold"} · Pass: ${node.data.evalCriteria || "Add pass criteria"}` }))} emptyMessage="No eval cards attached yet." onSelectNode={onSelectNode} onOpenDetails={onOpenDetails} />
                               ) : null}
@@ -272,7 +266,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
             </div>
           </div>
 
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20">
+          <div className="pointer-events-none absolute bottom-4 left-4 z-30">
             <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
               <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
               <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
@@ -285,10 +279,6 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
       )}
     </div>
   );
-}
-
-function PillButton({ label, active, onClick }: { label: string; active?: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{label}</button>;
 }
 
 function AttachmentList({ items, emptyMessage, onSelectNode, onOpenDetails }: { items: Array<{ id: string; label: string; subLabel: string }>; emptyMessage: string; onSelectNode: (nodeId: string | null) => void; onOpenDetails?: (nodeId: string) => void }) {
