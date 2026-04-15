@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
-import { BOARD_VIEW_MODES, type AdesBoardSnapshot, type AdesEdge, type AdesNode, type BoardViewMode, createNode } from "@/lib/board/types";
+import { type AdesBoardSnapshot, type AdesEdge, type AdesNode, type BoardViewMode, createNode } from "@/lib/board/types";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
@@ -156,7 +156,7 @@ export default function ProjectPage() {
 
   useEffect(() => {
     const requestedView = searchParams.get("view");
-    if (requestedView === "flow" || requestedView === "eval" || requestedView === "improvement") {
+    if (requestedView === "flow" || requestedView === "eval") {
       setViewMode(requestedView);
     }
   }, [searchParams]);
@@ -189,7 +189,6 @@ export default function ProjectPage() {
   function getRecommendedViewFromText(text: string): BoardViewMode {
     const clean = text.toLowerCase();
     if (/eval|test|threshold|coverage|dataset|score/.test(clean)) return "eval";
-    if (/reflection|handoff|risk|safeguard|escalat/.test(clean)) return "improvement";
     return "flow";
   }
 
@@ -256,7 +255,7 @@ export default function ProjectPage() {
       setCritiqueResult(payload.critique);
       setDismissedFindingIds([]);
       setProject((previous) => (previous ? { ...previous, critique: payload.critique } : previous));
-      setViewMode("improvement");
+      setViewMode("flow");
     } catch (error) {
       setCritiqueError(error instanceof Error ? error.message : "Critique failed.");
     } finally {
@@ -337,11 +336,12 @@ export default function ProjectPage() {
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{saveStateLabel}</span>
                   <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">Readiness {qualityReport.score}/100</span>
                   <div className="ml-1 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                    {BOARD_VIEW_MODES.map((mode) => (
-                      <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
-                        {mode === "flow" ? "Flow" : mode === "improvement" ? "Improve" : "Evals"}
-                      </button>
-                    ))}
+                    <button type="button" onClick={() => setViewMode("flow")} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === "flow" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                      Flow
+                    </button>
+                    <button type="button" onClick={() => setViewMode("eval")} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === "eval" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                      Evals
+                    </button>
                   </div>
                 </div>
 
