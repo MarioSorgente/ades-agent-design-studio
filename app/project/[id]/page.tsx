@@ -76,6 +76,7 @@ export default function ProjectPage() {
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
+  const [addNotice, setAddNotice] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
 
@@ -148,14 +149,6 @@ export default function ProjectPage() {
   }, [searchParams]);
 
   const currentBoardHash = useMemo(() => (!isBoardInitialized || !hasHydratedBoardRef.current ? null : JSON.stringify({ nodes, edges })), [edges, isBoardInitialized, nodes]);
-
-  const boardSummary = useMemo(() => {
-    const mainSteps = nodes.filter((node) => isMainStep(node)).length;
-    const reflections = nodes.filter((node) => node.type === "reflection").length;
-    const feedback = nodes.filter((node) => node.type === "feedback" || node.type === "handoff").length;
-    const evals = nodes.filter((node) => node.type === "eval").length;
-    return { mainSteps, reflections, feedback, evals };
-  }, [nodes]);
 
   const qualityReport = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
   const activeCritiqueItems = useMemo(() => critiqueResult?.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)) ?? [], [critiqueResult, dismissedFindingIds]);
@@ -310,6 +303,12 @@ export default function ProjectPage() {
     setIsDetailsPanelOpen(true);
   }
 
+  useEffect(() => {
+    if (!addNotice) return;
+    const timer = window.setTimeout(() => setAddNotice(null), 1700);
+    return () => window.clearTimeout(timer);
+  }, [addNotice]);
+
   return (
     <AppShell title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")} actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn px-2.5 py-1.5 text-xs" aria-disabled={!projectId}>Print</Link>} compact>
       <ProtectedRoute>
@@ -324,7 +323,6 @@ export default function ProjectPage() {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{saveStateLabel}</span>
                   <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">Readiness {qualityReport.score}/100</span>
-                  <span className="text-[11px] font-medium text-slate-600">{boardSummary.mainSteps} steps · {boardSummary.evals} evals · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback</span>
                   <div className="ml-1 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
                     {BOARD_VIEW_MODES.map((mode) => (
                       <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
@@ -381,6 +379,8 @@ export default function ProjectPage() {
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
+                  isDetailsPanelOpen={isDetailsPanelOpen}
+                  detailsInsetPx={444}
                   onSelectNode={(nodeId) => {
                     setSelectedNodeId(nodeId);
                   }}
@@ -390,6 +390,7 @@ export default function ProjectPage() {
                   onDeleteNode={deleteNodeById}
                   onAddConnectedNode={addConnectedNode}
                   onOpenDetails={handleOpenDetails}
+                  onAddNotice={(message) => setAddNotice(message)}
                   className="h-[79vh] min-h-[560px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-3 pb-12 lg:h-[calc(100vh-8.5rem)]"
                 />
               </div>
@@ -493,6 +494,12 @@ export default function ProjectPage() {
                     <BoardInspector viewMode={viewMode} nodeId={selectedNodeId} />
                   </div>
                 </div>
+              </div>
+            ) : null}
+
+            {addNotice ? (
+              <div className="pointer-events-none fixed left-1/2 top-16 z-[75] -translate-x-1/2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow">
+                {addNotice}
               </div>
             ) : null}
           </div>

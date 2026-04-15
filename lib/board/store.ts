@@ -173,6 +173,13 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
     const y = lane === "quality" ? sourceNode.position.y + 220 : lane === "business" ? Math.max(80, sourceNode.position.y - 120) : sourceNode.position.y;
     const position = { x: sourceNode.position.x + 40, y };
     const newNode = createNode(type, nodeId, position, type === "eval" ? `Eval for ${sourceNode.data.label}` : `New ${type.replace("_", " ")}`);
+    if (type === "reflection") {
+      newNode.data.label = "Self-critique";
+      newNode.data.reflectionTrigger = "Low confidence or missing constraints";
+      newNode.data.reflectionLoopTarget = "same_step";
+      newNode.data.reflectionPrompt = "Critique this step before moving forward.";
+      newNode.data.feedbackAction = "Revise the step output before continuing.";
+    }
 
     const newEdge: AdesEdge = {
       id: `e-${crypto.randomUUID().slice(0, 8)}`,

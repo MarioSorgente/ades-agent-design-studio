@@ -60,7 +60,7 @@ export function BoardInspector({ viewMode, nodeId }: { viewMode: BoardViewMode; 
             <span className={`h-1.5 w-1.5 rounded-full ${nodeTheme.dotClass}`} />
             {nodeTheme.label}
           </span>
-          <span className="text-xs text-slate-500">{selectedNode.id}</span>
+          <span className="text-xs font-medium text-slate-500">{nodeTheme.label}</span>
         </div>
       </div>
 
