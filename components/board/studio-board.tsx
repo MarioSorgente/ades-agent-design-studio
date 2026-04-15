@@ -41,6 +41,8 @@ function isWeakEval(node: AdesNode) {
   return !node.data.evalQuestion.trim() || !node.data.evalCriteria.trim() || !node.data.evalThreshold.trim();
 }
 
+const MAX_VISIBLE_EVALS = 3;
+
 export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
