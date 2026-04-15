@@ -32,7 +32,7 @@ type AdesBoardState = {
   setSelectedNodeId: (nodeId: string | null) => void;
   addNode: (type: AdesNodeType) => void;
   addNodeWithContent: (type: AdesNodeType, label: string, body: string) => void;
-  addConnectedNode: (sourceId: string, type: AdesNodeType) => void;
+  addConnectedNode: (sourceId: string, type: AdesNodeType) => string | null;
   deleteNodeById: (nodeId: string) => void;
   duplicateNodeById: (nodeId: string) => void;
   moveMainStep: (nodeId: string, direction: "left" | "right") => void;
@@ -166,7 +166,7 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
   addConnectedNode: (sourceId, type) => {
     const state = get();
     const sourceNode = state.nodes.find((node) => node.id === sourceId);
-    if (!sourceNode) return;
+    if (!sourceNode) return null;
 
     const nodeId = createNodeId(type);
     const lane = getNodeLane(type);
@@ -186,6 +186,8 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
       edges: [...state.edges, newEdge],
       selectedNodeId: nodeId,
     });
+
+    return nodeId;
   },
   deleteNodeById: (nodeId) => {
     set((state) => ({
