@@ -44,6 +44,7 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
       | "completionCriteria"
       | "reflectionTrigger"
       | "reflectionPrompt"
+      | "reflectionLoopTarget"
       | "feedbackSource"
       | "feedbackCondition"
       | "feedbackAction"
@@ -127,6 +128,15 @@ export function BoardInspector({ viewMode }: { viewMode: BoardViewMode }) {
         <Section title="Reflection details">
           <Field label="Trigger"><input value={selectedNode.data.reflectionTrigger} onChange={(event) => updateField("reflectionTrigger", event.target.value)} className="ades-input" /></Field>
           <Field label="Prompt"><textarea value={selectedNode.data.reflectionPrompt} onChange={(event) => updateField("reflectionPrompt", event.target.value)} rows={3} className="ades-input resize-none" /></Field>
+          <Field label="Loop target">
+            <select value={selectedNode.data.reflectionLoopTarget} onChange={(event) => updateField("reflectionLoopTarget", event.target.value)} className="ades-input">
+              <option value="same_step">Same step</option>
+              <option value="previous_step">Previous step</option>
+            </select>
+          </Field>
+          <p className="text-xs text-slate-500">
+            Same step = critique/retry this step before continuing. Previous step = send the workflow back because this step exposed an upstream issue.
+          </p>
         </Section>
       ) : null}
 
