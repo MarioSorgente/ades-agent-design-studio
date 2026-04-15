@@ -120,7 +120,6 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
   const mainSteps = board.nodes.filter(isMainStep);
   const evalNodes = board.nodes.filter((node) => node.type === "eval");
   const reflectionNodes = board.nodes.filter((node) => node.type === "reflection");
-  const feedbackNodes = board.nodes.filter((node) => node.type === "feedback");
   const handoffSteps = mainSteps.filter((node) => node.type === "handoff");
 
   const clearWorkflowSteps = mainSteps.filter(isClearMainWorkflowStep).length;
@@ -167,10 +166,10 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
   const riskySteps = mainSteps.filter(isRiskyOrUncertainStep);
   const riskyOrUncertainSteps = riskySteps.length;
   const safeguardedRiskySteps = riskySteps.filter(
-    (node) => node.data.reflectionHooks.length > 0 || node.data.feedbackHooks.length > 0 || node.type === "handoff" || /review|escalat|human/i.test(node.data.completionCriteria),
+    (node) => node.data.reflectionHooks.length > 0 || node.type === "handoff" || /review|escalat|human/i.test(node.data.completionCriteria),
   ).length;
   const reflectionIssues: string[] = [];
-  if (riskyOrUncertainSteps > safeguardedRiskySteps) reflectionIssues.push("Risky/uncertain steps are missing reflection, feedback, or justified handoff triggers.");
+  if (riskyOrUncertainSteps > safeguardedRiskySteps) reflectionIssues.push("Risky/uncertain steps are missing reflection or justified handoff triggers.");
   const reflectionOverused = mainSteps.length > 0 && mainSteps.every((step) => step.data.reflectionHooks.length > 0);
   if (reflectionOverused) reflectionIssues.push("Reflection loops are attached to every step; only add them where quality risk or uncertainty exists.");
   const unjustifiedHandoffCount = handoffSteps.filter((step) => !/risk|safety|policy|compliance|confidence|uncertain|escalat/i.test([step.data.purpose, step.data.completionCriteria, step.data.body].join(" ").toLowerCase())).length;
