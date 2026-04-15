@@ -84,6 +84,21 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
         const riskCount = riskNodes.length + step.data.risks.length;
         const toolCount = step.data.tools.length;
 
+        const loopHints: LoopHint[] = [
+          ...reflectionNodes.map((node) => ({
+            id: node.id,
+            kind: "reflection" as const,
+            target: node.data.reflectionLoopTarget ?? "same_step",
+            sourceLabel: node.data.label,
+          })),
+          ...feedbackNodes.map((node) => ({
+            id: node.id,
+            kind: "feedback" as const,
+            target: (/previous|back|rerun/i.test(`${node.data.feedbackAction} ${node.data.feedbackCondition}`) ? "previous_step" : "same_step") as "same_step" | "previous_step",
+            sourceLabel: node.data.label,
+          })),
+        ];
+
         const stepText = `${step.data.purpose} ${step.data.body} ${step.data.completionCriteria} ${step.data.reasoningRequired}`.toLowerCase();
         const likelyNeedsReflection =
           step.type !== "goal" &&
