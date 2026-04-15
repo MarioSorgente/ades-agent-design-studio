@@ -230,117 +230,119 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
 
                   return (
                     <div key={row.step.id} className="flex items-start gap-4">
-                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative pt-10 pb-28">
-                        <button type="button" onClick={() => onSelectNode(row.step.id)} onDoubleClick={() => onOpenDetails(row.step.id)} className={`relative z-20 w-[390px] rounded-2xl border bg-white p-5 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
-                          <h4 className="mt-1.5 text-[17px] font-semibold leading-tight text-slate-900">{row.step.data.label}</h4>
-                          <p className="mt-3 text-[14px] leading-6 text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
-                          <p className="mt-3 text-[13px] text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
-                        </button>
-
+                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="flex w-[400px] flex-col items-center">
                         {isSelected ? (
-                          <div className="absolute -top-1 right-2 z-50 flex items-center gap-1 rounded-lg border border-indigo-200 bg-white p-1 shadow-lg">
+                          <div className="mb-2 flex min-h-8 w-full items-center justify-end gap-1 rounded-lg border border-indigo-200 bg-white p-1 shadow-lg">
                             <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-8 w-8 cursor-pointer rounded-md border border-slate-300 bg-white text-sm font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
                             <details className="relative" onClick={(event) => event.stopPropagation()}>
-                              <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2 py-1 text-xs [&::-webkit-details-marker]:hidden">+ Add</summary>
+                              <summary className="ades-ghost-btn flex min-h-8 list-none cursor-pointer select-none items-center px-2 py-1 text-sm [&::-webkit-details-marker]:hidden">+ Add</summary>
                               <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
-                                <button type="button" className="ades-ghost-btn w-full px-2 py-1 text-left text-xs" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
-                                <button type="button" className="ades-ghost-btn mt-1 w-full px-2 py-1 text-left text-xs" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
-                                <button type="button" className="ades-ghost-btn mt-1 w-full px-2 py-1 text-left text-xs" onClick={() => handleAddConnected(row.step.id, "risks")}>Safeguard</button>
+                                <button type="button" className="ades-ghost-btn min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "risks")}>Safeguard</button>
                               </div>
                             </details>
-                            <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn px-2 py-1 text-xs">Duplicate</button>
-                            <button type="button" onClick={() => onDeleteNode(row.step.id)} className="ades-ghost-btn px-2 py-1 text-xs text-rose-600">Delete</button>
+                            <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn min-h-8 px-2 py-1 text-sm">Duplicate</button>
+                            <button type="button" onClick={() => onDeleteNode(row.step.id)} className="ades-ghost-btn min-h-8 px-2 py-1 text-sm text-rose-600">Delete</button>
                           </div>
                         ) : null}
 
+                        <button type="button" onClick={() => onSelectNode(row.step.id)} onDoubleClick={() => onOpenDetails(row.step.id)} className={`relative z-20 w-full rounded-2xl border bg-white px-6 py-5 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
+                          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                          <h4 className="mt-2 text-[18px] font-semibold leading-tight text-slate-900">{row.step.data.label}</h4>
+                          <p className="mt-3 text-[15px] leading-7 text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
+                          <p className="mt-3 text-[14px] leading-6 text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+                        </button>
+
                         {(hasEvals || hasReflections || hasRisks) ? (
                           <>
-                            <div className="absolute left-1/2 top-full z-30 h-3 w-px -translate-x-1/2 bg-slate-300" />
-                            <div className="absolute left-0 top-full z-40 mt-3 w-[378px] space-y-2">
-                            {hasEvals ? (
-                              <AttachmentSection
-                                title="Evals"
-                                count={row.evalNodes.length}
-                                tone="blue"
-                                isExpanded={isEvalsExpanded}
-                                onToggle={() => toggleCategory(row.step.id, "evals")}
-                                onAdd={() => handleAddConnected(row.step.id, "evals")}
-                              >
-                                <AttachmentList
-                                  items={visibleEvals.map((node) => ({
-                                    id: node.id,
-                                    categoryLabel: "Eval",
-                                    label: node.data.evalQuestion || node.data.evalName || "Eval",
-                                    subLabel: `Threshold: ${node.data.evalThreshold || "Add threshold"}`,
-                                    detail: `Pass criteria: ${node.data.evalCriteria || "Add pass criteria"}`,
-                                  }))}
-                                  emptyMessage="No eval cards attached yet."
-                                  onSelectNode={onSelectNode}
-                                  onOpenDetails={onOpenDetails}
-                                  tone="blue"
-                                />
-                                {row.evalNodes.length > MAX_VISIBLE_EVALS ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAllEvalsByStep((prev) => ({ ...prev, [row.step.id]: !showAllEvals }))}
-                                    className="mt-2 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                            <div className="h-8 w-[2px] bg-slate-300" />
+                            <div className="w-full rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
+                              <div className="space-y-2">
+                                {hasEvals ? (
+                                  <AttachmentSection
+                                    title="Evals"
+                                    count={row.evalNodes.length}
+                                    tone="blue"
+                                    isExpanded={isEvalsExpanded}
+                                    onToggle={() => toggleCategory(row.step.id, "evals")}
+                                    onAdd={() => handleAddConnected(row.step.id, "evals")}
                                   >
-                                    {showAllEvals ? "Show fewer" : `Show all (${row.evalNodes.length})`}
-                                  </button>
+                                    <AttachmentList
+                                      items={visibleEvals.map((node) => ({
+                                        id: node.id,
+                                        categoryLabel: "Eval",
+                                        label: node.data.evalQuestion || node.data.evalName || "Eval",
+                                        subLabel: `Threshold: ${node.data.evalThreshold || "Add threshold"}`,
+                                        detail: `Pass criteria: ${node.data.evalCriteria || "Add pass criteria"}`,
+                                      }))}
+                                      emptyMessage="No eval cards attached yet."
+                                      onSelectNode={onSelectNode}
+                                      onOpenDetails={onOpenDetails}
+                                      tone="blue"
+                                    />
+                                    {row.evalNodes.length > MAX_VISIBLE_EVALS ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowAllEvalsByStep((prev) => ({ ...prev, [row.step.id]: !showAllEvals }))}
+                                        className="mt-2 min-h-8 text-sm font-semibold text-blue-700 hover:text-blue-900"
+                                      >
+                                        {showAllEvals ? "Show fewer" : `Show all (${row.evalNodes.length})`}
+                                      </button>
+                                    ) : null}
+                                  </AttachmentSection>
                                 ) : null}
-                              </AttachmentSection>
-                            ) : null}
 
-                            {hasReflections ? (
-                              <AttachmentSection
-                                title="Reflections"
-                                count={row.reflectionNodes.length}
-                                tone="purple"
-                                isExpanded={isReflectionsExpanded}
-                                onToggle={() => toggleCategory(row.step.id, "reflections")}
-                                onAdd={() => handleAddConnected(row.step.id, "reflections")}
-                              >
-                                <AttachmentList
-                                  items={row.reflectionNodes.map((node) => ({
-                                    id: node.id,
-                                    categoryLabel: "Reflection",
-                                    label: node.data.label || "Reflection",
-                                    subLabel: `Trigger: ${node.data.reflectionTrigger || "Trigger not defined"}`,
-                                    detail: node.data.reflectionLoopTarget === "previous_step" ? "Loop target: Returns to previous step" : "Loop target: Returns to this step",
-                                  }))}
-                                  emptyMessage="No reflections attached yet."
-                                  onSelectNode={onSelectNode}
-                                  onOpenDetails={onOpenDetails}
-                                  tone="purple"
-                                />
-                              </AttachmentSection>
-                            ) : null}
+                                {hasReflections ? (
+                                  <AttachmentSection
+                                    title="Reflections"
+                                    count={row.reflectionNodes.length}
+                                    tone="purple"
+                                    isExpanded={isReflectionsExpanded}
+                                    onToggle={() => toggleCategory(row.step.id, "reflections")}
+                                    onAdd={() => handleAddConnected(row.step.id, "reflections")}
+                                  >
+                                    <AttachmentList
+                                      items={row.reflectionNodes.map((node) => ({
+                                        id: node.id,
+                                        categoryLabel: "Reflection",
+                                        label: node.data.label || "Reflection",
+                                        subLabel: `Trigger: ${node.data.reflectionTrigger || "Trigger not defined"}`,
+                                        detail: node.data.reflectionLoopTarget === "previous_step" ? "Loop target: Returns to previous step" : "Loop target: Returns to this step",
+                                      }))}
+                                      emptyMessage="No reflections attached yet."
+                                      onSelectNode={onSelectNode}
+                                      onOpenDetails={onOpenDetails}
+                                      tone="purple"
+                                    />
+                                  </AttachmentSection>
+                                ) : null}
 
-                            {hasRisks ? (
-                              <AttachmentSection
-                                title="Safeguards"
-                                count={row.riskNodes.length}
-                                tone="amber"
-                                isExpanded={isRisksExpanded}
-                                onToggle={() => toggleCategory(row.step.id, "risks")}
-                                onAdd={() => handleAddConnected(row.step.id, "risks")}
-                              >
-                                <AttachmentList
-                                  items={row.riskNodes.map((node) => ({
-                                    id: node.id,
-                                    categoryLabel: "Safeguard",
-                                    label: node.data.label || "Safeguard",
-                                    subLabel: `Mitigation: ${node.data.body || "Mitigation not defined"}`,
-                                    detail: `Confidence check: ${node.data.confidenceCheck || "Confidence check not defined"}`,
-                                  }))}
-                                  emptyMessage="No safeguards attached yet."
-                                  onSelectNode={onSelectNode}
-                                  onOpenDetails={onOpenDetails}
-                                  tone="amber"
-                                />
-                              </AttachmentSection>
-                            ) : null}
+                                {hasRisks ? (
+                                  <AttachmentSection
+                                    title="Safeguards"
+                                    count={row.riskNodes.length}
+                                    tone="amber"
+                                    isExpanded={isRisksExpanded}
+                                    onToggle={() => toggleCategory(row.step.id, "risks")}
+                                    onAdd={() => handleAddConnected(row.step.id, "risks")}
+                                  >
+                                    <AttachmentList
+                                      items={row.riskNodes.map((node) => ({
+                                        id: node.id,
+                                        categoryLabel: "Safeguard",
+                                        label: node.data.label || "Safeguard",
+                                        subLabel: `Mitigation: ${node.data.body || "Mitigation not defined"}`,
+                                        detail: `Confidence check: ${node.data.confidenceCheck || "Confidence check not defined"}`,
+                                      }))}
+                                      emptyMessage="No safeguards attached yet."
+                                      onSelectNode={onSelectNode}
+                                      onOpenDetails={onOpenDetails}
+                                      tone="amber"
+                                    />
+                                  </AttachmentSection>
+                                ) : null}
+                              </div>
                             </div>
                           </>
                         ) : null}
@@ -407,9 +409,9 @@ function AttachmentSection({
   return (
     <div className={`rounded-xl border p-3 shadow-sm ${classes[tone]}`}>
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <span className={`text-[11px] font-semibold uppercase tracking-wide ${textClasses[tone]}`}>{title} ({count})</span>
-          <span className={`text-xs ${textClasses[tone]}`}>{isExpanded ? "˅" : "›"}</span>
+        <button type="button" onClick={onToggle} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 text-left">
+          <span className={`text-base leading-none ${textClasses[tone]}`}>{isExpanded ? "▾" : "▸"}</span>
+          <span className={`text-[14px] font-semibold ${textClasses[tone]}`}>{title} · {count}</span>
         </button>
         <button
           type="button"
@@ -417,7 +419,7 @@ function AttachmentSection({
             event.stopPropagation();
             onAdd();
           }}
-          className={`h-6 w-6 rounded-md border bg-white text-sm font-semibold ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
+          className={`h-8 w-8 rounded-md border bg-white text-lg font-semibold leading-none ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
           aria-label={`Add ${title.toLowerCase()}`}
         >
           +
@@ -441,7 +443,7 @@ function AttachmentList({
   onOpenDetails?: (nodeId: string) => void;
   tone?: "blue" | "purple" | "amber";
 }) {
-  if (!items.length) return <p className="text-xs text-slate-600">{emptyMessage}</p>;
+  if (!items.length) return <p className="text-sm text-slate-600">{emptyMessage}</p>;
   const itemClass = {
     blue: "border-blue-200 bg-white/95 hover:border-blue-300",
     purple: "border-purple-200 bg-white/95 hover:border-purple-300",
@@ -457,10 +459,10 @@ function AttachmentList({
     <div className="space-y-2">
       {items.map((item) => (
         <button key={item.id} type="button" onClick={() => { onSelectNode(item.id); onOpenDetails?.(item.id); }} className={`w-full rounded-lg border-l-4 px-3 py-2.5 text-left ${itemClass[tone]}`}>
-          <p className={`text-[10px] font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
-          <p className="text-[13px] font-semibold text-slate-900">{item.label}</p>
-          <p className="mt-1 text-xs text-slate-700">{item.subLabel}</p>
-          {item.detail ? <p className="mt-0.5 text-xs text-slate-600">{item.detail}</p> : null}
+          <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
+          <p className="text-[14px] font-semibold text-slate-900">{item.label}</p>
+          <p className="mt-1 text-[13px] text-slate-700">{item.subLabel}</p>
+          {item.detail ? <p className="mt-0.5 text-[13px] text-slate-600">{item.detail}</p> : null}
         </button>
       ))}
     </div>
