@@ -27,6 +27,9 @@ type LoopHint = {
   sourceLabel: string;
 };
 
+const STEP_CARD_WIDTH = 360;
+const STEP_GAP = 220;
+
 const BADGE_HELPERS = {
   tools: "External tools or data sources this step needs.",
   evals: "Checks used to test whether this step works.",
@@ -53,6 +56,8 @@ function isWeakEval(node: AdesNode) {
 export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSelectNode, onAddStepAt, onAddStepToEnd, onMoveStep, onDuplicateStep, onDeleteNode, onAddConnectedNode }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
+  const updateNode = useAdesBoardStore((state) => state.updateNode);
+  const storeAddConnectedNode = useAdesBoardStore((state) => state.addConnectedNode);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
   const [flowZoom, setFlowZoom] = useState(1);
   const [openAttachments, setOpenAttachments] = useState<Record<string, AttachmentKind | null>>({});
@@ -204,6 +209,33 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
     setOpenAttachments((prev) => ({ ...prev, [stepId]: prev[stepId] === kind ? null : kind }));
   }
 
+  function handleQuickAdd(sourceId: string, type: AdesNodeType) {
+    const before = new Set(nodes.map((node) => node.id));
+    storeAddConnectedNode(sourceId, type);
+    if (type !== "reflection") return;
+
+    const loopTargetInput = window.prompt("Reflection loop target: same_step or previous_step", "same_step");
+    const reflectionTrigger = window.prompt("When should this reflection run?", "Low confidence or missing constraints");
+    const reflectionAction = window.prompt("What should the agent revise?", "Critique output and revise before continuing");
+    const loopTarget = loopTargetInput === "previous_step" ? "previous_step" : "same_step";
+
+    window.setTimeout(() => {
+      const nextReflection = useAdesBoardStore
+        .getState()
+        .nodes.find((node) => node.type === "reflection" && !before.has(node.id));
+      if (!nextReflection) return;
+      updateNode(nextReflection.id, (node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          reflectionLoopTarget: loopTarget,
+          reflectionTrigger: reflectionTrigger?.trim() || node.data.reflectionTrigger,
+          reflectionPrompt: reflectionAction?.trim() || node.data.reflectionPrompt,
+        },
+      }));
+    }, 0);
+  }
+
   useEffect(() => {
     if (viewMode !== "flow") return;
     handleFitView();
@@ -303,93 +335,74 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
         <>
           <div ref={flowViewportRef} className="relative mt-6 h-[calc(100%-5rem)] overflow-auto pb-16">
             <div className="origin-top-left px-2 py-4" style={{ transform: `scale(${flowZoom})`, width: `${100 / flowZoom}%` }}>
-              <div ref={flowContentRef} className="flex min-w-max items-start gap-5">
-                <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
+              <div ref={flowContentRef} className="relative min-w-max">
+                <div className="flex items-start gap-5">
+                  <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
 
                 {flowRows.map((row, index) => {
                   const openAttachment = openAttachments[row.step.id] ?? null;
-                  const shouldShowLoop = openAttachment === "reflections" || openAttachment === "feedback" || selectedNodeId === row.step.id;
                   return (
                     <div key={row.step.id} className="flex items-start gap-5">
-                      <button
-                        type="button"
-                        onClick={() => onSelectNode(row.step.id)}
-                        className={`relative w-[350px] rounded-2xl border bg-white/95 p-4 text-left shadow-[0_20px_45px_-36px_rgba(15,23,42,0.55)] ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
-                            <h4 className="mt-1 text-base font-semibold text-slate-900">{row.step.data.label}</h4>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => onSelectNode(row.step.id)}
+                          className={`relative w-[360px] rounded-2xl border bg-white/95 p-4 text-left shadow-[0_20px_45px_-36px_rgba(15,23,42,0.55)] ${selectedNodeId === row.step.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                              <h4 className="mt-1 text-[17px] font-semibold text-slate-900">{row.step.data.label}</h4>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-xs" aria-label="Move step left">←</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-xs" aria-label="Move step right">→</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-xs">Duplicate</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-xs text-rose-600">Delete</button>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-1">
-                            <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "left"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step left">←</button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); onMoveStep(row.step.id, "right"); }} className="ades-ghost-btn px-2 py-1 text-[11px]" aria-label="Move step right">→</button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px]">Duplicate</button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn px-2 py-1 text-[11px] text-rose-600">Delete</button>
+
+                          <p className="mt-2 text-[14px] text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
+                          <p className="mt-2 text-[13px] text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <PillButton label={`${row.evalCount} evals`} active={openAttachment === "evals"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "evals"); }} />
+                            <PillButton label={`${row.reflectionCount} reflections`} active={openAttachment === "reflections"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "reflections"); }} />
+                            <PillButton label={`${row.feedbackCount} feedback`} active={openAttachment === "feedback"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "feedback"); }} />
+                            <PillButton label={`${row.riskCount} safeguards`} active={openAttachment === "risks"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "risks"); }} />
                           </div>
-                        </div>
 
-                        <p className="mt-2 text-sm text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain what this step does."}</p>
-                        <p className="mt-2 text-xs text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
-
-                        <div className="mt-3 flex flex-wrap gap-1">
-                          <PillButton label={`${row.evalCount} evals`} active={openAttachment === "evals"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "evals"); }} />
-                          <PillButton label={`${row.reflectionCount} reflections`} active={openAttachment === "reflections"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "reflections"); }} />
-                          <PillButton label={`${row.feedbackCount} feedback`} active={openAttachment === "feedback"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "feedback"); }} />
-                          <PillButton label={`${row.riskCount} safeguards`} active={openAttachment === "risks"} onClick={(event) => { event.stopPropagation(); handleToggleAttachment(row.step.id, "risks"); }} />
-                        </div>
+                          <details className="mt-3" onClick={(event) => event.stopPropagation()}>
+                            <summary className="cursor-pointer list-none text-[13px] font-medium text-slate-700">+ Add</summary>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "eval")}>Eval</button>
+                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => handleQuickAdd(row.step.id, "reflection")}>Reflection loop</button>
+                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "feedback")}>Feedback loop</button>
+                              <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAddConnectedNode(row.step.id, "risk")}>Safeguard</button>
+                            </div>
+                          </details>
+                        </button>
 
                         {openAttachment ? (
-                          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                          <div className="absolute left-0 top-full z-20 mt-2 w-[360px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
                             {openAttachment === "evals" ? (
                               <div className="space-y-2">
                                 {row.evalNodes.length ? row.evalNodes.map((node) => (
-                                  <button key={node.id} type="button" onClick={(event) => { event.stopPropagation(); onSelectNode(node.id); }} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
-                                    <p className="text-xs font-semibold text-slate-900">{node.data.evalQuestion || node.data.evalName || node.data.label}</p>
-                                    <p className="mt-0.5 text-[11px] text-slate-600">{prettyEvalCategory(node.data.evalCategory)} · {node.data.evalThreshold || "Add threshold"}</p>
-                                    <p className="mt-0.5 text-[11px] text-slate-600">Pass criteria: {node.data.evalCriteria || "Add pass criteria"}</p>
+                                  <button key={node.id} type="button" onClick={() => onSelectNode(node.id)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:border-indigo-200">
+                                    <p className="text-[13px] font-semibold text-slate-900">{node.data.evalQuestion || node.data.evalName || node.data.label}</p>
+                                    <p className="mt-0.5 text-xs text-slate-600">Category: {prettyEvalCategory(node.data.evalCategory)}</p>
+                                    <p className="mt-0.5 text-xs text-slate-600">Threshold: {node.data.evalThreshold || "Add threshold"} · Pass: {node.data.evalCriteria || "Add pass criteria"}</p>
                                   </button>
-                                )) : <p className="text-xs text-slate-600">No eval cards attached yet.</p>}
-                                <button type="button" onClick={(event) => { event.stopPropagation(); onAddConnectedNode(row.step.id, "eval"); }} className="ades-ghost-btn px-2 py-1 text-[11px]">+ Add eval</button>
+                                )) : <p className="text-[13px] text-slate-600">No eval cards attached yet.</p>}
+                                <button type="button" onClick={() => onAddConnectedNode(row.step.id, "eval")} className="ades-ghost-btn px-2 py-1 text-xs">+ Add eval</button>
                               </div>
                             ) : null}
-
-                            {openAttachment === "reflections" ? (
-                              <AttachmentList
-                                emptyMessage="No reflections attached yet."
-                                items={row.reflectionNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.reflectionTrigger || "Trigger not defined" }))}
-                                onSelectNode={onSelectNode}
-                              />
-                            ) : null}
-
-                            {openAttachment === "feedback" ? (
-                              <AttachmentList
-                                emptyMessage="No feedback loops attached yet."
-                                items={row.feedbackNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.feedbackCondition || "Trigger not defined" }))}
-                                onSelectNode={onSelectNode}
-                              />
-                            ) : null}
-
-                            {openAttachment === "risks" ? (
-                              <AttachmentList
-                                emptyMessage="No safeguards attached yet."
-                                items={row.riskNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.confidenceCheck || "Mitigation not defined" }))}
-                                onSelectNode={onSelectNode}
-                              />
-                            ) : null}
+                            {openAttachment === "reflections" ? <AttachmentList emptyMessage="No reflections attached yet." items={row.reflectionNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.reflectionTrigger || "Trigger not defined" }))} onSelectNode={onSelectNode} /> : null}
+                            {openAttachment === "feedback" ? <AttachmentList emptyMessage="No feedback loops attached yet." items={row.feedbackNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.feedbackCondition || "Trigger not defined" }))} onSelectNode={onSelectNode} /> : null}
+                            {openAttachment === "risks" ? <AttachmentList emptyMessage="No safeguards attached yet." items={row.riskNodes.map((node) => ({ id: node.id, label: node.data.label, subLabel: node.data.confidenceCheck || "Mitigation not defined" }))} onSelectNode={onSelectNode} /> : null}
                           </div>
                         ) : null}
-
-                        {shouldShowLoop ? (
-                          <div className="mt-3 space-y-1 rounded-xl border border-indigo-100 bg-indigo-50/60 p-2">
-                            {row.loopHints.length ? row.loopHints.map((loop) => (
-                              <div key={loop.id} className="flex items-center gap-2">
-                                <LoopGlyph target={loop.target} />
-                                <p className="text-[11px] text-indigo-800">{loop.kind === "reflection" ? "Reflection" : "Feedback"}: {loop.target === "same_step" ? "loops back to same step" : "routes to previous step"}</p>
-                              </div>
-                            )) : <p className="text-[11px] text-indigo-700">No active loops on this step.</p>}
-                          </div>
-                        ) : null}
+                      </div>
 
                         {row.likelyNeedsReflection ? (
                           <SuggestionHint
@@ -413,8 +426,6 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                             }}
                           />
                         ) : null}
-                      </button>
-
                       <div className="flex items-center gap-5 pt-20">
                         <div className="h-[2px] w-10 bg-slate-300" />
                         <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} />
@@ -424,12 +435,33 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
                   );
                 })}
 
-                <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
+                  <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
+                </div>
+
+                <svg className="pointer-events-none absolute left-0 top-0 z-10 h-full w-full overflow-visible">
+                  {flowRows.flatMap((row, index) => {
+                    const openAttachment = openAttachments[row.step.id];
+                    const show = openAttachment === "reflections" || Boolean(selectedNodeId && row.reflectionNodes.some((node) => node.id === selectedNodeId));
+                    if (!show) return [];
+
+                    const cardLeft = 128 + index * STEP_GAP;
+                    const cardRight = cardLeft + STEP_CARD_WIDTH;
+                    const topY = 72;
+                    const bottomY = 232;
+                    return row.loopHints.filter((loop) => loop.kind === "reflection").map((loop) => {
+                      if (loop.target === "same_step") {
+                        return <path key={`${row.step.id}-${loop.id}`} d={`M ${cardRight - 22} ${bottomY} C ${cardRight + 54} ${bottomY - 2}, ${cardRight + 52} ${topY + 6}, ${cardRight - 18} ${topY + 2}`} stroke="#818cf8" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.65" />;
+                      }
+                      const previousRight = 128 + (index - 1) * STEP_GAP + STEP_CARD_WIDTH;
+                      return <path key={`${row.step.id}-${loop.id}`} d={`M ${cardLeft + 18} ${bottomY - 4} C ${cardLeft - 70} ${bottomY + 16}, ${previousRight + 16} ${bottomY + 16}, ${previousRight + 8} ${topY + 8}`} stroke="#818cf8" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.7" />;
+                    });
+                  })}
+                </svg>
               </div>
             </div>
           </div>
 
-          <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 sm:left-auto sm:right-3 sm:translate-x-0">
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 pb-3">
             <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
               <button type="button" className="ades-ghost-btn h-7 w-7 px-0 py-0 text-sm" onClick={() => setFlowZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}>−</button>
               <span className="min-w-11 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
@@ -444,7 +476,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, onSe
 }
 
 function PillButton({ label, active, onClick }: { label: string; active?: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-[11px] ${active ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-slate-50 text-slate-700"}`} title={BADGE_HELPERS.evals}>{label}</button>;
+  return <button type="button" onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-slate-50 text-slate-700"}`} title={BADGE_HELPERS.evals}>{label}</button>;
 }
 
 function AttachmentList({ items, emptyMessage, onSelectNode }: { items: Array<{ id: string; label: string; subLabel: string }>; emptyMessage: string; onSelectNode: (nodeId: string | null) => void }) {

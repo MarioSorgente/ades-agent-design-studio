@@ -327,11 +327,10 @@ export default function ProjectPage() {
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">{saveStateLabel}</span>
                     <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 font-semibold text-violet-700">Design Readiness {qualityReport.score}/100</span>
                   </div>
-                  <p className="text-sm text-slate-600">{boardSummary.mainSteps} main steps · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback/handoffs · {boardSummary.evals} evals</p>
+                  <p className="text-sm text-slate-600">{boardSummary.mainSteps} steps · {boardSummary.evals} evals · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback/handoffs</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => setIsGuidanceOpen(true)} className="ades-primary-btn px-3 py-2 text-xs">Open guidance {totalGuidanceCount ? `(${totalGuidanceCount})` : ""}</button>
                   <details className="relative">
                     <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">Export</summary>
                     <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
@@ -390,7 +389,7 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            <section className={`grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-[minmax(0,1fr)_80px]"}`}>
+            <section className={`relative grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-1"}`}>
               <div className="min-w-0">
                 <StudioBoard
                   viewMode={viewMode}
@@ -410,7 +409,7 @@ export default function ProjectPage() {
               </div>
 
               {isGuidanceOpen ? (
-                <aside className="rounded-2xl border border-slate-200/80 bg-white/95 p-4">
+                <aside className="hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 xl:block">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
@@ -442,19 +441,20 @@ export default function ProjectPage() {
                     ))}
                     {!qualityReport.issues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet. Run AI review for deeper checks.</p> : null}
                   </div>
-                  <BoardInspector viewMode={viewMode} />
                 </aside>
-              ) : (
-                <aside className="flex items-center justify-center">
-                  <button type="button" onClick={() => setIsGuidanceOpen(true)} className="h-full min-h-[180px] rounded-2xl border border-slate-200/90 bg-white/95 px-2 text-xs font-semibold tracking-wide text-slate-600 [writing-mode:vertical-rl]">
-                    Open guidance {totalGuidanceCount ? `(${totalGuidanceCount})` : ""}
-                  </button>
-                </aside>
-              )}
+              ) : null}
+
+              {!isGuidanceOpen ? (
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-0 top-8 hidden h-44 w-11 rounded-l-2xl border border-slate-200/90 bg-white/95 px-1 text-center text-xs font-semibold text-slate-700 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
+                  <span className="[writing-mode:vertical-rl]">Guidance</span>
+                  <span className="mt-2 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
+                  <span className="mt-2 text-sm">‹</span>
+                </button>
+              ) : null}
             </section>
 
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
-              {!hasGeneratedDesign ? (
+            {!hasGeneratedDesign ? (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">Generate agent design</h3>
@@ -468,10 +468,45 @@ export default function ProjectPage() {
                     {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">Board is ready. Use Review gaps / Open guidance to improve quality without extra noise.</div>
-              )}
-            </section>
+              </section>
+            ) : null}
+
+            {isGuidanceOpen ? (
+              <div className="fixed inset-0 z-30 xl:hidden">
+                <button type="button" aria-label="Close guidance" className="absolute inset-0 bg-slate-900/35" onClick={() => setIsGuidanceOpen(false)} />
+                <aside className="absolute inset-x-0 bottom-0 max-h-[75vh] overflow-auto rounded-t-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">Design guidance</p>
+                    <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsGuidanceOpen(false)}>Close</button>
+                  </div>
+                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn mb-3 w-full px-3 py-2 text-sm disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
+                  <div className="space-y-2">
+                    {qualityReport.issues.map((issue, index) => (
+                      <article key={`${issue}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <p className="text-sm text-amber-900">{issue}</p>
+                      </article>
+                    ))}
+                    {activeCritiqueItems.map((item) => (
+                      <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-sm text-slate-800">{item.message}</p>
+                      </article>
+                    ))}
+                  </div>
+                </aside>
+              </div>
+            ) : null}
+
+            {selectedNodeId ? (
+              <div className="fixed inset-y-0 right-0 z-40 w-full max-w-[380px] border-l border-slate-200 bg-white/95 p-4 shadow-xl">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900">Details inspector</p>
+                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setSelectedNodeId(null)}>Close</button>
+                </div>
+                <div className="h-[calc(100%-2.5rem)] overflow-auto pr-1">
+                  <BoardInspector viewMode={viewMode} />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </ProtectedRoute>
