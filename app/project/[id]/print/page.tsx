@@ -53,7 +53,7 @@ export default function ProjectPrintPage({ params }: { params: { id: string } })
     return [
       { title: "Goal and scope", nodes: byType("goal") },
       { title: "Task map", nodes: byType("task") },
-      { title: "Reflections + critique", nodes: [...byType("reflection"), ...byType("feedback"), ...byType("risk")] },
+      { title: "Reflections + safeguards", nodes: [...byType("reflection"), ...byType("risk")] },
       { title: "Eval + business metrics", nodes: [...byType("eval"), ...byType("business_metric")] },
       { title: "Assumptions + handoff", nodes: [...byType("assumption"), ...byType("handoff")] },
     ];

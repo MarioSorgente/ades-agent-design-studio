@@ -30,7 +30,6 @@ function AdesNodeComponent({ data, type, selected }: NodeProps<AdesNodeData>) {
           <Badge label={data.stepType} />
           {data.attachmentSummary.toolCount ? <Badge label={`🛠 ${data.attachmentSummary.toolCount} tools`} /> : null}
           {data.attachmentSummary.reflectionCount ? <Badge label={`↻ ${data.attachmentSummary.reflectionCount} reflection`} /> : null}
-          {data.attachmentSummary.feedbackCount ? <Badge label={`👤 ${data.attachmentSummary.feedbackCount} feedback`} /> : null}
           {data.attachmentSummary.evalCount ? <Badge label={`✓ ${data.attachmentSummary.evalCount} eval`} /> : null}
           {data.attachmentSummary.riskCount ? <Badge label={`⚠ ${data.attachmentSummary.riskCount} risk`} /> : null}
         </div>
