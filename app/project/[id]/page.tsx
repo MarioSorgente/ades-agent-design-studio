@@ -95,6 +95,19 @@ export default function ProjectPage() {
   const hasHydratedBoardRef = useRef(false);
   const lastSavedHashRef = useRef<string | null>(null);
 
+  async function handleSaveBoard() {
+    if (!user || !project || !hasHydratedBoardRef.current) return;
+    setSaveState("saving");
+    try {
+      const board = getBoardSnapshot();
+      await saveProjectBoardForUser(project.id, user.uid, board);
+      lastSavedHashRef.current = JSON.stringify(board);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  }
+
   useEffect(() => {
     hasHydratedBoardRef.current = false;
     lastSavedHashRef.current = null;
@@ -170,13 +183,13 @@ export default function ProjectPage() {
     return () => window.clearTimeout(timer);
   }, [currentBoardHash, getBoardSnapshot, project, user]);
 
-  const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Ready";
+  const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Unsaved";
   const hasGeneratedDesign = project?.status === "generated" || nodes.length > 0;
 
   function getRecommendedViewFromText(text: string): BoardViewMode {
     const clean = text.toLowerCase();
     if (/eval|test|threshold|coverage|dataset|score/.test(clean)) return "eval";
-    if (/reflection|feedback|handoff|risk|safeguard|escalat/.test(clean)) return "improvement";
+    if (/reflection|handoff|risk|safeguard|escalat/.test(clean)) return "improvement";
     return "flow";
   }
 
@@ -490,8 +503,23 @@ export default function ProjectPage() {
                     <p className="text-base font-semibold text-slate-900">Card details</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsDetailsPanelOpen(false)}>✕</button>
                   </div>
-                  <div className="h-[calc(100%-3.25rem)] overflow-auto p-4">
+                  <div className="h-[calc(100%-7.75rem)] overflow-auto p-4">
                     <BoardInspector viewMode={viewMode} nodeId={selectedNodeId} />
+                  </div>
+                  <div className="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-slate-600">
+                        {saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : saveState === "error" ? "Unsaved (save failed)" : "Unsaved"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveBoard()}
+                        disabled={saveState === "saving" || !project || !user}
+                        className="ades-primary-btn min-w-[116px] px-4 py-2 text-sm disabled:opacity-60"
+                      >
+                        {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
