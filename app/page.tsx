@@ -61,7 +61,7 @@ export default function HomePage() {
               Design an agent
             </Link>
             <a href="https://mariosorgente.carrd.co/" target="_blank" rel="noreferrer" className="ades-ghost-btn px-6 py-3">
-              Request a demo flow
+              Request a demo
             </a>
           </div>
 
