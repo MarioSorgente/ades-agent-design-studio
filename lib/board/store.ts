@@ -32,7 +32,7 @@ type AdesBoardState = {
   setSelectedNodeId: (nodeId: string | null) => void;
   addNode: (type: AdesNodeType) => void;
   addNodeWithContent: (type: AdesNodeType, label: string, body: string) => void;
-  addConnectedNode: (sourceId: string, type: AdesNodeType) => void;
+  addConnectedNode: (sourceId: string, type: AdesNodeType) => string | null;
   deleteNodeById: (nodeId: string) => void;
   duplicateNodeById: (nodeId: string) => void;
   moveMainStep: (nodeId: string, direction: "left" | "right") => void;
@@ -166,13 +166,20 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
   addConnectedNode: (sourceId, type) => {
     const state = get();
     const sourceNode = state.nodes.find((node) => node.id === sourceId);
-    if (!sourceNode) return;
+    if (!sourceNode) return null;
 
     const nodeId = createNodeId(type);
     const lane = getNodeLane(type);
     const y = lane === "quality" ? sourceNode.position.y + 220 : lane === "business" ? Math.max(80, sourceNode.position.y - 120) : sourceNode.position.y;
     const position = { x: sourceNode.position.x + 40, y };
     const newNode = createNode(type, nodeId, position, type === "eval" ? `Eval for ${sourceNode.data.label}` : `New ${type.replace("_", " ")}`);
+    if (type === "reflection") {
+      newNode.data.label = "Self-critique";
+      newNode.data.reflectionTrigger = "Low confidence or missing constraints";
+      newNode.data.reflectionLoopTarget = "same_step";
+      newNode.data.reflectionPrompt = "Critique this step before moving forward.";
+      newNode.data.feedbackAction = "Revise the step output before continuing.";
+    }
 
     const newEdge: AdesEdge = {
       id: `e-${crypto.randomUUID().slice(0, 8)}`,
@@ -186,6 +193,8 @@ export const useAdesBoardStore = create<AdesBoardState>((set, get) => ({
       edges: [...state.edges, newEdge],
       selectedNodeId: nodeId,
     });
+
+    return nodeId;
   },
   deleteNodeById: (nodeId) => {
     set((state) => ({
