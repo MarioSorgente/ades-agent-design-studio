@@ -73,7 +73,7 @@ export default function ProjectPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
-  const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
 
@@ -202,12 +202,6 @@ export default function ProjectPage() {
     setSelectedNodeId(newNode.id);
   }
 
-  function handleReviewGaps() {
-    const firstIssue = qualityReport.issues[0]?.toLowerCase() || "";
-    setViewMode(getRecommendedViewFromText(firstIssue));
-    setIsGuidanceOpen(true);
-  }
-
   async function handleGenerateBoard() {
     if (!user || !project || isGenerating) return;
     if (!ideaPrompt.trim()) return setGenerationError("Add an idea before generating.");
@@ -311,28 +305,38 @@ export default function ProjectPage() {
     }
   }
 
+  function handleOpenDetails(nodeId: string) {
+    setSelectedNodeId(nodeId);
+    setIsDetailsPanelOpen(true);
+  }
+
   return (
-    <AppShell title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")} subtitle="Design and improve your agent with a guided workspace for flow, safeguards, and eval coverage." breadcrumbLabel={project?.title ?? "Studio"} actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn" aria-disabled={!projectId}>Print</Link>}>
+    <AppShell title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")} actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn px-2.5 py-1.5 text-xs" aria-disabled={!projectId}>Print</Link>} compact>
       <ProtectedRoute>
         {isLoading ? <div className="ades-panel text-sm text-slate-600">Loading project…</div> : null}
 
         {!isLoading && (errorMessage || !project) ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900"><p>{errorMessage ?? "Project not found or you do not have access."}</p><Link href="/dashboard" className="mt-3 inline-block font-semibold text-rose-900 underline">Back to dashboard</Link></div> : null}
 
         {!isLoading && project ? (
-          <div className="space-y-4">
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">{saveStateLabel}</span>
-                    <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 font-semibold text-violet-700">Design Readiness {qualityReport.score}/100</span>
+          <div className="space-y-2">
+            <section className="sticky top-2 z-20 rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-sm backdrop-blur">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{saveStateLabel}</span>
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">Readiness {qualityReport.score}/100</span>
+                  <span className="text-[11px] font-medium text-slate-600">{boardSummary.mainSteps} steps · {boardSummary.evals} evals · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback</span>
+                  <div className="ml-1 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                    {BOARD_VIEW_MODES.map((mode) => (
+                      <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                        {mode === "flow" ? "Flow" : mode === "improvement" ? "Improve" : "Evals"}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-sm text-slate-600">{boardSummary.mainSteps} steps · {boardSummary.evals} evals · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback/handoffs</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <details className="relative">
-                    <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">Export</summary>
+                    <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">Export</summary>
                     <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                       <button type="button" onClick={handleExportMarkdown} className="block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-50">Export Markdown</button>
                       <button type="button" onClick={handleExportJson} className="mt-1 block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-50">Export JSON</button>
@@ -342,29 +346,12 @@ export default function ProjectPage() {
                     </div>
                   </details>
 
-                  <Link href="/dashboard" className="ades-ghost-btn px-3 py-2 text-xs">Back</Link>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                  {BOARD_VIEW_MODES.map((mode) => (
-                    <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-lg px-2.5 py-1.5 text-left text-xs ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
-                      <span className="block font-semibold">{mode === "flow" ? "Flow" : mode === "improvement" ? "Improve" : "Evals"}</span>
-                      <span className="block text-[10px] lg:hidden">{mode === "flow" ? "Main sequence" : mode === "improvement" ? "Reflection + feedback" : "Testing coverage"}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={handleReviewGaps} className="ades-primary-btn px-3 py-2 text-xs">Review gaps</button>
+                  <Link href="/dashboard" className="ades-ghost-btn px-2.5 py-1.5 text-xs">Back</Link>
                   {!hasGeneratedDesign ? (
-                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-ghost-btn px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating…" : "Generate agent design"}</button>
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">{isGenerating ? "Generating…" : "Generate"}</button>
                   ) : (
                     <details className="relative">
-                      <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">More</summary>
+                      <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">More</summary>
                       <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regenerate from idea</p>
                         <p className="mt-1 text-xs text-slate-600">Warning: this may replace your current board structure.</p>
@@ -390,7 +377,7 @@ export default function ProjectPage() {
             ) : null}
 
             <section className="relative">
-              <div className={`min-w-0 ${isGuidanceOpen ? "xl:pr-14" : "xl:pr-12"}`}>
+              <div className={`min-w-0 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
@@ -402,16 +389,13 @@ export default function ProjectPage() {
                   onDuplicateStep={duplicateNodeById}
                   onDeleteNode={deleteNodeById}
                   onAddConnectedNode={addConnectedNode}
-                  onOpenDetails={(nodeId) => {
-                    setSelectedNodeId(nodeId);
-                    setDetailsNodeId(nodeId);
-                  }}
-                  className="h-[65vh] min-h-[500px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5 pb-16 lg:h-[calc(100vh-14rem)]"
+                  onOpenDetails={handleOpenDetails}
+                  className="h-[79vh] min-h-[560px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-3 pb-12 lg:h-[calc(100vh-8.5rem)]"
                 />
               </div>
 
               {isGuidanceOpen ? (
-                <aside className="hidden absolute right-3 top-3 bottom-12 z-30 w-[340px] overflow-auto rounded-2xl border border-slate-200/80 bg-white/95 p-4 xl:block">
+                <aside className="hidden absolute bottom-10 right-4 top-3 z-50 w-[320px] overflow-auto rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-lg xl:block">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
@@ -447,7 +431,7 @@ export default function ProjectPage() {
               ) : null}
 
               {!isGuidanceOpen ? (
-                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-3 top-8 hidden h-48 w-11 rounded-xl border border-blue-200 bg-blue-50 px-1 text-center text-xs font-semibold text-blue-800 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-4 top-8 z-40 hidden h-44 w-11 rounded-xl border border-blue-300 bg-blue-100 px-1 text-center text-xs font-semibold text-blue-800 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
                   <span className="[writing-mode:vertical-rl]">Guidance</span>
                   <span className="mt-2 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
                   <span className="mt-2 text-sm">◂</span>
@@ -498,14 +482,16 @@ export default function ProjectPage() {
               </div>
             ) : null}
 
-            {detailsNodeId ? (
-              <div className="fixed inset-y-0 left-0 z-40 w-full max-w-[420px] border-r border-slate-200 bg-white/95 p-4 shadow-xl">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-900">Card details</p>
-                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDetailsNodeId(null)}>✕</button>
-                </div>
-                <div className="h-[calc(100%-2.5rem)] overflow-auto pr-1">
-                  <BoardInspector viewMode={viewMode} nodeId={detailsNodeId} />
+            {isDetailsPanelOpen ? (
+              <div className="pointer-events-none fixed inset-0 z-[70]">
+                <div className="pointer-events-auto absolute inset-y-0 left-0 w-full border-r border-slate-200 bg-white shadow-xl sm:max-w-[420px]">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <p className="text-base font-semibold text-slate-900">Card details</p>
+                    <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsDetailsPanelOpen(false)}>✕</button>
+                  </div>
+                  <div className="h-[calc(100%-3.25rem)] overflow-auto p-4">
+                    <BoardInspector viewMode={viewMode} nodeId={selectedNodeId} />
+                  </div>
                 </div>
               </div>
             ) : null}
