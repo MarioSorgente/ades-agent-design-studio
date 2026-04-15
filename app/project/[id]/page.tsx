@@ -8,13 +8,13 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
-import { BOARD_VIEW_MODES, type AdesBoardSnapshot, type AdesEdge, type AdesNode, type AdesNodeType, type BoardViewMode, createNode } from "@/lib/board/types";
+import { BOARD_VIEW_MODES, type AdesBoardSnapshot, type AdesEdge, type AdesNode, type BoardViewMode, createNode } from "@/lib/board/types";
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
-import type { CritiqueResult, CritiqueSuggestion } from "@/lib/critique/types";
+import type { CritiqueResult } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
 import { normalizeRouteParam } from "@/lib/utils/route-params";
 import { analyzeBoardQuality } from "@/lib/board/quality";
@@ -72,8 +72,8 @@ export default function ProjectPage() {
   const [critiqueError, setCritiqueError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
-  const [showAllQualityIssues, setShowAllQualityIssues] = useState(false);
-  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
+  const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
+  const [isCardDetailsOpen, setIsCardDetailsOpen] = useState(false);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
 
@@ -87,7 +87,6 @@ export default function ProjectPage() {
   const edges = useAdesBoardStore((state) => state.edges);
   const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useAdesBoardStore((state) => state.setSelectedNodeId);
-  const addNodeWithContent = useAdesBoardStore((state) => state.addNodeWithContent);
   const addConnectedNode = useAdesBoardStore((state) => state.addConnectedNode);
   const moveMainStep = useAdesBoardStore((state) => state.moveMainStep);
   const duplicateNodeById = useAdesBoardStore((state) => state.duplicateNodeById);
@@ -160,6 +159,8 @@ export default function ProjectPage() {
   }, [nodes]);
 
   const qualityReport = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
+  const activeCritiqueItems = useMemo(() => critiqueResult?.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)) ?? [], [critiqueResult, dismissedFindingIds]);
+  const totalGuidanceCount = qualityReport.issues.length + activeCritiqueItems.length;
   useEffect(() => {
     if (!user || !project || !currentBoardHash || !hasHydratedBoardRef.current || lastSavedHashRef.current === currentBoardHash) return;
     setSaveState("saving");
@@ -205,6 +206,7 @@ export default function ProjectPage() {
   function handleReviewGaps() {
     const firstIssue = qualityReport.issues[0]?.toLowerCase() || "";
     setViewMode(getRecommendedViewFromText(firstIssue));
+    setIsGuidanceOpen(true);
   }
 
   async function handleGenerateBoard() {
@@ -263,7 +265,6 @@ export default function ProjectPage() {
     }
   }
 
-  const handleAddSuggestionToBoard = (suggestion: CritiqueSuggestion) => addNodeWithContent(suggestion.type as AdesNodeType, suggestion.title, suggestion.body);
   const handleExportMarkdown = () => project && downloadTextFile(`${project.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.md`, createProjectMarkdown({ ...project, board: getBoardSnapshot(), critique: critiqueResult ?? project.critique }), "text/markdown;charset=utf-8");
   const handleExportJson = () => project && downloadTextFile(`${project.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.json`, createProjectJson({ ...project, board: getBoardSnapshot(), ideaPrompt, audience, constraints, summary: generationSummary || project.summary, critique: critiqueResult ?? project.critique }), "application/json;charset=utf-8");
 
@@ -327,12 +328,10 @@ export default function ProjectPage() {
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">{saveStateLabel}</span>
                     <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 font-semibold text-violet-700">Design Readiness {qualityReport.score}/100</span>
                   </div>
-                  <p className="text-sm text-slate-600">{boardSummary.mainSteps} main steps · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback/handoffs · {boardSummary.evals} evals</p>
+                  <p className="text-sm text-slate-600">{boardSummary.mainSteps} steps · {boardSummary.evals} evals · {boardSummary.reflections} reflections · {boardSummary.feedback} feedback/handoffs</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Reviewing…" : "Review design"}</button>
-
                   <details className="relative">
                     <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">Export</summary>
                     <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
@@ -349,22 +348,6 @@ export default function ProjectPage() {
               </div>
             </section>
 
-            {qualityReport.issues.length ? (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Design quality checks</p>
-                    <p className="mt-1 text-sm text-amber-900">{qualityReport.issues[0]}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={handleReviewGaps} className="ades-primary-btn px-3 py-1.5 text-xs">Review gaps</button>
-                    <button type="button" onClick={() => setShowAllQualityIssues((prev) => !prev)} className="ades-ghost-btn px-3 py-1.5 text-xs">{showAllQualityIssues ? "Collapse" : "Expand"}</button>
-                  </div>
-                </div>
-                {showAllQualityIssues ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">{qualityReport.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
-              </section>
-            ) : null}
-
             <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -376,19 +359,46 @@ export default function ProjectPage() {
                   ))}
                 </div>
 
-                <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-ghost-btn px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating…" : "Generate agent design"}</button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={handleReviewGaps} className="ades-primary-btn px-3 py-2 text-xs">Review gaps</button>
+                  {!hasGeneratedDesign ? (
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-ghost-btn px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating…" : "Generate agent design"}</button>
+                  ) : (
+                    <details className="relative">
+                      <summary className="ades-ghost-btn list-none px-3 py-2 text-xs">More</summary>
+                      <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regenerate from idea</p>
+                        <p className="mt-1 text-xs text-slate-600">Warning: this may replace your current board structure.</p>
+                        <button type="button" onClick={() => setShowRegenerateForm((prev) => !prev)} className="ades-ghost-btn mt-2 w-full px-2 py-1.5 text-xs">{showRegenerateForm ? "Hide form" : "Open regenerate form"}</button>
+                      </div>
+                    </details>
+                  )}
+                </div>
               </div>
             </section>
 
-            <section className={`grid gap-3 ${isDetailsPanelOpen ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[minmax(0,1fr)_48px]"}`}>
+            {showRegenerateForm ? (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
+                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-3">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from idea"}</button>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            <section className={`relative grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-1 xl:pr-16"}`}>
               <div className="min-w-0">
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(nodeId) => {
                     setSelectedNodeId(nodeId);
-                    if (nodeId) setIsDetailsPanelOpen(true);
                   }}
+                  onOpenDetails={() => setIsCardDetailsOpen(true)}
                   onAddStepAt={handleInsertMainStep}
                   onAddStepToEnd={() => handleInsertMainStep(nodes.filter(isMainStep).length)}
                   onMoveStep={moveMainStep}
@@ -399,25 +409,53 @@ export default function ProjectPage() {
                 />
               </div>
 
-              {isDetailsPanelOpen ? (
-                <aside className="rounded-2xl border border-slate-200/80 bg-white/95 p-4">
+              {isGuidanceOpen ? (
+                <aside className="hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 xl:block">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details</p>
-                    <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsDetailsPanelOpen(false)}>Collapse</button>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
+                    <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
                   </div>
-                  <BoardInspector viewMode={viewMode} />
+                  <div className="mb-3 space-y-2">
+                    <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
+                    {critiqueError ? <p className="text-xs text-rose-600">{critiqueError}</p> : null}
+                    {generationError ? <p className="text-xs text-rose-600">{generationError}</p> : null}
+                    {exportError ? <p className="text-xs text-rose-600">{exportError}</p> : null}
+                  </div>
+                  <div className="space-y-2">
+                    {qualityReport.issues.map((issue, index) => (
+                      <article key={`${issue}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <p className="text-xs font-semibold text-amber-900">Quality gap</p>
+                        <p className="mt-1 text-xs text-amber-900">{issue}</p>
+                        <button type="button" onClick={() => setViewMode(getRecommendedViewFromText(issue))} className="ades-ghost-btn mt-2 px-2 py-1 text-[11px]">Go to step/view</button>
+                      </article>
+                    ))}
+                    {activeCritiqueItems.map((item) => (
+                      <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p>
+                        <p className="mt-1 text-sm text-slate-800">{item.message}</p>
+                        <p className="mt-1 text-xs text-slate-600">{item.recommendation}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode(getRecommendedViewFromText(`${item.message} ${item.recommendation}`))}>Go to step/view</button>
+                          <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDismissedFindingIds((prev) => [...prev, item.id])}>Dismiss</button>
+                        </div>
+                      </article>
+                    ))}
+                    {!qualityReport.issues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet. Run AI review for deeper checks.</p> : null}
+                  </div>
                 </aside>
-              ) : (
-                <aside className="flex items-center justify-center">
-                  <button type="button" onClick={() => setIsDetailsPanelOpen(true)} className="h-full min-h-[180px] rounded-2xl border border-slate-200/90 bg-white/95 px-2 text-xs font-semibold tracking-wide text-slate-600 [writing-mode:vertical-rl]">
-                    Details
-                  </button>
-                </aside>
-              )}
+              ) : null}
+
+              {!isGuidanceOpen ? (
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-3 top-14 hidden h-48 w-12 rounded-2xl border border-blue-300 bg-blue-50 px-1 text-center text-xs font-semibold text-blue-800 shadow-md xl:flex xl:flex-col xl:items-center xl:justify-center">
+                  <span className="[writing-mode:vertical-rl]">Guidance</span>
+                  <span className="mt-2 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
+                  <span className="mt-2 text-sm">‹</span>
+                </button>
+              ) : null}
             </section>
 
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
-              {!hasGeneratedDesign ? (
+            {!hasGeneratedDesign ? (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">Generate agent design</h3>
@@ -431,41 +469,48 @@ export default function ProjectPage() {
                     {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
                   </div>
                 </div>
-              ) : (
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Design actions</h3>
-                  <p className="mt-1 text-xs text-slate-600">Review design (Run critique) checks the current board for unclear steps, missing evals, and missing safeguards. Regenerate from idea creates a new board and may replace the current design.</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Reviewing…" : "Review design"}</button>
-                    <button type="button" onClick={() => setShowRegenerateForm((prev) => !prev)} className="ades-ghost-btn px-3 py-2 text-xs">{showRegenerateForm ? "Hide regenerate form" : "Regenerate from idea"}</button>
-                    <button type="button" onClick={handleExportMarkdown} className="ades-ghost-btn px-3 py-2 text-xs">Export</button>
-                  </div>
-                  {showRegenerateForm ? (
-                    <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-3">
-                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
-                      <div>
-                        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
-                        <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from idea"}</button>
-                      </div>
-                    </div>
-                  ) : null}
-                  {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
-                  {critiqueError ? <p className="mt-2 text-xs text-rose-600">{critiqueError}</p> : null}
-                  {exportError ? <p className="mt-2 text-xs text-rose-600">{exportError}</p> : null}
-                </div>
-              )}
-            </section>
+              </section>
+            ) : null}
 
-            {critiqueResult ? <section className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">Design review findings</h3><p className="mt-1 text-xs text-slate-600">{critiqueResult.summary}</p><div className="mt-3 grid gap-3 lg:grid-cols-2"><div><ul className="space-y-2">{critiqueResult.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)).map((item) => <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p><p className="mt-1 text-sm text-slate-800">{item.message}</p><p className="mt-1 text-xs text-slate-600">{item.recommendation}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode(getRecommendedViewFromText(`${item.message} ${item.recommendation}`))}>Go to relevant view</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDismissedFindingIds((prev) => [...prev, item.id])}>Dismiss</button></div></li>)}</ul></div><div className="space-y-3"><SuggestionSection title="Missing reflections" suggestions={critiqueResult.missingReflections.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as reflection" /><SuggestionSection title="Missing evals" suggestions={critiqueResult.missingEvals.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as eval" /><SuggestionSection title="Missing business metrics" suggestions={critiqueResult.missingBusinessMetrics.filter((item) => !dismissedFindingIds.includes(item.id))} onAdd={handleAddSuggestionToBoard} onDismiss={(id) => setDismissedFindingIds((prev) => [...prev, id])} onNavigate={(text) => setViewMode(getRecommendedViewFromText(text))} ctaLabel="Add as step" /></div></div></section> : null}
+            {isGuidanceOpen ? (
+              <div className="fixed inset-0 z-30 xl:hidden">
+                <button type="button" aria-label="Close guidance" className="absolute inset-0 bg-slate-900/35" onClick={() => setIsGuidanceOpen(false)} />
+                <aside className="absolute inset-x-0 bottom-0 max-h-[75vh] overflow-auto rounded-t-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">Design guidance</p>
+                    <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsGuidanceOpen(false)}>Close</button>
+                  </div>
+                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn mb-3 w-full px-3 py-2 text-sm disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
+                  <div className="space-y-2">
+                    {qualityReport.issues.map((issue, index) => (
+                      <article key={`${issue}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <p className="text-sm text-amber-900">{issue}</p>
+                      </article>
+                    ))}
+                    {activeCritiqueItems.map((item) => (
+                      <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-sm text-slate-800">{item.message}</p>
+                      </article>
+                    ))}
+                  </div>
+                </aside>
+              </div>
+            ) : null}
+
+            {selectedNodeId && isCardDetailsOpen ? (
+              <div className="fixed inset-y-0 left-0 z-40 w-full max-w-[420px] border-r border-slate-200 bg-white/95 p-4 shadow-xl">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900">Card details</p>
+                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsCardDetailsOpen(false)}>✕</button>
+                </div>
+                <div className="h-[calc(100%-2.5rem)] overflow-auto pr-1">
+                  <BoardInspector viewMode={viewMode} />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </ProtectedRoute>
     </AppShell>
   );
-}
-
-function SuggestionSection({ title, suggestions, onAdd, onDismiss, onNavigate, ctaLabel }: { title: string; suggestions: CritiqueSuggestion[]; onAdd: (suggestion: CritiqueSuggestion) => void; onDismiss: (id: string) => void; onNavigate: (text: string) => void; ctaLabel: string }) {
-  if (!suggestions.length) return null;
-  return <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4><ul className="mt-2 space-y-2">{suggestions.map((suggestion) => <li key={suggestion.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="text-sm font-medium text-slate-800">{suggestion.title}</p><p className="mt-1 text-xs text-slate-600">{suggestion.body}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>{ctaLabel}</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onAdd(suggestion)}>Add to board</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onNavigate(`${suggestion.title} ${suggestion.body}`)}>Go to relevant view</button><button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => onDismiss(suggestion.id)}>Dismiss</button></div></li>)}</ul></div>;
 }

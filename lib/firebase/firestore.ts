@@ -117,6 +117,8 @@ function parseNodeData(value: unknown): AdesNodeData | null {
     evals: Array.isArray(data.evals) ? (data.evals as AdesNodeData["evals"]) : [],
     reflectionPrompt: stringOrEmpty(data.reflectionPrompt),
     reflectionTrigger: stringOrEmpty(data.reflectionTrigger),
+    reflectionLoopTarget: data.reflectionLoopTarget === "previous_step" ? "previous_step" : "same_step",
+    reflectionRevisionAction: stringOrEmpty(data.reflectionRevisionAction),
     feedbackSource: stringOrEmpty(data.feedbackSource),
     feedbackCondition: stringOrEmpty(data.feedbackCondition),
     feedbackAction: stringOrEmpty(data.feedbackAction),

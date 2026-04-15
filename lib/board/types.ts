@@ -78,6 +78,8 @@ export type AdesNodeData = {
   evals: EvalDefinition[];
   reflectionPrompt: string;
   reflectionTrigger: string;
+  reflectionLoopTarget: "same_step" | "previous_step";
+  reflectionRevisionAction: string;
   feedbackSource: string;
   feedbackCondition: string;
   feedbackAction: string;
@@ -139,6 +141,8 @@ export function createNodeData(type: AdesNodeType, label: string): AdesNodeData 
     evals: [],
     reflectionPrompt: type === "reflection" ? "Critique this step before moving forward." : "",
     reflectionTrigger: type === "reflection" ? "Low confidence or missing constraints" : "",
+    reflectionLoopTarget: "same_step",
+    reflectionRevisionAction: type === "reflection" ? "Revise the response before continuing." : "",
     feedbackSource: type === "feedback" ? "Human reviewer" : "",
     feedbackCondition: type === "feedback" ? "Confidence below threshold" : "",
     feedbackAction: type === "feedback" ? "Revise prompt and rerun previous step" : "",
