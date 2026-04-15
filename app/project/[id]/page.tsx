@@ -73,6 +73,7 @@ export default function ProjectPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
+  const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
 
@@ -87,7 +88,6 @@ export default function ProjectPage() {
   const selectedNodeId = useAdesBoardStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useAdesBoardStore((state) => state.setSelectedNodeId);
   const addConnectedNode = useAdesBoardStore((state) => state.addConnectedNode);
-  const moveMainStep = useAdesBoardStore((state) => state.moveMainStep);
   const duplicateNodeById = useAdesBoardStore((state) => state.duplicateNodeById);
   const deleteNodeById = useAdesBoardStore((state) => state.deleteNodeById);
 
@@ -351,9 +351,9 @@ export default function ProjectPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
                   {BOARD_VIEW_MODES.map((mode) => (
-                    <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-lg px-3 py-1.5 text-left text-xs ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                    <button key={mode} type="button" onClick={() => setViewMode(mode)} className={`rounded-lg px-2.5 py-1.5 text-left text-xs ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
                       <span className="block font-semibold">{mode === "flow" ? "Flow" : mode === "improvement" ? "Improve" : "Evals"}</span>
-                      <span className="block text-[10px]">{mode === "flow" ? "Main sequence of agent tasks" : mode === "improvement" ? "Reflection, feedback, risks, and handoffs" : "How the agent will be tested"}</span>
+                      <span className="block text-[10px] lg:hidden">{mode === "flow" ? "Main sequence" : mode === "improvement" ? "Reflection + feedback" : "Testing coverage"}</span>
                     </button>
                   ))}
                 </div>
@@ -389,27 +389,29 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            <section className={`relative grid gap-3 ${isGuidanceOpen ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-1"}`}>
-              <div className="min-w-0">
+            <section className="relative">
+              <div className={`min-w-0 ${isGuidanceOpen ? "xl:pr-14" : "xl:pr-12"}`}>
                 <StudioBoard
                   viewMode={viewMode}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(nodeId) => {
                     setSelectedNodeId(nodeId);
-                    if (nodeId) setIsGuidanceOpen(true);
                   }}
                   onAddStepAt={handleInsertMainStep}
                   onAddStepToEnd={() => handleInsertMainStep(nodes.filter(isMainStep).length)}
-                  onMoveStep={moveMainStep}
                   onDuplicateStep={duplicateNodeById}
                   onDeleteNode={deleteNodeById}
                   onAddConnectedNode={addConnectedNode}
-                  className="h-[65vh] min-h-[500px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5 lg:h-[calc(100vh-14rem)]"
+                  onOpenDetails={(nodeId) => {
+                    setSelectedNodeId(nodeId);
+                    setDetailsNodeId(nodeId);
+                  }}
+                  className="h-[65vh] min-h-[500px] overflow-auto rounded-[28px] border border-slate-200/90 bg-white p-5 pb-16 lg:h-[calc(100vh-14rem)]"
                 />
               </div>
 
               {isGuidanceOpen ? (
-                <aside className="hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 xl:block">
+                <aside className="hidden absolute right-3 top-3 bottom-12 z-30 w-[340px] overflow-auto rounded-2xl border border-slate-200/80 bg-white/95 p-4 xl:block">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
@@ -445,10 +447,10 @@ export default function ProjectPage() {
               ) : null}
 
               {!isGuidanceOpen ? (
-                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-0 top-8 hidden h-44 w-11 rounded-l-2xl border border-slate-200/90 bg-white/95 px-1 text-center text-xs font-semibold text-slate-700 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-3 top-8 hidden h-48 w-11 rounded-xl border border-blue-200 bg-blue-50 px-1 text-center text-xs font-semibold text-blue-800 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
                   <span className="[writing-mode:vertical-rl]">Guidance</span>
-                  <span className="mt-2 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
-                  <span className="mt-2 text-sm">‹</span>
+                  <span className="mt-2 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
+                  <span className="mt-2 text-sm">◂</span>
                 </button>
               ) : null}
             </section>
@@ -496,14 +498,14 @@ export default function ProjectPage() {
               </div>
             ) : null}
 
-            {selectedNodeId ? (
-              <div className="fixed inset-y-0 right-0 z-40 w-full max-w-[380px] border-l border-slate-200 bg-white/95 p-4 shadow-xl">
+            {detailsNodeId ? (
+              <div className="fixed inset-y-0 left-0 z-40 w-full max-w-[420px] border-r border-slate-200 bg-white/95 p-4 shadow-xl">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-900">Details inspector</p>
-                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setSelectedNodeId(null)}>Close</button>
+                  <p className="text-sm font-semibold text-slate-900">Card details</p>
+                  <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDetailsNodeId(null)}>✕</button>
                 </div>
                 <div className="h-[calc(100%-2.5rem)] overflow-auto pr-1">
-                  <BoardInspector viewMode={viewMode} />
+                  <BoardInspector viewMode={viewMode} nodeId={detailsNodeId} />
                 </div>
               </div>
             ) : null}
