@@ -1,7 +1,15 @@
 import { FieldValue } from "firebase-admin/firestore";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import {
+  assertCanUseAi,
+  getAuthenticatedUser,
+  getGateResponse,
+  incrementUsage,
+  logGateDeny,
+  releaseGenerationReservation,
+} from "@/lib/usageGate";
 import {
   type AdesBoardSnapshot,
   type AdesEdge,
@@ -207,12 +215,6 @@ const AI_SCHEMA = {
 } as const;
 
 const ALLOWED_NODE_TYPES = new Set<string>(CORE_NODE_TYPES);
-
-function parseAuthToken(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  return authHeader.slice("Bearer ".length).trim();
-}
 
 function clampText(value: string | undefined, maxChars: number): string {
   if (!value) return "";
@@ -469,12 +471,7 @@ export async function POST(request: Request) {
   console.info("[/api/generate] Route entry", { hasApiKey });
 
   try {
-    const token = parseAuthToken(request);
-    if (!token) return NextResponse.json({ error: "Missing Firebase auth token." }, { status: 401 });
-
-    const auth = getFirebaseAdminAuth();
-    const decodedToken = await auth.verifyIdToken(token);
-    const uid = decodedToken.uid;
+    const { uid, email } = await getAuthenticatedUser(request);
 
     const body = (await request.json()) as GenerateRequest;
     const projectId = clampText(body.projectId, 120);
@@ -492,8 +489,15 @@ export async function POST(request: Request) {
 
     if (!snapshot.exists) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
-    const projectData = snapshot.data() as { ownerUid?: string };
+    const projectData = snapshot.data() as { ownerUid?: string; status?: string };
     if (projectData.ownerUid !== uid) return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
+
+    const action = projectData.status === "generated" ? "regenerate_design" : "generate_design";
+    const gate = await assertCanUseAi(uid, email, action);
+    if (!gate.allowed) {
+      logGateDeny({ uid, email, action, reason: gate.reason });
+      return NextResponse.json(getGateResponse(gate.reason, gate.trigger), { status: 403 });
+    }
 
     const openai = getOpenAIClient();
 
@@ -553,6 +557,11 @@ export async function POST(request: Request) {
       board,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (gate.plan === "free") {
+      await incrementUsage(uid, "generate_design");
+    } else {
+      await releaseGenerationReservation(uid);
+    }
 
     return NextResponse.json({
       project: { id: projectId, title: generatedDesign.title, summary: generatedDesign.summary, status: "generated" },
@@ -564,6 +573,14 @@ export async function POST(request: Request) {
       openaiDebug,
     });
   } catch (error) {
+    if (requestProjectId) {
+      try {
+        const { uid } = await getAuthenticatedUser(request);
+        await releaseGenerationReservation(uid);
+      } catch {
+        // noop
+      }
+    }
     console.error("[/api/generate] Failed", {
       projectId: requestProjectId,
       hasApiKey: openaiDebug.hasApiKey,
@@ -574,6 +591,9 @@ export async function POST(request: Request) {
       error,
     });
     const message = error instanceof Error ? error.message : "Failed to generate board.";
+    if (message.includes("Missing Firebase auth token")) {
+      return NextResponse.json({ error: message, openaiDebug }, { status: 401 });
+    }
     return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }

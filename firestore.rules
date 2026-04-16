@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == request.auth.uid
+        && (!("plan" in request.resource.data) || request.resource.data.plan == "free");
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == request.auth.uid
+        && (!("plan" in request.resource.data) || request.resource.data.plan == resource.data.plan || resource.data.plan == "free");
+      allow delete: if false;
+    }
+
+    match /usage/{uid} {
+      allow read: if isOwner(uid);
+      allow write, delete, create, update: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if false;
+      allow update: if isSignedIn() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /paymentInterest/{docId} {
+      allow read: if false;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /feedback/{docId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+  }
+}

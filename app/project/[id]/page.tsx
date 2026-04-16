@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toPng } from "html-to-image";
 import { useParams, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { UsageGateModal, type UsageGateTrigger } from "@/components/UsageGateModal";
 import { AppShell } from "@/components/app-shell";
 import { BoardInspector } from "@/components/board/board-inspector";
 import { StudioBoard } from "@/components/board/studio-board";
@@ -12,7 +13,7 @@ import { type AdesBoardSnapshot, type AdesEdge, type AdesNode, type BoardViewMod
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
-import { getProjectForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
+import { getProjectForUser, getUsageSummaryForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
@@ -25,9 +26,11 @@ type GenerateResponse = {
   project: { id: string; title: string; summary: string; status: "generated" };
   board: AdesBoardSnapshot;
   quality?: { score: number; issues: string[] };
+  gated?: boolean;
+  trigger?: UsageGateTrigger;
 };
 
-type CritiqueResponse = { critique: CritiqueResult };
+type CritiqueResponse = { critique: CritiqueResult; gated?: boolean; trigger?: UsageGateTrigger };
 
 function isMainStep(node: AdesNode) {
   return node.type === "goal" || node.type === "task" || node.type === "handoff";
@@ -77,6 +80,9 @@ export default function ProjectPage() {
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [dismissedFindingIds, setDismissedFindingIds] = useState<string[]>([]);
   const [addNotice, setAddNotice] = useState<string | null>(null);
+  const [gateModal, setGateModal] = useState<{ isOpen: boolean; trigger: UsageGateTrigger }>({ isOpen: false, trigger: "ai_review" });
+  const [isAdminBypass, setIsAdminBypass] = useState(false);
+  const [hasExistingProject, setHasExistingProject] = useState(false);
 
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
   const [focusTarget, setFocusTarget] = useState<{
@@ -152,6 +158,15 @@ export default function ProjectPage() {
 
     void loadProject();
   }, [projectId, status, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void getUsageSummaryForUser(user.uid).then((summary) => {
+      if (!summary) return;
+      setIsAdminBypass(summary.isAdminBypass);
+      setHasExistingProject(summary.hasExistingProject);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (isLoading || !project || hasHydratedBoardRef.current) return;
@@ -239,6 +254,10 @@ export default function ProjectPage() {
   async function handleGenerateBoard() {
     if (!user || !project || isGenerating) return;
     if (!ideaPrompt.trim()) return setGenerationError("Add an idea before generating.");
+    if (project.status === "generated" && !isAdminBypass) {
+      setGateModal({ isOpen: true, trigger: "regenerate" });
+      return;
+    }
 
     setGenerationError(null);
     setIsGenerating(true);
@@ -251,7 +270,13 @@ export default function ProjectPage() {
       });
 
       const payload = (await response.json()) as GenerateResponse | { error?: string };
-      if (!response.ok || !("board" in payload)) throw new Error("error" in payload && payload.error ? payload.error : "Generation failed.");
+      if (!response.ok || !("board" in payload)) {
+        if ("gated" in payload && payload.gated) {
+          setGateModal({ isOpen: true, trigger: (payload.trigger as UsageGateTrigger) ?? "generate_design" });
+          return;
+        }
+        throw new Error("error" in payload && payload.error ? payload.error : "Generation failed.");
+      }
 
       loadBoardSnapshot(payload.board);
       lastSavedHashRef.current = JSON.stringify(payload.board);
@@ -268,6 +293,10 @@ export default function ProjectPage() {
 
   async function handleCritiqueBoard() {
     if (!user || !project || isCritiquing) return;
+    if (!isAdminBypass) {
+      setGateModal({ isOpen: true, trigger: "ai_review" });
+      return;
+    }
     setCritiqueError(null);
     setIsCritiquing(true);
     try {
@@ -279,7 +308,13 @@ export default function ProjectPage() {
       });
 
       const payload = (await response.json()) as CritiqueResponse | { error?: string };
-      if (!response.ok || !("critique" in payload)) throw new Error("error" in payload && payload.error ? payload.error : "Critique failed.");
+      if (!response.ok || !("critique" in payload)) {
+        if ("gated" in payload && payload.gated) {
+          setGateModal({ isOpen: true, trigger: (payload.trigger as UsageGateTrigger) ?? "ai_review" });
+          return;
+        }
+        throw new Error("error" in payload && payload.error ? payload.error : "Critique failed.");
+      }
 
       setCritiqueResult(payload.critique);
       setDismissedFindingIds([]);
@@ -368,6 +403,13 @@ export default function ProjectPage() {
   return (
     <AppShell title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")} actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn px-2.5 py-1.5 text-xs" aria-disabled={!projectId}>Print</Link>} compact>
       <ProtectedRoute>
+        <UsageGateModal
+          isOpen={gateModal.isOpen}
+          trigger={gateModal.trigger}
+          hasExistingProject={hasExistingProject}
+          onClose={() => setGateModal((prev) => ({ ...prev, isOpen: false }))}
+          onOpenExisting={() => setGateModal((prev) => ({ ...prev, isOpen: false }))}
+        />
         {isLoading ? <div className="ades-panel text-sm text-slate-600">Loading project…</div> : null}
 
         {!isLoading && (errorMessage || !project) ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900"><p>{errorMessage ?? "Project not found or you do not have access."}</p><Link href="/dashboard" className="mt-3 inline-block font-semibold text-rose-900 underline">Back to dashboard</Link></div> : null}
