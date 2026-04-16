@@ -165,15 +165,14 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
   const resetView = useCallback(() => {
     setFlowZoom(1);
     window.requestAnimationFrame(() => {
-      const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) : null;
-      const preferredStepId = selectedNode && isMainStep(selectedNode) ? selectedNode.id : orderedMainSteps[0]?.id;
+      const preferredStepId = selectedFlowStepId ?? orderedMainSteps[0]?.id;
       if (preferredStepId) {
         focusStep(preferredStepId, { behavior: "smooth", mode: "center" });
         return;
       }
       fitFlow();
     });
-  }, [fitFlow, focusStep, nodeById, orderedMainSteps, selectedNodeId]);
+  }, [fitFlow, focusStep, orderedMainSteps, selectedFlowStepId]);
 
   function handleAddConnected(stepId: string, kind: AttachmentKind) {
     const map: Record<AttachmentKind, { type: AdesNodeType; message: string }> = {
@@ -319,7 +318,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
   return (
     <div
       id="ades-canvas-export"
-      className={`canvas-shell relative h-[calc(100vh-9rem)] min-h-[650px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
+      className={`canvas-shell relative h-full min-h-[480px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
     >
       <div
         ref={flowViewportRef}

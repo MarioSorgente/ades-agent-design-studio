@@ -373,7 +373,7 @@ export default function ProjectPage() {
         {!isLoading && (errorMessage || !project) ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900"><p>{errorMessage ?? "Project not found or you do not have access."}</p><Link href="/dashboard" className="mt-3 inline-block font-semibold text-rose-900 underline">Back to dashboard</Link></div> : null}
 
         {!isLoading && project ? (
-          <div className="space-y-2">
+          <div className="flex h-full min-h-0 flex-col gap-2">
             <section className="sticky top-2 z-20 rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-sm backdrop-blur">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -431,8 +431,8 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            <section className="relative">
-              <div className={`min-w-0 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
+            <section className="relative flex min-h-0 flex-1">
+              <div className={`min-w-0 flex-1 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
                 <StudioBoard
                   viewMode={viewMode}
                   focusTarget={focusTarget}
@@ -450,7 +450,7 @@ export default function ProjectPage() {
                   onAddConnectedNode={addConnectedNode}
                   onOpenDetails={handleOpenDetails}
                   onAddNotice={(message) => setAddNotice(message)}
-                  className="h-[79vh] min-h-[560px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-3 pb-12 lg:h-[calc(100vh-8.5rem)]"
+                  className="h-full min-h-[480px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-3 pb-12"
                 />
               </div>
 
