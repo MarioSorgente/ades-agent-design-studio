@@ -91,6 +91,14 @@ export default function ProjectPage() {
   const addConnectedNode = useAdesBoardStore((state) => state.addConnectedNode);
   const duplicateNodeById = useAdesBoardStore((state) => state.duplicateNodeById);
   const deleteNodeById = useAdesBoardStore((state) => state.deleteNodeById);
+  const selectedNode = useMemo(() => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null), [nodes, selectedNodeId]);
+  const selectedAttachmentKind = useMemo(() => {
+    if (!selectedNode) return null;
+    if (selectedNode.type === "eval") return "eval" as const;
+    if (selectedNode.type === "reflection") return "reflection" as const;
+    if (selectedNode.type === "risk") return "safeguard" as const;
+    return null;
+  }, [selectedNode]);
 
   const hasHydratedBoardRef = useRef(false);
   const lastSavedHashRef = useRef<string | null>(null);
@@ -315,6 +323,21 @@ export default function ProjectPage() {
     setIsDetailsPanelOpen(true);
   }
 
+  function handleDeleteAttachment(nodeId: string, kind: "eval" | "reflection" | "safeguard") {
+    const confirmed = window.confirm(`Delete this ${kind}?`);
+    if (!confirmed) return;
+
+    const parentStepId = edges.find((edge) => edge.target === nodeId)?.source ?? null;
+    const wasSelected = selectedNodeId === nodeId;
+
+    deleteNodeById(nodeId);
+
+    if (wasSelected) {
+      setSelectedNodeId(parentStepId);
+      setIsDetailsPanelOpen(false);
+    }
+  }
+
   useEffect(() => {
     if (!addNotice) return;
     const timer = window.setTimeout(() => setAddNotice(null), 1700);
@@ -401,6 +424,7 @@ export default function ProjectPage() {
                   onAddStepToEnd={() => handleInsertMainStep(nodes.filter(isMainStep).length)}
                   onDuplicateStep={duplicateNodeById}
                   onDeleteNode={deleteNodeById}
+                  onDeleteAttachment={handleDeleteAttachment}
                   onAddConnectedNode={addConnectedNode}
                   onOpenDetails={handleOpenDetails}
                   onAddNotice={(message) => setAddNotice(message)}
@@ -511,14 +535,25 @@ export default function ProjectPage() {
                       <p className="text-sm font-medium text-slate-600">
                         {saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : saveState === "error" ? "Unsaved (save failed)" : "Unsaved"}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveBoard()}
-                        disabled={saveState === "saving" || !project || !user}
-                        className="ades-primary-btn min-w-[116px] px-4 py-2 text-sm disabled:opacity-60"
-                      >
-                        {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {selectedNode && selectedAttachmentKind ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(selectedNode.id, selectedAttachmentKind)}
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                          >
+                            {selectedAttachmentKind === "eval" ? "Delete eval" : selectedAttachmentKind === "reflection" ? "Delete reflection" : "Delete safeguard"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveBoard()}
+                          disabled={saveState === "saving" || !project || !user}
+                          className="ades-primary-btn min-w-[116px] px-4 py-2 text-sm disabled:opacity-60"
+                        >
+                          {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
