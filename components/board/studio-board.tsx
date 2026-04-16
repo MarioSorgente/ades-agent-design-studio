@@ -102,12 +102,16 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
     if (!viewport || !orderedMainSteps.length) return;
     const minX = Math.min(...orderedMainSteps.map((step) => step.position.x));
     const maxX = Math.max(...orderedMainSteps.map((step) => step.position.x));
-    const boardWidth = Math.max(420, maxX - minX + 600);
+    const boardWidth = Math.max(620, maxX - minX + 780);
     const inset = isDetailsPanelOpen ? detailsInsetPx : 0;
     const availableWidth = Math.max(280, viewport.clientWidth - inset - 96);
-    const nextZoom = Math.max(0.25, Math.min(1, Number((availableWidth / boardWidth).toFixed(2))));
+    const nextZoom = Math.max(0.25, Math.min(1.6, Number((availableWidth / boardWidth).toFixed(2))));
     setFlowZoom(nextZoom);
-    window.requestAnimationFrame(() => viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" }));
+    window.requestAnimationFrame(() => {
+      const centerLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+      const centerTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
+      viewport.scrollTo({ left: centerLeft, top: centerTop, behavior: "smooth" });
+    });
   }
 
   function handleAddConnected(stepId: string, kind: AttachmentKind) {
@@ -205,18 +209,26 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
   return (
     <div
       id="ades-canvas-export"
-      className={`relative h-[calc(100vh-9rem)] min-h-[650px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
-      style={{ backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)", backgroundSize: "36px 36px" }}
+      className={`canvas-shell relative h-[calc(100vh-9rem)] min-h-[650px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
     >
-      <div ref={flowViewportRef} className="relative h-full overflow-auto pb-24" style={{ paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0, transition: "padding-left 180ms ease" }}>
-        <div className="origin-top-left" style={{ transform: `scale(${flowZoom})`, width: `${100 / flowZoom}%` }}>
+      <div
+        ref={flowViewportRef}
+        className="canvas-viewport relative z-0 h-full overflow-auto pb-20"
+        style={{
+          paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0,
+          transition: "padding-left 180ms ease",
+          backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)",
+          backgroundSize: "36px 36px",
+        }}
+      >
+        <div className="zoomed-board-content origin-top-left" style={{ transform: `scale(${flowZoom})`, width: `${100 / flowZoom}%` }}>
           <div
             ref={flowContentRef}
-            className="min-h-[calc(100vh-13rem)] py-8"
-            style={{ display: "grid", alignItems: "start", alignContent: "start", paddingTop: "42vh" }}
+            className="min-h-full py-10"
+            style={{ display: "grid", alignItems: "center", alignContent: "center" }}
           >
             <div className="mx-auto min-w-max">
-              <div className="flex items-start gap-5">
+              <div className="flex items-start gap-10">
                 <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
                 {flowRows.map((row, index) => {
                   const isSelected = selectedNodeId === row.step.id;
@@ -227,35 +239,35 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                   const visibleEvals = showAllEvals ? row.evalNodes : row.evalNodes.slice(0, MAX_VISIBLE_EVALS);
 
                   return (
-                    <div key={row.step.id} className="flex items-start gap-4">
-                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="flex w-[400px] flex-col items-center">
+                    <div key={row.step.id} className="flex items-start gap-6">
+                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative z-10 flex w-[520px] flex-col items-center">
                         {isSelected ? (
-                          <div className="mb-2 flex min-h-8 w-full items-center justify-end gap-1 rounded-lg border border-indigo-200 bg-white p-1 shadow-lg">
-                            <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-8 w-8 cursor-pointer rounded-md border border-slate-300 bg-white text-sm font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
-                            <details className="relative" onClick={(event) => event.stopPropagation()}>
-                              <summary className="ades-ghost-btn flex min-h-8 list-none cursor-pointer select-none items-center px-2 py-1 text-sm [&::-webkit-details-marker]:hidden">+ Add</summary>
-                              <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
-                                <button type="button" className="ades-ghost-btn min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
-                                <button type="button" className="ades-ghost-btn mt-1 min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
-                                <button type="button" className="ades-ghost-btn mt-1 min-h-8 w-full px-2 py-1 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "risks")}>Safeguard</button>
+                          <div className="z-40 mb-3 flex min-h-10 w-full items-center justify-end gap-1.5 rounded-xl border border-indigo-200 bg-white p-1.5 shadow-lg">
+                            <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-9 w-9 cursor-pointer rounded-md border border-slate-300 bg-white text-base font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
+                            <details className="relative z-40" onClick={(event) => event.stopPropagation()}>
+                              <summary className="ades-ghost-btn flex min-h-9 list-none cursor-pointer select-none items-center px-3 py-1.5 text-sm [&::-webkit-details-marker]:hidden">+ Add</summary>
+                              <div className="absolute right-0 top-full z-40 mt-1.5 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                                <button type="button" className="ades-ghost-btn min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "risks")}>Safeguard</button>
                               </div>
                             </details>
-                            <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn min-h-8 px-2 py-1 text-sm">Duplicate</button>
-                            <button type="button" onClick={() => onDeleteNode(row.step.id)} className="ades-ghost-btn min-h-8 px-2 py-1 text-sm text-rose-600">Delete</button>
+                            <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm">Duplicate</button>
+                            <button type="button" onClick={() => onDeleteNode(row.step.id)} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm text-rose-600">Delete</button>
                           </div>
                         ) : null}
 
-                        <button type="button" onClick={() => onSelectNode(row.step.id)} onDoubleClick={() => onOpenDetails(row.step.id)} className={`relative z-20 w-full rounded-2xl border bg-white px-6 py-5 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
-                          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
-                          <h4 className="mt-2 text-[18px] font-semibold leading-tight text-slate-900">{row.step.data.label}</h4>
-                          <p className="mt-3 text-[15px] leading-7 text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
-                          <p className="mt-3 text-[14px] leading-6 text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
+                        <button type="button" onClick={() => onSelectNode(row.step.id)} onDoubleClick={() => onOpenDetails(row.step.id)} className={`relative z-10 w-full rounded-[20px] border bg-white px-7 py-6 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
+                          <p className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+                          <h4 className="mt-2.5 text-[22px] font-semibold leading-tight text-slate-900">{row.step.data.label}</h4>
+                          <p className="mt-4 text-[16px] leading-[1.55] text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
+                          <p className="mt-4 text-[15px] leading-7 text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
                         </button>
 
                         <>
                           <div className="h-8 w-[2px] bg-slate-300" />
-                          <div className="w-full rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
-                            <div className="space-y-2">
+                          <div className="w-full rounded-[20px] border border-slate-200/90 bg-white/95 p-4 shadow-sm">
+                            <div className="space-y-3">
                               <AttachmentSection
                                 title="Evals"
                                 count={row.evalNodes.length}
@@ -283,7 +295,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                   <button
                                     type="button"
                                     onClick={() => setShowAllEvalsByStep((prev) => ({ ...prev, [row.step.id]: !showAllEvals }))}
-                                    className="mt-2 min-h-8 text-sm font-semibold text-blue-700 hover:text-blue-900"
+                                    className="mt-2 min-h-9 text-[14px] font-semibold text-blue-700 hover:text-blue-900"
                                   >
                                     {showAllEvals ? "Show fewer" : `Show all (${row.evalNodes.length})`}
                                   </button>
@@ -343,10 +355,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                           </div>
                         </>
                       </div>
-                      <div className="flex items-center gap-5 pt-[124px]">
-                        <div className="h-[2px] w-10 bg-slate-300" />
+                      <div className="flex items-center gap-6 pt-[142px]">
+                        <div className="h-[2px] w-12 bg-slate-300" />
                         <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} />
-                        {index < flowRows.length - 1 ? <div className="h-[2px] w-10 bg-slate-300" /> : null}
+                        {index < flowRows.length - 1 ? <div className="h-[2px] w-12 bg-slate-300" /> : null}
                       </div>
                     </div>
                   );
@@ -359,15 +371,15 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
       </div>
 
       <div
-        className="pointer-events-none absolute bottom-5 left-4 z-[80]"
-        style={{ left: isDetailsPanelOpen ? detailsInsetPx + 16 : 16, transition: "left 180ms ease" }}
+        className="zoom-controls pointer-events-none absolute bottom-4 z-[80]"
+        style={{ left: isDetailsPanelOpen ? `min(calc(100% - 280px), ${detailsInsetPx + 16}px)` : "16px", transition: "left 180ms ease" }}
       >
         <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md">
-          <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
-          <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
-          <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
-          <button type="button" className="ades-ghost-btn h-8 px-2 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
-          <button type="button" className="ades-ghost-btn h-8 px-2 py-0 text-xs" onClick={fitFlow}>Fit</button>
+          <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
+          <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
+          <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
+          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
+          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={fitFlow}>Fit</button>
         </div>
       </div>
     </div>
@@ -403,11 +415,11 @@ function AttachmentSection({
   } as const;
 
   return (
-    <div className={`rounded-xl border p-3 shadow-sm ${classes[tone]}`}>
+    <div className={`rounded-xl border p-3.5 shadow-sm ${classes[tone]}`}>
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={onToggle} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 text-left">
+        <button type="button" onClick={onToggle} className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left">
           <span className={`text-base leading-none ${textClasses[tone]}`}>{isExpanded ? "▾" : "▸"}</span>
-          <span className={`text-[14px] font-semibold ${textClasses[tone]}`}>{title} · {count}</span>
+          <span className={`text-[15px] font-semibold ${textClasses[tone]}`}>{title} · {count}</span>
         </button>
         <button
           type="button"
@@ -415,7 +427,7 @@ function AttachmentSection({
             event.stopPropagation();
             onAdd();
           }}
-          className={`h-8 w-8 rounded-md border bg-white text-lg font-semibold leading-none ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
+          className={`h-8 w-8 min-h-8 min-w-8 rounded-md border bg-white text-lg font-semibold leading-none ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
           aria-label={`Add ${title.toLowerCase()}`}
         >
           +
@@ -456,12 +468,12 @@ function AttachmentList({
   } as const;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className={`group relative w-full rounded-lg border-l-4 px-3 py-2.5 ${itemClass[tone]}`}>
+        <div key={item.id} className={`group relative w-full rounded-lg border-l-4 px-4 py-3 ${itemClass[tone]}`}>
           <button type="button" onClick={() => { onSelectNode(item.id); onOpenDetails?.(item.id); }} className="w-full text-left">
-            <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
-            <p className="pr-10 text-[14px] font-semibold text-slate-900">{item.label}</p>
+            <p className={`text-[13px] font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
+            <p className="pr-10 text-[15px] font-semibold text-slate-900">{item.label}</p>
             <p className="mt-1 text-[13px] text-slate-700">{item.subLabel}</p>
             {item.detail ? <p className="mt-0.5 text-[13px] text-slate-600">{item.detail}</p> : null}
           </button>
@@ -473,7 +485,7 @@ function AttachmentList({
               event.stopPropagation();
               onDeleteNode(item.id);
             }}
-            className="absolute right-2 top-2 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent text-base text-slate-500 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute right-2.5 top-2.5 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-transparent text-base text-slate-500 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
           >
             🗑
           </button>
@@ -484,5 +496,5 @@ function AttachmentList({
 }
 
 function AddStepChip({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="whitespace-nowrap rounded-full border border-dashed border-slate-300 bg-white/90 px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700">{label}</button>;
+  return <button type="button" onClick={onClick} className="whitespace-nowrap rounded-full border border-dashed border-slate-300 bg-white/90 px-4 py-2.5 text-[14px] font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700">{label}</button>;
 }
