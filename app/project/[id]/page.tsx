@@ -17,7 +17,7 @@ import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
 import { normalizeRouteParam } from "@/lib/utils/route-params";
-import { analyzeBoardQuality } from "@/lib/board/quality";
+import { analyzeBoardQuality, type QualityIssue } from "@/lib/board/quality";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -79,6 +79,11 @@ export default function ProjectPage() {
   const [addNotice, setAddNotice] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
+  const [focusTarget, setFocusTarget] = useState<{
+    nodeId: string;
+    attachmentKind?: "evals" | "reflections" | "safeguards";
+    nonce: number;
+  } | null>(null);
 
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
@@ -173,7 +178,7 @@ export default function ProjectPage() {
 
   const qualityReport = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
   const activeCritiqueItems = useMemo(() => critiqueResult?.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)) ?? [], [critiqueResult, dismissedFindingIds]);
-  const totalGuidanceCount = qualityReport.issues.length + activeCritiqueItems.length;
+  const totalGuidanceCount = qualityReport.actionableIssues.length + activeCritiqueItems.length;
   useEffect(() => {
     if (!user || !project || !currentBoardHash || !hasHydratedBoardRef.current || lastSavedHashRef.current === currentBoardHash) return;
     setSaveState("saving");
@@ -194,10 +199,26 @@ export default function ProjectPage() {
   const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Unsaved";
   const hasGeneratedDesign = project?.status === "generated" || nodes.length > 0;
 
-  function getRecommendedViewFromText(text: string): BoardViewMode {
-    const clean = text.toLowerCase();
-    if (/eval|test|threshold|coverage|dataset|score/.test(clean)) return "eval";
-    return "flow";
+  function handleGoToGuidanceTarget(issue: QualityIssue) {
+    const target = issue.target;
+    setIsGuidanceOpen(false);
+
+    if (!target) {
+      setViewMode("flow");
+      return;
+    }
+
+    setViewMode(target.view);
+    if (target.nodeId) {
+      setSelectedNodeId(target.nodeId);
+      setFocusTarget({
+        nodeId: target.nodeId,
+        attachmentKind: target.attachmentKind,
+        nonce: Date.now(),
+      });
+    } else {
+      setSelectedNodeId(null);
+    }
   }
 
   function handleInsertMainStep(index: number) {
@@ -414,6 +435,7 @@ export default function ProjectPage() {
               <div className={`min-w-0 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
                 <StudioBoard
                   viewMode={viewMode}
+                  focusTarget={focusTarget}
                   selectedNodeId={selectedNodeId}
                   isDetailsPanelOpen={isDetailsPanelOpen}
                   detailsInsetPx={444}
@@ -445,11 +467,15 @@ export default function ProjectPage() {
                     {exportError ? <p className="text-xs text-rose-600">{exportError}</p> : null}
                   </div>
                   <div className="space-y-2">
-                    {qualityReport.issues.map((issue, index) => (
-                      <article key={`${issue}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                        <p className="text-xs font-semibold text-amber-900">Quality gap</p>
-                        <p className="mt-1 text-xs text-amber-900">{issue}</p>
-                        <button type="button" onClick={() => setViewMode(getRecommendedViewFromText(issue))} className="ades-ghost-btn mt-2 px-2 py-1 text-[11px]">Go to step/view</button>
+                    {qualityReport.actionableIssues.map((issue) => (
+                      <article key={issue.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-amber-900">{issue.title}</p>
+                          <span className="rounded-full border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">{issue.severity}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-amber-900">{issue.message}</p>
+                        <p className="mt-1 text-[11px] uppercase tracking-wide text-amber-800/80">{issue.category}</p>
+                        <button type="button" onClick={() => handleGoToGuidanceTarget(issue)} className="ades-ghost-btn mt-2 px-2 py-1 text-[11px]">{issue.target?.nodeId ? "Go to step" : "Go to view"}</button>
                       </article>
                     ))}
                     {activeCritiqueItems.map((item) => (
@@ -458,12 +484,12 @@ export default function ProjectPage() {
                         <p className="mt-1 text-sm text-slate-800">{item.message}</p>
                         <p className="mt-1 text-xs text-slate-600">{item.recommendation}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode(getRecommendedViewFromText(`${item.message} ${item.recommendation}`))}>Go to step/view</button>
+                          <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode("flow")}>Go to view</button>
                           <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDismissedFindingIds((prev) => [...prev, item.id])}>Dismiss</button>
                         </div>
                       </article>
                     ))}
-                    {!qualityReport.issues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet. Run AI review for deeper checks.</p> : null}
+                    {!qualityReport.actionableIssues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet. Run AI review for deeper checks.</p> : null}
                   </div>
                 </aside>
               ) : null}
@@ -505,9 +531,11 @@ export default function ProjectPage() {
                   </div>
                   <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn mb-3 w-full px-3 py-2 text-sm disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
                   <div className="space-y-2">
-                    {qualityReport.issues.map((issue, index) => (
-                      <article key={`${issue}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                        <p className="text-sm text-amber-900">{issue}</p>
+                    {qualityReport.actionableIssues.map((issue) => (
+                      <article key={issue.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <p className="text-sm font-semibold text-amber-900">{issue.title}</p>
+                        <p className="mt-1 text-sm text-amber-900">{issue.message}</p>
+                        <button type="button" onClick={() => handleGoToGuidanceTarget(issue)} className="ades-ghost-btn mt-2 px-2 py-1 text-xs">{issue.target?.nodeId ? "Go to step" : "Go to view"}</button>
                       </article>
                     ))}
                     {activeCritiqueItems.map((item) => (

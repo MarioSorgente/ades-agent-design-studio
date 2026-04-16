@@ -7,6 +7,11 @@ import { useAdesBoardStore } from "@/lib/board/store";
 type StudioBoardProps = {
   className?: string;
   viewMode?: BoardViewMode;
+  focusTarget?: {
+    nodeId: string;
+    attachmentKind?: "evals" | "reflections" | "safeguards";
+    nonce: number;
+  } | null;
   selectedNodeId: string | null;
   isDetailsPanelOpen?: boolean;
   detailsInsetPx?: number;
@@ -22,7 +27,7 @@ type StudioBoardProps = {
 };
 
 type EvalFilter = "all" | "missing" | "end_to_end" | "tool_use" | "safety";
-type AttachmentKind = "evals" | "reflections" | "risks";
+type AttachmentKind = "evals" | "reflections" | "safeguards";
 type AttachmentExpansionState = Partial<Record<AttachmentKind, boolean>>;
 
 const EVAL_GROUPS: Array<{ key: string; title: string; matches: (node: AdesNode) => boolean }> = [
@@ -42,13 +47,15 @@ function isWeakEval(node: AdesNode) {
 
 const MAX_VISIBLE_EVALS = 3;
 
-export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onDeleteAttachment, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
+export function StudioBoard({ className, viewMode = "flow", focusTarget, selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onDeleteAttachment, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
   const [flowZoom, setFlowZoom] = useState(1);
   const [expandedByStep, setExpandedByStep] = useState<Record<string, AttachmentExpansionState>>({});
   const [showAllEvalsByStep, setShowAllEvalsByStep] = useState<Record<string, boolean>>({});
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const [highlightedCategory, setHighlightedCategory] = useState<{ stepId: string; kind: AttachmentKind } | null>(null);
 
   const flowViewportRef = useRef<HTMLDivElement | null>(null);
   const flowContentRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +104,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
     return rows;
   }, [edges, evalFilter, evalNodes, nodeById]);
 
+  function getParentStepId(nodeId: string) {
+    return edges.find((edge) => edge.target === nodeId)?.source;
+  }
+
   function fitFlow() {
     const viewport = flowViewportRef.current;
     if (!viewport || !orderedMainSteps.length) return;
@@ -118,7 +129,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
     const map: Record<AttachmentKind, { type: AdesNodeType; message: string }> = {
       evals: { type: "eval", message: "Eval added" },
       reflections: { type: "reflection", message: "Reflection loop added" },
-      risks: { type: "risk", message: "Safeguard added" },
+      safeguards: { type: "risk", message: "Safeguard added" },
     };
     const result = map[kind];
     const newId = onAddConnectedNode(stepId, result.type);
@@ -172,6 +183,48 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
       viewport.scrollBy({ left: stepRect.left - leftSafeEdge, behavior: "smooth" });
     }
   }, [detailsInsetPx, isDetailsPanelOpen, selectedAttachmentParentStepId, selectedNodeId]);
+
+  useEffect(() => {
+    if (!focusTarget?.nodeId) return;
+
+    const targetNode = nodeById.get(focusTarget.nodeId);
+    if (!targetNode) return;
+
+    const parentStepId = isMainStep(targetNode) ? targetNode.id : getParentStepId(targetNode.id);
+    if (!parentStepId) return;
+
+    const derivedKind: AttachmentKind | undefined =
+      focusTarget.attachmentKind ??
+      (targetNode.type === "eval" ? "evals" : targetNode.type === "reflection" ? "reflections" : targetNode.type === "risk" ? "safeguards" : undefined);
+
+    if (derivedKind) {
+      setExpandedByStep((prev) => ({
+        ...prev,
+        [parentStepId]: {
+          ...(prev[parentStepId] ?? {}),
+          [derivedKind]: true,
+        },
+      }));
+      setHighlightedCategory({ stepId: parentStepId, kind: derivedKind });
+    }
+
+    setHighlightedNodeId(focusTarget.nodeId);
+
+    window.requestAnimationFrame(() => {
+      const element =
+        document.querySelector(`[data-node-id="${focusTarget.nodeId}"]`) ??
+        document.querySelector(`[data-step-id="${parentStepId}"]`) ??
+        (derivedKind ? document.querySelector(`[data-step-id="${parentStepId}"][data-attachment-kind="${derivedKind}"]`) : null);
+      element?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    });
+
+    const timer = window.setTimeout(() => {
+      setHighlightedNodeId(null);
+      setHighlightedCategory(null);
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [focusTarget?.nonce, focusTarget?.nodeId, focusTarget?.attachmentKind, nodeById, edges]);
 
   if (viewMode === "eval") {
     return (
@@ -234,13 +287,13 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                   const isSelected = selectedNodeId === row.step.id;
                   const isEvalsExpanded = isCategoryExpanded(row.step.id, "evals");
                   const isReflectionsExpanded = isCategoryExpanded(row.step.id, "reflections");
-                  const isRisksExpanded = isCategoryExpanded(row.step.id, "risks");
+                  const isSafeguardsExpanded = isCategoryExpanded(row.step.id, "safeguards");
                   const showAllEvals = showAllEvalsByStep[row.step.id] ?? false;
                   const visibleEvals = showAllEvals ? row.evalNodes : row.evalNodes.slice(0, MAX_VISIBLE_EVALS);
 
                   return (
                     <div key={row.step.id} className="flex items-start gap-6">
-                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative z-10 flex w-[520px] flex-col items-center">
+                      <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative z-10 flex w-[520px] flex-col items-center" data-step-id={row.step.id}>
                         {isSelected ? (
                           <div className="z-40 mb-3 flex min-h-10 w-full items-center justify-end gap-1.5 rounded-xl border border-indigo-200 bg-white p-1.5 shadow-lg">
                             <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-9 w-9 cursor-pointer rounded-md border border-slate-300 bg-white text-base font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
@@ -249,7 +302,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                               <div className="absolute right-0 top-full z-40 mt-1.5 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
                                 <button type="button" className="ades-ghost-btn min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
                                 <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
-                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "risks")}>Safeguard</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "safeguards")}>Safeguard</button>
                               </div>
                             </details>
                             <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm">Duplicate</button>
@@ -257,7 +310,14 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                           </div>
                         ) : null}
 
-                        <button type="button" onClick={() => onSelectNode(row.step.id)} onDoubleClick={() => onOpenDetails(row.step.id)} className={`relative z-10 w-full rounded-[20px] border bg-white px-7 py-6 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"}`}>
+                        <button
+                          type="button"
+                          data-node-id={row.step.id}
+                          data-step-id={row.step.id}
+                          onClick={() => onSelectNode(row.step.id)}
+                          onDoubleClick={() => onOpenDetails(row.step.id)}
+                          className={`relative z-10 w-full rounded-[20px] border bg-white px-7 py-6 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"} ${highlightedNodeId === row.step.id ? "ring-4 ring-blue-300 ring-offset-2" : ""}`}
+                        >
                           <p className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
                           <h4 className="mt-2.5 text-[22px] font-semibold leading-tight text-slate-900">{row.step.data.label}</h4>
                           <p className="mt-4 text-[16px] leading-[1.55] text-slate-700">{row.step.data.purpose || row.step.data.body || "Add one-line purpose to explain this step."}</p>
@@ -272,7 +332,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                 title="Evals"
                                 count={row.evalNodes.length}
                                 tone="blue"
+                                stepId={row.step.id}
+                                kind="evals"
                                 isExpanded={isEvalsExpanded}
+                                isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "evals"}
                                 onToggle={() => toggleCategory(row.step.id, "evals")}
                                 onAdd={() => handleAddConnected(row.step.id, "evals")}
                               >
@@ -285,6 +348,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                     detail: `Pass criteria: ${node.data.evalCriteria || "Add pass criteria"}`,
                                   }))}
                                   emptyMessage="No evals yet"
+                                  highlightedNodeId={highlightedNodeId}
                                   onSelectNode={onSelectNode}
                                   onOpenDetails={onOpenDetails}
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "eval")}
@@ -306,7 +370,10 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                 title="Reflections"
                                 count={row.reflectionNodes.length}
                                 tone="purple"
+                                stepId={row.step.id}
+                                kind="reflections"
                                 isExpanded={isReflectionsExpanded}
+                                isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "reflections"}
                                 onToggle={() => toggleCategory(row.step.id, "reflections")}
                                 onAdd={() => handleAddConnected(row.step.id, "reflections")}
                               >
@@ -319,6 +386,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                     detail: node.data.reflectionLoopTarget === "previous_step" ? "Loop target: Returns to previous step" : "Loop target: Returns to this step",
                                   }))}
                                   emptyMessage="No reflections yet"
+                                  highlightedNodeId={highlightedNodeId}
                                   onSelectNode={onSelectNode}
                                   onOpenDetails={onOpenDetails}
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "reflection")}
@@ -331,9 +399,12 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                 title="Safeguards"
                                 count={row.riskNodes.length}
                                 tone="amber"
-                                isExpanded={isRisksExpanded}
-                                onToggle={() => toggleCategory(row.step.id, "risks")}
-                                onAdd={() => handleAddConnected(row.step.id, "risks")}
+                                stepId={row.step.id}
+                                kind="safeguards"
+                                isExpanded={isSafeguardsExpanded}
+                                isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "safeguards"}
+                                onToggle={() => toggleCategory(row.step.id, "safeguards")}
+                                onAdd={() => handleAddConnected(row.step.id, "safeguards")}
                               >
                                 <AttachmentList
                                   items={row.riskNodes.map((node) => ({
@@ -344,6 +415,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                                     detail: `Confidence check: ${node.data.confidenceCheck || "Confidence check not defined"}`,
                                   }))}
                                   emptyMessage="No safeguards yet"
+                                  highlightedNodeId={highlightedNodeId}
                                   onSelectNode={onSelectNode}
                                   onOpenDetails={onOpenDetails}
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "safeguard")}
@@ -391,7 +463,10 @@ function AttachmentSection({
   count,
   children,
   tone,
+  stepId,
+  kind,
   isExpanded,
+  isHighlighted,
   onToggle,
   onAdd,
 }: {
@@ -399,7 +474,10 @@ function AttachmentSection({
   count: number;
   children: ReactNode;
   tone: "blue" | "purple" | "amber";
+  stepId: string;
+  kind: AttachmentKind;
   isExpanded: boolean;
+  isHighlighted?: boolean;
   onToggle: () => void;
   onAdd: () => void;
 }) {
@@ -415,7 +493,7 @@ function AttachmentSection({
   } as const;
 
   return (
-    <div className={`rounded-xl border p-3.5 shadow-sm ${classes[tone]}`}>
+    <div data-step-id={stepId} data-attachment-kind={kind} className={`rounded-xl border p-3.5 shadow-sm ${classes[tone]} ${isHighlighted ? "ring-4 ring-blue-200 ring-offset-1" : ""}`}>
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={onToggle} className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left">
           <span className={`text-base leading-none ${textClasses[tone]}`}>{isExpanded ? "▾" : "▸"}</span>
@@ -441,6 +519,7 @@ function AttachmentSection({
 function AttachmentList({
   items,
   emptyMessage,
+  highlightedNodeId,
   onSelectNode,
   onOpenDetails,
   onDeleteNode,
@@ -449,6 +528,7 @@ function AttachmentList({
 }: {
   items: Array<{ id: string; categoryLabel: string; label: string; subLabel: string; detail?: string }>;
   emptyMessage: string;
+  highlightedNodeId?: string | null;
   onSelectNode: (nodeId: string | null) => void;
   onOpenDetails?: (nodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
@@ -470,7 +550,7 @@ function AttachmentList({
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className={`group relative w-full rounded-lg border-l-4 px-4 py-3 ${itemClass[tone]}`}>
+        <div key={item.id} data-node-id={item.id} className={`group relative w-full rounded-lg border-l-4 px-4 py-3 ${itemClass[tone]} ${highlightedNodeId === item.id ? "ring-4 ring-blue-300 ring-offset-1" : ""}`}>
           <button type="button" onClick={() => { onSelectNode(item.id); onOpenDetails?.(item.id); }} className="w-full text-left">
             <p className={`text-[13px] font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
             <p className="pr-10 text-[15px] font-semibold text-slate-900">{item.label}</p>
