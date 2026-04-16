@@ -23,6 +23,7 @@ type StudioBoardProps = {
 type EvalFilter = "all" | "missing" | "end_to_end" | "tool_use" | "safety";
 type AttachmentKind = "evals" | "reflections" | "risks";
 type AttachmentExpansionState = Partial<Record<AttachmentKind, boolean>>;
+const FLOW_VISUAL_SCALE = 1.5;
 
 const EVAL_GROUPS: Array<{ key: string; title: string; matches: (node: AdesNode) => boolean }> = [
   { key: "end_to_end", title: "End-to-end evals", matches: (node) => node.data.evalScope === "flow" },
@@ -95,6 +96,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
     if (evalFilter === "safety") return rows.filter((row) => row.evalNode.data.evalCategory === "safety" || /safety|compliance|policy/i.test(`${row.evalNode.data.evalName} ${row.evalNode.data.evalQuestion}`));
     return rows;
   }, [edges, evalFilter, evalNodes, nodeById]);
+  const effectiveFlowScale = Number((flowZoom * FLOW_VISUAL_SCALE).toFixed(2));
 
   function fitFlow() {
     const viewport = flowViewportRef.current;
@@ -104,7 +106,8 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
     const boardWidth = Math.max(420, maxX - minX + 600);
     const inset = isDetailsPanelOpen ? detailsInsetPx : 0;
     const availableWidth = Math.max(280, viewport.clientWidth - inset - 96);
-    const nextZoom = Math.max(0.25, Math.min(1, Number((availableWidth / boardWidth).toFixed(2))));
+    const fitZoom = availableWidth / boardWidth;
+    const nextZoom = Math.max(0.25, Math.min(1.6, Number((fitZoom / FLOW_VISUAL_SCALE).toFixed(2))));
     setFlowZoom(nextZoom);
     window.requestAnimationFrame(() => viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" }));
   }
@@ -204,11 +207,12 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
   return (
     <div
       id="ades-canvas-export"
-      className={`relative h-[calc(100vh-9rem)] min-h-[650px] overflow-visible rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
+      className={`relative h-[calc(100vh-9rem)] min-h-[650px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white ${className ?? ""}`}
       style={{ backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.12) 1px, transparent 1px)", backgroundSize: "36px 36px" }}
     >
-      <div ref={flowViewportRef} className="relative h-full overflow-auto pb-24" style={{ paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0, transition: "padding-left 180ms ease" }}>
-        <div className="origin-top-left" style={{ transform: `scale(${flowZoom})`, width: `${100 / flowZoom}%` }}>
+      <div className="h-full w-full p-4">
+        <div ref={flowViewportRef} className="relative h-full w-full overflow-auto" style={{ paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0, transition: "padding-left 180ms ease" }}>
+          <div className="origin-top-left" style={{ transform: `scale(${effectiveFlowScale})`, width: `${100 / effectiveFlowScale}%` }}>
           <div
             ref={flowContentRef}
             className="min-h-[calc(100vh-13rem)] py-8"
@@ -361,6 +365,7 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
           </div>
         </div>
       </div>
+      </div>
 
       <div
         className="pointer-events-none absolute bottom-5 left-4 z-[80]"
@@ -368,9 +373,9 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
       >
         <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md">
           <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
-          <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
+          <span className="min-w-12 text-center text-xs font-semibold text-slate-700">{Math.round(effectiveFlowScale * 100)}%</span>
           <button type="button" className="ades-ghost-btn h-8 w-8 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
-          <button type="button" className="ades-ghost-btn h-8 px-2 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
+          <button type="button" className="ades-ghost-btn h-8 px-2 py-0 text-xs" onClick={() => setFlowZoom(Number((1 / FLOW_VISUAL_SCALE).toFixed(2)))}>100%</button>
           <button type="button" className="ades-ghost-btn h-8 px-2 py-0 text-xs" onClick={fitFlow}>Fit</button>
         </div>
       </div>
