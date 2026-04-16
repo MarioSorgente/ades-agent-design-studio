@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AdesNode, AdesNodeType, BoardViewMode } from "@/lib/board/types";
 import { useAdesBoardStore } from "@/lib/board/store";
 
@@ -60,6 +60,8 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
   const flowViewportRef = useRef<HTMLDivElement | null>(null);
   const flowContentRef = useRef<HTMLDivElement | null>(null);
   const stepRefMap = useRef<Record<string, HTMLDivElement | null>>({});
+  const hasInitialFocusAppliedRef = useRef(false);
+  const previousSelectedNodeIdRef = useRef<string | null>(null);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const orderedMainSteps = useMemo(() => nodes.filter(isMainStep).sort((a, b) => a.position.x - b.position.x), [nodes]);
@@ -108,7 +110,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
     return edges.find((edge) => edge.target === nodeId)?.source;
   }
 
-  function fitFlow() {
+  const fitFlow = useCallback(() => {
     const viewport = flowViewportRef.current;
     if (!viewport || !orderedMainSteps.length) return;
     const minX = Math.min(...orderedMainSteps.map((step) => step.position.x));
@@ -123,7 +125,55 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
       const centerTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
       viewport.scrollTo({ left: centerLeft, top: centerTop, behavior: "smooth" });
     });
-  }
+  }, [detailsInsetPx, isDetailsPanelOpen, orderedMainSteps]);
+
+  const focusStep = useCallback(
+    (stepId: string, options?: { behavior?: ScrollBehavior; mode?: "center" | "ensureVisible" }) => {
+      const viewport = flowViewportRef.current;
+      const stepNode = stepRefMap.current[stepId];
+      if (!viewport || !stepNode) return;
+
+      const behavior = options?.behavior ?? "smooth";
+      const mode = options?.mode ?? "center";
+      const viewportRect = viewport.getBoundingClientRect();
+      const stepRect = stepNode.getBoundingClientRect();
+      const leftInset = isDetailsPanelOpen ? detailsInsetPx : 0;
+      const safeLeft = viewportRect.left + leftInset + 20;
+      const safeRight = viewportRect.right - 20;
+      const safeTop = viewportRect.top + 16;
+      const safeBottom = viewportRect.bottom - 20;
+
+      const stepCenterX = stepRect.left + stepRect.width / 2;
+      const stepCenterY = stepRect.top + stepRect.height / 2;
+      const viewportCenterX = (safeLeft + safeRight) / 2;
+      const viewportCenterY = (safeTop + safeBottom) / 2;
+
+      const outOfHorizontalView = stepRect.left < safeLeft || stepRect.right > safeRight;
+      const outOfVerticalView = stepRect.top < safeTop || stepRect.bottom > safeBottom;
+      const shouldAdjust = mode === "center" || outOfHorizontalView || outOfVerticalView;
+      if (!shouldAdjust) return;
+
+      viewport.scrollBy({
+        left: stepCenterX - viewportCenterX,
+        top: stepCenterY - viewportCenterY,
+        behavior,
+      });
+    },
+    [detailsInsetPx, isDetailsPanelOpen],
+  );
+
+  const resetView = useCallback(() => {
+    setFlowZoom(1);
+    window.requestAnimationFrame(() => {
+      const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) : null;
+      const preferredStepId = selectedNode && isMainStep(selectedNode) ? selectedNode.id : orderedMainSteps[0]?.id;
+      if (preferredStepId) {
+        focusStep(preferredStepId, { behavior: "smooth", mode: "center" });
+        return;
+      }
+      fitFlow();
+    });
+  }, [fitFlow, focusStep, nodeById, orderedMainSteps, selectedNodeId]);
 
   function handleAddConnected(stepId: string, kind: AttachmentKind) {
     const map: Record<AttachmentKind, { type: AdesNodeType; message: string }> = {
@@ -165,24 +215,31 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
 
   useEffect(() => {
     if (viewMode !== "flow") return;
-    fitFlow();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, orderedMainSteps.length, isDetailsPanelOpen, detailsInsetPx]);
+    if (!orderedMainSteps.length) return;
+    if (hasInitialFocusAppliedRef.current) return;
+
+    const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) : null;
+    const initialStepId = selectedNode && isMainStep(selectedNode) ? selectedNode.id : orderedMainSteps[0]?.id;
+    if (!initialStepId) return;
+
+    hasInitialFocusAppliedRef.current = true;
+    window.requestAnimationFrame(() => focusStep(initialStepId, { behavior: "auto", mode: "center" }));
+  }, [focusStep, nodeById, orderedMainSteps, selectedNodeId, viewMode]);
 
   useEffect(() => {
-    if (!selectedNodeId || !isDetailsPanelOpen) return;
-    const viewport = flowViewportRef.current;
-    const stepNode = selectedAttachmentParentStepId ? stepRefMap.current[selectedAttachmentParentStepId] : stepRefMap.current[selectedNodeId];
-    if (!viewport || !stepNode) return;
+    if (viewMode !== "flow") return;
+    if (!selectedFlowStepId) return;
+    window.requestAnimationFrame(() => focusStep(selectedFlowStepId, { behavior: "auto", mode: "ensureVisible" }));
+  }, [detailsInsetPx, focusStep, isDetailsPanelOpen, selectedFlowStepId, viewMode]);
 
-    const viewportRect = viewport.getBoundingClientRect();
-    const stepRect = stepNode.getBoundingClientRect();
-    const leftSafeEdge = viewportRect.left + detailsInsetPx + 24;
-
-    if (stepRect.left < leftSafeEdge || stepRect.right > viewportRect.right - 24) {
-      viewport.scrollBy({ left: stepRect.left - leftSafeEdge, behavior: "smooth" });
-    }
-  }, [detailsInsetPx, isDetailsPanelOpen, selectedAttachmentParentStepId, selectedNodeId]);
+  useEffect(() => {
+    if (viewMode !== "flow") return;
+    if (!selectedNodeId || selectedNodeId === previousSelectedNodeIdRef.current) return;
+    previousSelectedNodeIdRef.current = selectedNodeId;
+    const selectedNode = nodeById.get(selectedNodeId);
+    if (!selectedNode || !isMainStep(selectedNode)) return;
+    window.requestAnimationFrame(() => focusStep(selectedNodeId, { behavior: "smooth", mode: "ensureVisible" }));
+  }, [focusStep, nodeById, selectedNodeId, viewMode]);
 
   useEffect(() => {
     if (!focusTarget?.nodeId) return;
@@ -295,18 +352,18 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                     <div key={row.step.id} className="flex items-start gap-6">
                       <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative z-10 flex w-[520px] flex-col items-center" data-step-id={row.step.id}>
                         {isSelected ? (
-                          <div className="z-40 mb-3 flex min-h-10 w-full items-center justify-end gap-1.5 rounded-xl border border-indigo-200 bg-white p-1.5 shadow-lg">
-                            <button type="button" title="Open card details" onClick={() => onOpenDetails(row.step.id)} className="h-9 w-9 cursor-pointer rounded-md border border-slate-300 bg-white text-base font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
+                          <div className="z-40 mb-3 inline-flex min-h-10 max-w-full flex-wrap items-center justify-end gap-1.5 self-end rounded-xl border border-indigo-200 bg-white p-1.5 shadow-lg">
+                            <button type="button" title="Open card details" onClick={(event) => { event.stopPropagation(); onOpenDetails(row.step.id); }} className="h-9 w-9 cursor-pointer rounded-md border border-slate-300 bg-white text-base font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
                             <details className="relative z-40" onClick={(event) => event.stopPropagation()}>
                               <summary className="ades-ghost-btn flex min-h-9 list-none cursor-pointer select-none items-center px-3 py-1.5 text-sm [&::-webkit-details-marker]:hidden">+ Add</summary>
                               <div className="absolute right-0 top-full z-40 mt-1.5 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
-                                <button type="button" className="ades-ghost-btn min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "evals")}>Eval</button>
-                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "reflections")}>Reflection loop</button>
-                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={() => handleAddConnected(row.step.id, "safeguards")}>Safeguard</button>
+                                <button type="button" className="ades-ghost-btn min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={(event) => { event.stopPropagation(); handleAddConnected(row.step.id, "evals"); }}>Eval</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={(event) => { event.stopPropagation(); handleAddConnected(row.step.id, "reflections"); }}>Reflection loop</button>
+                                <button type="button" className="ades-ghost-btn mt-1 min-h-9 w-full px-2 py-1.5 text-left text-sm" onClick={(event) => { event.stopPropagation(); handleAddConnected(row.step.id, "safeguards"); }}>Safeguard</button>
                               </div>
                             </details>
-                            <button type="button" onClick={() => onDuplicateStep(row.step.id)} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm">Duplicate</button>
-                            <button type="button" onClick={() => onDeleteNode(row.step.id)} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm text-rose-600">Delete</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicateStep(row.step.id); }} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm">Duplicate</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteNode(row.step.id); }} className="ades-ghost-btn min-h-9 px-3 py-1.5 text-sm text-rose-600">Delete</button>
                           </div>
                         ) : null}
 
@@ -314,8 +371,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                           type="button"
                           data-node-id={row.step.id}
                           data-step-id={row.step.id}
-                          onClick={() => onSelectNode(row.step.id)}
-                          onDoubleClick={() => onOpenDetails(row.step.id)}
+                          onClick={() => onOpenDetails(row.step.id)}
                           className={`relative z-10 w-full rounded-[20px] border bg-white px-7 py-6 text-left shadow-[0_16px_36px_-30px_rgba(15,23,42,0.65)] ${isSelected ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-200"} ${highlightedNodeId === row.step.id ? "ring-4 ring-blue-300 ring-offset-2" : ""}`}
                         >
                           <p className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">Step {index + 1}</p>
@@ -443,15 +499,15 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
       </div>
 
       <div
-        className="zoom-controls pointer-events-none absolute bottom-4 z-[80]"
-        style={{ left: isDetailsPanelOpen ? `min(calc(100% - 280px), ${detailsInsetPx + 16}px)` : "16px", transition: "left 180ms ease" }}
+        className="zoom-controls pointer-events-none absolute bottom-4 z-[90]"
+        style={{ left: isDetailsPanelOpen ? `${detailsInsetPx + 16}px` : "16px", transition: "left 180ms ease" }}
       >
         <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md">
           <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
           <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
           <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
           <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
-          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={fitFlow}>Fit</button>
+          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={resetView}>Reset</button>
         </div>
       </div>
     </div>
