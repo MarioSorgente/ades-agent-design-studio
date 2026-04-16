@@ -1,7 +1,6 @@
 import type { User } from "firebase/auth";
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getFirestore,
@@ -349,31 +348,24 @@ export async function submitAccountFeedback(input: { uid: string; email: string;
 }
 
 export async function createProjectForUser(ownerUid: string, title: string) {
-  const db = getDbOrNull();
-  if (!db) throw new Error("Firestore is not configured.");
-
-  const safeTitle = sanitizeProjectTitle(title);
-  const projectRef = doc(collection(db, "projects"));
-
-  await setDoc(projectRef, {
-    id: projectRef.id,
-    ownerUid,
-    title: safeTitle,
-    description: "",
-    ideaPrompt: "",
-    audience: "",
-    status: "draft",
-    board: null,
-    summary: "",
-    constraints: "",
-    assumptions: [],
-    critiqueSeed: [],
-    critique: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  if (!ownerUid) throw new Error("You must be signed in to create a project.");
+  const { getCurrentUserIdToken } = await import("@/lib/firebase/auth");
+  const idToken = await getCurrentUserIdToken();
+  const response = await fetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ title: sanitizeProjectTitle(title) }),
   });
-
-  return projectRef.id;
+  const payload = (await response.json()) as { ok?: boolean; projectId?: string; error?: string; gated?: boolean; trigger?: string; reason?: string };
+  if (!response.ok) {
+    const error = new Error(payload.error || "Could not create project.");
+    (error as Error & { gated?: boolean; trigger?: string; reason?: string }).gated = payload.gated;
+    (error as Error & { gated?: boolean; trigger?: string; reason?: string }).trigger = payload.trigger;
+    (error as Error & { gated?: boolean; trigger?: string; reason?: string }).reason = payload.reason;
+    throw error;
+  }
+  if (!payload.projectId) throw new Error("Project creation returned no project id.");
+  return payload.projectId;
 }
 
 export function subscribeToUserProjects(ownerUid: string, onProjects: (projects: ProjectRecord[]) => void, onError?: (error: Error) => void): Unsubscribe {
@@ -407,17 +399,57 @@ export async function renameProjectForUser(projectId: string, ownerUid: string, 
 }
 
 export async function deleteProjectForUser(projectId: string, ownerUid: string) {
-  const db = getDbOrNull();
-  if (!db) throw new Error("Firestore is not configured.");
+  if (!ownerUid) throw new Error("You must be signed in to delete a project.");
+  const { getCurrentUserIdToken } = await import("@/lib/firebase/auth");
+  const idToken = await getCurrentUserIdToken();
+  const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } });
+  const payload = (await response.json()) as { ok?: boolean; error?: string };
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Could not delete project.");
+}
 
-  const projectRef = doc(db, "projects", projectId);
-  const snapshot = await getDoc(projectRef);
-  if (!snapshot.exists()) throw new Error("Project not found.");
+export type UsageSummaryRecord = {
+  plan: string;
+  isAdminBypass: boolean;
+  hasExistingProject: boolean;
+  canCreateProject: boolean;
+  usage: {
+    lifetimeProjectsCreated: number;
+    lifetimeDesignGenerations: number;
+    activeProjectCount: number;
+    deletedProjectCount: number;
+    regenerations: number;
+    aiReviews: number;
+    improvements: number;
+    aiAdditions: number;
+  };
+};
 
-  const data = snapshot.data() as Record<string, unknown>;
-  if (data.ownerUid !== ownerUid) throw new Error("You do not have access to this project.");
+export async function getUsageSummaryForUser(ownerUid: string): Promise<UsageSummaryRecord | null> {
+  if (!ownerUid) return null;
+  const { getCurrentUserIdToken } = await import("@/lib/firebase/auth");
+  const idToken = await getCurrentUserIdToken();
+  const response = await fetch("/api/usage", { headers: { Authorization: `Bearer ${idToken}` } });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as UsageSummaryRecord;
+  return payload;
+}
 
-  await deleteDoc(projectRef);
+export async function submitPaymentInterest(input: {
+  trigger: "second_project" | "generate_design" | "regenerate" | "ai_review" | "improve_design" | "add_eval" | "add_reflection" | "add_safeguard" | "ai_addition";
+  intent: "yes" | "maybe" | "no";
+  priceAnchor: "coffee" | "cinema" | "shoes" | "dinner" | "custom" | null;
+  customAmount?: string | null;
+  feedback: string;
+}) {
+  const { getCurrentUserIdToken } = await import("@/lib/firebase/auth");
+  const idToken = await getCurrentUserIdToken();
+  const response = await fetch("/api/payment-interest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify(input),
+  });
+  const payload = (await response.json()) as { ok?: boolean; error?: string };
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Could not send feedback.");
 }
 
 export async function saveProjectBoardForUser(projectId: string, ownerUid: string, board: AdesBoardSnapshot) {
