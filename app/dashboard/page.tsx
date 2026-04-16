@@ -43,6 +43,10 @@ function getProjectUpdatedAt(updatedAt?: string | null) {
   return updatedAt ? new Date(updatedAt).getTime() : 0;
 }
 
+function isGeneratingProject(project: ProjectRecord, generatingProjectId: string | null) {
+  return project.status === "generating" || (generatingProjectId === project.id && project.status !== "generated");
+}
+
 const designReadinessTooltip =
   "How ready this agent design is for testing. Calculated from Workflow Clarity, Eval Readiness, and Safeguards. This is a design-time readiness score, not runtime agent performance.";
 const workflowClarityTooltip =
@@ -211,6 +215,8 @@ export default function DashboardPage() {
   async function handleRenameProject(event: FormEvent<HTMLFormElement>, projectId: string) {
     event.preventDefault();
     if (!user || isRenaming) return;
+    const project = projects.find((candidate) => candidate.id === projectId);
+    if (project && isGeneratingProject(project, generatingProjectId)) return;
 
     setIsRenaming(true);
     setErrorMessage(null);
@@ -227,6 +233,8 @@ export default function DashboardPage() {
 
   async function handleDeleteProject(projectId: string) {
     if (!user) return;
+    const project = projects.find((candidate) => candidate.id === projectId);
+    if (project && isGeneratingProject(project, generatingProjectId)) return;
     const confirmed = window.confirm("Delete this project permanently?");
     if (!confirmed) return;
 
@@ -410,7 +418,9 @@ export default function DashboardPage() {
               <ul className="mt-5 grid gap-3 grid-cols-1">
                 {visibleProjects.map(({ project, quality }) => {
                   const isEditing = editingProjectId === project.id;
-                  const isGenerating = generatingProjectId === project.id && project.status !== "generated";
+                  const isGenerating = isGeneratingProject(project, generatingProjectId);
+                  const disabledActionClass = "cursor-not-allowed opacity-50";
+                  const disabledActionMessage = "Available when generation is complete";
 
                   return (
                     <li key={project.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_18px_35px_-35px_rgba(15,23,42,0.6)] transition hover:-translate-y-0.5 hover:border-indigo-200">
@@ -460,20 +470,46 @@ export default function DashboardPage() {
                           </section>
 
                           <div className="mt-4 flex flex-wrap items-center gap-2">
-                            <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs">
-                              Open studio
-                            </Link>
+                            {isGenerating ? (
+                              <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                title={disabledActionMessage}
+                                className={`ades-primary-btn px-3 py-2 text-xs ${disabledActionClass}`}
+                              >
+                                Generating...
+                              </button>
+                            ) : (
+                              <Link href={`/project/${project.id}`} className="ades-primary-btn px-3 py-2 text-xs" title="Open studio">
+                                Open studio
+                              </Link>
+                            )}
                             <button
                               type="button"
+                              disabled={isGenerating}
+                              aria-disabled={isGenerating}
+                              title={isGenerating ? disabledActionMessage : "Rename project"}
                               onClick={() => {
+                                if (isGenerating) return;
                                 setEditingProjectId(project.id);
                                 setEditingTitle(project.title);
                               }}
-                              className="ades-ghost-btn px-3 py-2 text-xs"
+                              className={`ades-ghost-btn px-3 py-2 text-xs ${isGenerating ? disabledActionClass : ""}`}
                             >
                               Rename
                             </button>
-                            <button type="button" onClick={() => void handleDeleteProject(project.id)} className="ades-ghost-btn px-3 py-2 text-xs text-rose-700">
+                            <button
+                              type="button"
+                              disabled={isGenerating}
+                              aria-disabled={isGenerating}
+                              title={isGenerating ? disabledActionMessage : "Delete project"}
+                              onClick={() => {
+                                if (isGenerating) return;
+                                void handleDeleteProject(project.id);
+                              }}
+                              className={`ades-ghost-btn px-3 py-2 text-xs text-rose-700 ${isGenerating ? disabledActionClass : ""}`}
+                            >
                               Delete
                             </button>
                           </div>

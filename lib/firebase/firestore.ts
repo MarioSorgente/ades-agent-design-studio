@@ -25,7 +25,7 @@ export type ProjectRecord = {
   description: string;
   ideaPrompt: string;
   audience: string;
-  status: "draft" | "generated";
+  status: "draft" | "generating" | "generated" | string;
   board: AdesBoardSnapshot | null;
   summary: string;
   constraints: string;
@@ -229,6 +229,7 @@ function parseCritique(value: unknown): CritiqueResult | null {
 }
 
 function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
+  const status = typeof data.status === "string" ? data.status : "draft";
   return {
     id: String(data.id ?? ""),
     ownerUid: String(data.ownerUid ?? ""),
@@ -236,7 +237,7 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     description: String(data.description ?? ""),
     ideaPrompt: String(data.ideaPrompt ?? ""),
     audience: String(data.audience ?? ""),
-    status: data.status === "generated" ? "generated" : "draft",
+    status,
     board: parseBoardSnapshot(data.board),
     summary: stringOrEmpty(data.summary),
     constraints: stringOrEmpty(data.constraints),
