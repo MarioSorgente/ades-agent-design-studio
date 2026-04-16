@@ -72,12 +72,33 @@ export function UsageGateModal({ isOpen, trigger, hasExistingProject, onClose, o
   if (!isOpen) return null;
 
   const copy = getCopy(trigger);
+  const isNoIntent = intent === "no";
+  const feedbackLabel = isNoIntent ? "Why not right now?" : "What would make ADES worth paying for?";
+  const feedbackPlaceholder = isNoIntent
+    ? "Tell us what’s missing, unclear, too expensive, not useful yet, or not relevant for you."
+    : "Tell us what would make this useful enough for you.";
+
+  function handleIntentChange(nextIntent: Intent) {
+    setIntent(nextIntent);
+    if (nextIntent === "no") {
+      setPriceAnchor(null);
+      setCustomAmount("");
+    } else if (priceAnchor === null) {
+      setPriceAnchor("coffee");
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      await submitPaymentInterest({ trigger, intent, priceAnchor, customAmount: priceAnchor === "custom" ? customAmount : null, feedback });
+      await submitPaymentInterest({
+        trigger,
+        intent,
+        priceAnchor: isNoIntent ? null : priceAnchor,
+        customAmount: isNoIntent ? null : priceAnchor === "custom" ? customAmount : null,
+        feedback,
+      });
       setSubmitted(true);
     } finally {
       setIsSubmitting(false);
@@ -94,28 +115,36 @@ export function UsageGateModal({ isOpen, trigger, hasExistingProject, onClose, o
           <form onSubmit={handleSubmit} className="mt-4 space-y-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Intent</p>
-              <select className="ades-input mt-1 text-sm" value={intent} onChange={(event) => setIntent(event.target.value as Intent)}>
+              <select className="ades-input mt-1 text-sm" value={intent} onChange={(event) => handleIntentChange(event.target.value as Intent)}>
                 <option value="yes">Yes, I’d like more designs</option>
                 <option value="maybe">Maybe, depending on the price</option>
                 <option value="no">Not right now</option>
               </select>
             </div>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">What would feel reasonable?</p>
-              <select className="ades-input mt-1 text-sm" value={priceAnchor ?? ""} onChange={(event) => setPriceAnchor((event.target.value || null) as PriceAnchor)}>
-                <option value="coffee">☕ Coffee — around €5</option>
-                <option value="cinema">🎬 Cinema ticket — €10–15</option>
-                <option value="shoes">👟 Pair of shoes — €50–80</option>
-                <option value="dinner">🍽️ Dinner for two — €80–150</option>
-                <option value="custom">✍️ Other amount</option>
-              </select>
-              {priceAnchor === "custom" ? <input className="ades-input mt-2 text-sm" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} placeholder="Custom amount" /> : null}
-            </div>
+            {!isNoIntent ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">What would feel reasonable?</p>
+                <select className="ades-input mt-1 text-sm" value={priceAnchor ?? ""} onChange={(event) => setPriceAnchor((event.target.value || null) as PriceAnchor)}>
+                  <option value="coffee">☕ Coffee — around €5</option>
+                  <option value="cinema">🎬 Cinema ticket — €10–15</option>
+                  <option value="shoes">👟 Pair of shoes — €50–80</option>
+                  <option value="dinner">🍽️ Dinner for two — €80–150</option>
+                  <option value="custom">✍️ Other amount</option>
+                </select>
+                {priceAnchor === "custom" ? <input className="ades-input mt-2 text-sm" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} placeholder="Custom amount" /> : null}
+              </div>
+            ) : null}
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">What would make ADES worth paying for?</p>
-              <textarea className="ades-input mt-1 min-h-24 text-sm" value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Tell us what would make this useful enough for you." />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{feedbackLabel}</p>
+              <textarea
+                className="ades-input mt-1 min-h-24 text-sm"
+                value={feedback}
+                onChange={(event) => setFeedback(event.target.value)}
+                placeholder={feedbackPlaceholder}
+                required={isNoIntent}
+              />
             </div>
 
             <div className="flex flex-wrap justify-end gap-2">
