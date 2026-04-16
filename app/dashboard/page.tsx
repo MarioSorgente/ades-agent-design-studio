@@ -75,6 +75,11 @@ export default function DashboardPage() {
   const [usageGate, setUsageGate] = useState<{ isOpen: boolean; trigger: UsageGateTrigger }>({ isOpen: false, trigger: "second_project" });
   const [hasExistingProject, setHasExistingProject] = useState(false);
 
+  function toUserTriggeredModal(trigger?: UsageGateTrigger): UsageGateTrigger {
+    if (trigger === "generate_design") return "second_project";
+    return trigger ?? "second_project";
+  }
+
   useEffect(() => {
     if (!user) return;
     void getUsageSummaryForUser(user.uid).then((summary) => {
@@ -180,7 +185,7 @@ export default function DashboardPage() {
       const payload = (await response.json()) as { error?: string; gated?: boolean; trigger?: UsageGateTrigger };
       if (!response.ok) {
         if ("gated" in payload && payload.gated) {
-          setUsageGate({ isOpen: true, trigger: (payload.trigger as UsageGateTrigger) ?? "generate_design" });
+          setUsageGate({ isOpen: true, trigger: toUserTriggeredModal(payload.trigger) });
           return;
         }
         throw new Error(payload.error || "Project created, but AI generation failed.");
@@ -194,7 +199,7 @@ export default function DashboardPage() {
       setGeneratingProjectId(null);
       if (error instanceof Error && "gated" in error && (error as Error & { gated?: boolean }).gated) {
         const trigger = ((error as Error & { trigger?: UsageGateTrigger }).trigger ?? "second_project") as UsageGateTrigger;
-        setUsageGate({ isOpen: true, trigger });
+        setUsageGate({ isOpen: true, trigger: toUserTriggeredModal(trigger) });
       } else {
         setErrorMessage(error instanceof Error ? error.message : "Could not create project.");
       }

@@ -84,6 +84,11 @@ export default function ProjectPage() {
   const [isAdminBypass, setIsAdminBypass] = useState(false);
   const [hasExistingProject, setHasExistingProject] = useState(false);
 
+  function toUserTriggeredModal(trigger?: UsageGateTrigger): UsageGateTrigger {
+    if (trigger === "generate_design") return "second_project";
+    return trigger ?? "second_project";
+  }
+
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
   const [focusTarget, setFocusTarget] = useState<{
     nodeId: string;
@@ -272,7 +277,7 @@ export default function ProjectPage() {
       const payload = (await response.json()) as GenerateResponse | { error?: string };
       if (!response.ok || !("board" in payload)) {
         if ("gated" in payload && payload.gated) {
-          setGateModal({ isOpen: true, trigger: (payload.trigger as UsageGateTrigger) ?? "generate_design" });
+          setGateModal({ isOpen: true, trigger: toUserTriggeredModal(payload.trigger as UsageGateTrigger | undefined) });
           return;
         }
         throw new Error("error" in payload && payload.error ? payload.error : "Generation failed.");

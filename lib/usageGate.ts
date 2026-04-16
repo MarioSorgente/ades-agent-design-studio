@@ -207,7 +207,7 @@ export async function assertCanGenerateDesign(uid: string, email?: string | null
   if (plan !== "free") return allow(plan);
 
   const usage = await getOrCreateUsage(uid);
-  if (usage.lifetimeDesignGenerations >= FREE_LIMITS.maxLifetimeDesignGenerations || usage.generationReservedAt) {
+  if (usage.lifetimeDesignGenerations >= FREE_LIMITS.maxLifetimeDesignGenerations) {
     return deny(plan, "free_lifetime_generation_limit", "generate_design");
   }
 
