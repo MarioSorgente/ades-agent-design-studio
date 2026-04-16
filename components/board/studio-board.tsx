@@ -15,6 +15,7 @@ type StudioBoardProps = {
   onAddStepToEnd: () => void;
   onDuplicateStep: (nodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
+  onDeleteAttachment: (nodeId: string, kind: "eval" | "reflection" | "safeguard") => void;
   onAddConnectedNode: (sourceId: string, type: AdesNodeType) => string | null;
   onOpenDetails: (nodeId: string) => void;
   onAddNotice?: (message: string) => void;
@@ -41,7 +42,7 @@ function isWeakEval(node: AdesNode) {
 
 const MAX_VISIBLE_EVALS = 3;
 
-export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
+export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onDeleteAttachment, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
@@ -219,9 +220,6 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                 <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
                 {flowRows.map((row, index) => {
                   const isSelected = selectedNodeId === row.step.id;
-                  const hasEvals = row.evalNodes.length > 0;
-                  const hasReflections = row.reflectionNodes.length > 0;
-                  const hasRisks = row.riskNodes.length > 0;
                   const isEvalsExpanded = isCategoryExpanded(row.step.id, "evals");
                   const isReflectionsExpanded = isCategoryExpanded(row.step.id, "reflections");
                   const isRisksExpanded = isCategoryExpanded(row.step.id, "risks");
@@ -254,98 +252,96 @@ export function StudioBoard({ className, viewMode = "flow", selectedNodeId, isDe
                           <p className="mt-3 text-[14px] leading-6 text-slate-600">{row.step.data.inputs || "Inputs not defined"} → {row.step.data.outputs || "Outputs not defined"}</p>
                         </button>
 
-                        {(hasEvals || hasReflections || hasRisks) ? (
-                          <>
-                            <div className="h-8 w-[2px] bg-slate-300" />
-                            <div className="w-full rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
-                              <div className="space-y-2">
-                                {hasEvals ? (
-                                  <AttachmentSection
-                                    title="Evals"
-                                    count={row.evalNodes.length}
-                                    tone="blue"
-                                    isExpanded={isEvalsExpanded}
-                                    onToggle={() => toggleCategory(row.step.id, "evals")}
-                                    onAdd={() => handleAddConnected(row.step.id, "evals")}
+                        <>
+                          <div className="h-8 w-[2px] bg-slate-300" />
+                          <div className="w-full rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
+                            <div className="space-y-2">
+                              <AttachmentSection
+                                title="Evals"
+                                count={row.evalNodes.length}
+                                tone="blue"
+                                isExpanded={isEvalsExpanded}
+                                onToggle={() => toggleCategory(row.step.id, "evals")}
+                                onAdd={() => handleAddConnected(row.step.id, "evals")}
+                              >
+                                <AttachmentList
+                                  items={visibleEvals.map((node) => ({
+                                    id: node.id,
+                                    categoryLabel: "Eval",
+                                    label: node.data.evalQuestion || node.data.evalName || "Eval",
+                                    subLabel: `Threshold: ${node.data.evalThreshold || "Add threshold"}`,
+                                    detail: `Pass criteria: ${node.data.evalCriteria || "Add pass criteria"}`,
+                                  }))}
+                                  emptyMessage="No evals yet"
+                                  onSelectNode={onSelectNode}
+                                  onOpenDetails={onOpenDetails}
+                                  onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "eval")}
+                                  deleteLabel="Delete eval"
+                                  tone="blue"
+                                />
+                                {row.evalNodes.length > MAX_VISIBLE_EVALS ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllEvalsByStep((prev) => ({ ...prev, [row.step.id]: !showAllEvals }))}
+                                    className="mt-2 min-h-8 text-sm font-semibold text-blue-700 hover:text-blue-900"
                                   >
-                                    <AttachmentList
-                                      items={visibleEvals.map((node) => ({
-                                        id: node.id,
-                                        categoryLabel: "Eval",
-                                        label: node.data.evalQuestion || node.data.evalName || "Eval",
-                                        subLabel: `Threshold: ${node.data.evalThreshold || "Add threshold"}`,
-                                        detail: `Pass criteria: ${node.data.evalCriteria || "Add pass criteria"}`,
-                                      }))}
-                                      emptyMessage="No eval cards attached yet."
-                                      onSelectNode={onSelectNode}
-                                      onOpenDetails={onOpenDetails}
-                                      tone="blue"
-                                    />
-                                    {row.evalNodes.length > MAX_VISIBLE_EVALS ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowAllEvalsByStep((prev) => ({ ...prev, [row.step.id]: !showAllEvals }))}
-                                        className="mt-2 min-h-8 text-sm font-semibold text-blue-700 hover:text-blue-900"
-                                      >
-                                        {showAllEvals ? "Show fewer" : `Show all (${row.evalNodes.length})`}
-                                      </button>
-                                    ) : null}
-                                  </AttachmentSection>
+                                    {showAllEvals ? "Show fewer" : `Show all (${row.evalNodes.length})`}
+                                  </button>
                                 ) : null}
+                              </AttachmentSection>
 
-                                {hasReflections ? (
-                                  <AttachmentSection
-                                    title="Reflections"
-                                    count={row.reflectionNodes.length}
-                                    tone="purple"
-                                    isExpanded={isReflectionsExpanded}
-                                    onToggle={() => toggleCategory(row.step.id, "reflections")}
-                                    onAdd={() => handleAddConnected(row.step.id, "reflections")}
-                                  >
-                                    <AttachmentList
-                                      items={row.reflectionNodes.map((node) => ({
-                                        id: node.id,
-                                        categoryLabel: "Reflection",
-                                        label: node.data.label || "Reflection",
-                                        subLabel: `Trigger: ${node.data.reflectionTrigger || "Trigger not defined"}`,
-                                        detail: node.data.reflectionLoopTarget === "previous_step" ? "Loop target: Returns to previous step" : "Loop target: Returns to this step",
-                                      }))}
-                                      emptyMessage="No reflections attached yet."
-                                      onSelectNode={onSelectNode}
-                                      onOpenDetails={onOpenDetails}
-                                      tone="purple"
-                                    />
-                                  </AttachmentSection>
-                                ) : null}
+                              <AttachmentSection
+                                title="Reflections"
+                                count={row.reflectionNodes.length}
+                                tone="purple"
+                                isExpanded={isReflectionsExpanded}
+                                onToggle={() => toggleCategory(row.step.id, "reflections")}
+                                onAdd={() => handleAddConnected(row.step.id, "reflections")}
+                              >
+                                <AttachmentList
+                                  items={row.reflectionNodes.map((node) => ({
+                                    id: node.id,
+                                    categoryLabel: "Reflection",
+                                    label: node.data.label || "Reflection",
+                                    subLabel: `Trigger: ${node.data.reflectionTrigger || "Trigger not defined"}`,
+                                    detail: node.data.reflectionLoopTarget === "previous_step" ? "Loop target: Returns to previous step" : "Loop target: Returns to this step",
+                                  }))}
+                                  emptyMessage="No reflections yet"
+                                  onSelectNode={onSelectNode}
+                                  onOpenDetails={onOpenDetails}
+                                  onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "reflection")}
+                                  deleteLabel="Delete reflection"
+                                  tone="purple"
+                                />
+                              </AttachmentSection>
 
-                                {hasRisks ? (
-                                  <AttachmentSection
-                                    title="Safeguards"
-                                    count={row.riskNodes.length}
-                                    tone="amber"
-                                    isExpanded={isRisksExpanded}
-                                    onToggle={() => toggleCategory(row.step.id, "risks")}
-                                    onAdd={() => handleAddConnected(row.step.id, "risks")}
-                                  >
-                                    <AttachmentList
-                                      items={row.riskNodes.map((node) => ({
-                                        id: node.id,
-                                        categoryLabel: "Safeguard",
-                                        label: node.data.label || "Safeguard",
-                                        subLabel: `Mitigation: ${node.data.body || "Mitigation not defined"}`,
-                                        detail: `Confidence check: ${node.data.confidenceCheck || "Confidence check not defined"}`,
-                                      }))}
-                                      emptyMessage="No safeguards attached yet."
-                                      onSelectNode={onSelectNode}
-                                      onOpenDetails={onOpenDetails}
-                                      tone="amber"
-                                    />
-                                  </AttachmentSection>
-                                ) : null}
-                              </div>
+                              <AttachmentSection
+                                title="Safeguards"
+                                count={row.riskNodes.length}
+                                tone="amber"
+                                isExpanded={isRisksExpanded}
+                                onToggle={() => toggleCategory(row.step.id, "risks")}
+                                onAdd={() => handleAddConnected(row.step.id, "risks")}
+                              >
+                                <AttachmentList
+                                  items={row.riskNodes.map((node) => ({
+                                    id: node.id,
+                                    categoryLabel: "Safeguard",
+                                    label: node.data.label || "Safeguard",
+                                    subLabel: `Mitigation: ${node.data.body || "Mitigation not defined"}`,
+                                    detail: `Confidence check: ${node.data.confidenceCheck || "Confidence check not defined"}`,
+                                  }))}
+                                  emptyMessage="No safeguards yet"
+                                  onSelectNode={onSelectNode}
+                                  onOpenDetails={onOpenDetails}
+                                  onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "safeguard")}
+                                  deleteLabel="Delete safeguard"
+                                  tone="amber"
+                                />
+                              </AttachmentSection>
                             </div>
-                          </>
-                        ) : null}
+                          </div>
+                        </>
                       </div>
                       <div className="flex items-center gap-5 pt-[124px]">
                         <div className="h-[2px] w-10 bg-slate-300" />
@@ -435,12 +431,16 @@ function AttachmentList({
   emptyMessage,
   onSelectNode,
   onOpenDetails,
+  onDeleteNode,
+  deleteLabel,
   tone = "blue",
 }: {
   items: Array<{ id: string; categoryLabel: string; label: string; subLabel: string; detail?: string }>;
   emptyMessage: string;
   onSelectNode: (nodeId: string | null) => void;
   onOpenDetails?: (nodeId: string) => void;
+  onDeleteNode: (nodeId: string) => void;
+  deleteLabel: string;
   tone?: "blue" | "purple" | "amber";
 }) {
   if (!items.length) return <p className="text-sm text-slate-600">{emptyMessage}</p>;
@@ -458,12 +458,26 @@ function AttachmentList({
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <button key={item.id} type="button" onClick={() => { onSelectNode(item.id); onOpenDetails?.(item.id); }} className={`w-full rounded-lg border-l-4 px-3 py-2.5 text-left ${itemClass[tone]}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
-          <p className="text-[14px] font-semibold text-slate-900">{item.label}</p>
-          <p className="mt-1 text-[13px] text-slate-700">{item.subLabel}</p>
-          {item.detail ? <p className="mt-0.5 text-[13px] text-slate-600">{item.detail}</p> : null}
-        </button>
+        <div key={item.id} className={`group relative w-full rounded-lg border-l-4 px-3 py-2.5 ${itemClass[tone]}`}>
+          <button type="button" onClick={() => { onSelectNode(item.id); onOpenDetails?.(item.id); }} className="w-full text-left">
+            <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass[tone]}`}>{item.categoryLabel}</p>
+            <p className="pr-10 text-[14px] font-semibold text-slate-900">{item.label}</p>
+            <p className="mt-1 text-[13px] text-slate-700">{item.subLabel}</p>
+            {item.detail ? <p className="mt-0.5 text-[13px] text-slate-600">{item.detail}</p> : null}
+          </button>
+          <button
+            type="button"
+            title={deleteLabel}
+            aria-label={deleteLabel}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteNode(item.id);
+            }}
+            className="absolute right-2 top-2 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent text-base text-slate-500 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            🗑
+          </button>
+        </div>
       ))}
     </div>
   );
