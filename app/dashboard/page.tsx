@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { UsageGateModal, type UsageGateTrigger } from "@/components/UsageGateModal";
 import { analyzeBoardQuality, type BoardQualityReport } from "@/lib/board/quality";
 import {
   createProjectForUser,
   deleteProjectForUser,
+  getUsageSummaryForUser,
   renameProjectForUser,
   subscribeToUserProjects,
   type ProjectRecord,
@@ -70,6 +72,21 @@ export default function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [generatingProjectId, setGeneratingProjectId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProjectTab>("mine");
+  const [usageGate, setUsageGate] = useState<{ isOpen: boolean; trigger: UsageGateTrigger }>({ isOpen: false, trigger: "second_project" });
+  const [hasExistingProject, setHasExistingProject] = useState(false);
+
+  function toUserTriggeredModal(trigger?: UsageGateTrigger): UsageGateTrigger {
+    if (trigger === "generate_design") return "second_project";
+    return trigger ?? "second_project";
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    void getUsageSummaryForUser(user.uid).then((summary) => {
+      if (!summary) return;
+      setHasExistingProject(summary.hasExistingProject);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -130,6 +147,10 @@ export default function DashboardPage() {
   }, [activeTab, qualityByProject]);
 
   useEffect(() => {
+    setHasExistingProject(projects.length > 0);
+  }, [projects.length]);
+
+  useEffect(() => {
     if (!generatingProjectId) return;
     const generatingProject = projects.find((project) => project.id === generatingProjectId);
     if (generatingProject?.status === "generated") {
@@ -161,8 +182,14 @@ export default function DashboardPage() {
           constraints: newConstraints,
         }),
       });
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Project created, but AI generation failed.");
+      const payload = (await response.json()) as { error?: string; gated?: boolean; trigger?: UsageGateTrigger };
+      if (!response.ok) {
+        if ("gated" in payload && payload.gated) {
+          setUsageGate({ isOpen: true, trigger: toUserTriggeredModal(payload.trigger) });
+          return;
+        }
+        throw new Error(payload.error || "Project created, but AI generation failed.");
+      }
       setNewTitle("");
       setNewIdeaPrompt("");
       setNewAudience("");
@@ -170,7 +197,12 @@ export default function DashboardPage() {
       setGeneratingProjectId(null);
     } catch (error) {
       setGeneratingProjectId(null);
-      setErrorMessage(error instanceof Error ? error.message : "Could not create project.");
+      if (error instanceof Error && "gated" in error && (error as Error & { gated?: boolean }).gated) {
+        const trigger = ((error as Error & { trigger?: UsageGateTrigger }).trigger ?? "second_project") as UsageGateTrigger;
+        setUsageGate({ isOpen: true, trigger: toUserTriggeredModal(trigger) });
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "Could not create project.");
+      }
     } finally {
       setIsCreating(false);
     }
@@ -208,6 +240,12 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
+      <UsageGateModal
+        isOpen={usageGate.isOpen}
+        trigger={usageGate.trigger}
+        hasExistingProject={hasExistingProject}
+        onClose={() => setUsageGate((prev) => ({ ...prev, isOpen: false }))}
+      />
       <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 p-4 md:p-6 lg:flex-row">
         <aside className="hidden w-[270px] shrink-0 flex-col rounded-[2rem] border border-slate-200/80 bg-white/85 p-4 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur lg:flex">
           <div className="flex items-center justify-between">

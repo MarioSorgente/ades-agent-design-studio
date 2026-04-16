@@ -1,9 +1,10 @@
 import { FieldValue } from "firebase-admin/firestore";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
+import { assertCanUseAi, getAuthenticatedUser, getGateResponse, incrementUsage, logGateDeny } from "@/lib/usageGate";
 
 type CritiqueRequest = {
   projectId?: string;
@@ -99,16 +100,6 @@ const AI_SCHEMA = {
   required: ["summary", "categoryReviews", "critiqueItems", "missingReflections", "missingEvals", "missingBusinessMetrics"]
 } as const;
 
-function parseAuthToken(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return authHeader.slice("Bearer ".length).trim();
-}
-
 function isSafeBoard(value: unknown): value is AdesBoardSnapshot {
   if (!value || typeof value !== "object") {
     return false;
@@ -171,15 +162,7 @@ export async function POST(request: Request) {
   console.info("[/api/critique] Route entry", { hasApiKey });
 
   try {
-    const token = parseAuthToken(request);
-
-    if (!token) {
-      return NextResponse.json({ error: "Missing Firebase auth token." }, { status: 401 });
-    }
-
-    const auth = getFirebaseAdminAuth();
-    const decodedToken = await auth.verifyIdToken(token);
-    const uid = decodedToken.uid;
+    const { uid, email } = await getAuthenticatedUser(request);
 
     const body = (await request.json()) as CritiqueRequest;
     const projectId = typeof body.projectId === "string" ? body.projectId.trim().slice(0, 120) : "";
@@ -202,6 +185,12 @@ export async function POST(request: Request) {
 
     if (projectData.ownerUid !== uid) {
       return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
+    }
+
+    const gate = await assertCanUseAi(uid, email, "ai_review");
+    if (!gate.allowed) {
+      logGateDeny({ uid, email, action: "ai_review", reason: gate.reason });
+      return NextResponse.json(getGateResponse(gate.reason, gate.trigger), { status: 403 });
     }
 
     const boardSummaryForPrompt = body.board.nodes.slice(0, 18).map((node) => ({
@@ -278,6 +267,9 @@ export async function POST(request: Request) {
       critique,
       updatedAt: FieldValue.serverTimestamp()
     });
+    if (gate.plan === "free") {
+      await incrementUsage(uid, "ai_review");
+    }
 
     return NextResponse.json({ critique, openaiDebug });
   } catch (error) {
@@ -291,6 +283,9 @@ export async function POST(request: Request) {
       error
     });
     const message = error instanceof Error ? error.message : "Failed to critique board.";
+    if (message.includes("Missing Firebase auth token")) {
+      return NextResponse.json({ error: message, openaiDebug }, { status: 401 });
+    }
     return NextResponse.json({ error: message, openaiDebug }, { status: 500 });
   }
 }
