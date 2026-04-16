@@ -455,18 +455,15 @@ export default function ProjectPage() {
               </div>
 
               {isGuidanceOpen ? (
-                <aside className="hidden absolute bottom-10 right-4 top-3 z-[90] w-[320px] overflow-auto rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-lg xl:block">
-                  <div className="mb-2 flex items-center justify-between">
+                <aside className="hidden absolute bottom-10 right-4 top-3 z-[90] w-[320px] overflow-y-auto rounded-2xl border border-blue-200 bg-white/95 shadow-lg xl:block">
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-blue-100 bg-white/95 px-4 py-3 backdrop-blur">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
                   </div>
-                  <div className="mb-3 space-y-2">
-                    <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
+                  <div className="space-y-2 p-4">
                     {critiqueError ? <p className="text-xs text-rose-600">{critiqueError}</p> : null}
                     {generationError ? <p className="text-xs text-rose-600">{generationError}</p> : null}
                     {exportError ? <p className="text-xs text-rose-600">{exportError}</p> : null}
-                  </div>
-                  <div className="space-y-2">
                     {qualityReport.actionableIssues.map((issue) => (
                       <article key={issue.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                         <div className="flex items-center justify-between gap-2">
@@ -489,7 +486,7 @@ export default function ProjectPage() {
                         </div>
                       </article>
                     ))}
-                    {!qualityReport.actionableIssues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet. Run AI review for deeper checks.</p> : null}
+                    {!qualityReport.actionableIssues.length && !activeCritiqueItems.length ? <p className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">No guidance cards yet.</p> : null}
                   </div>
                 </aside>
               ) : null}
@@ -529,7 +526,6 @@ export default function ProjectPage() {
                     <p className="text-sm font-semibold text-slate-900">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsGuidanceOpen(false)}>Close</button>
                   </div>
-                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || nodes.length === 0} className="ades-primary-btn mb-3 w-full px-3 py-2 text-sm disabled:opacity-60">{isCritiquing ? "Running AI review…" : "Run AI review"}</button>
                   <div className="space-y-2">
                     {qualityReport.actionableIssues.map((issue) => (
                       <article key={issue.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
