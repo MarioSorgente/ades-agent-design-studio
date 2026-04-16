@@ -433,7 +433,7 @@ export default function ProjectPage() {
               </div>
 
               {isGuidanceOpen ? (
-                <aside className="hidden absolute bottom-10 right-4 top-3 z-50 w-[320px] overflow-auto rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-lg xl:block">
+                <aside className="hidden absolute bottom-10 right-4 top-3 z-[90] w-[320px] overflow-auto rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-lg xl:block">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Design guidance</p>
                     <button type="button" className="ades-ghost-btn px-2 py-1 text-[11px]" onClick={() => setIsGuidanceOpen(false)}>Collapse</button>
@@ -469,7 +469,7 @@ export default function ProjectPage() {
               ) : null}
 
               {!isGuidanceOpen ? (
-                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-4 top-8 z-40 hidden h-44 w-11 rounded-xl border border-blue-300 bg-blue-100 px-1 text-center text-xs font-semibold text-blue-800 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
+                <button type="button" onClick={() => setIsGuidanceOpen(true)} className="absolute right-4 top-8 z-[90] hidden h-44 w-11 rounded-xl border border-blue-300 bg-blue-100 px-1 text-center text-xs font-semibold text-blue-800 shadow-sm xl:flex xl:flex-col xl:items-center xl:justify-center">
                   <span className="[writing-mode:vertical-rl]">Guidance</span>
                   <span className="mt-2 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] text-white">{totalGuidanceCount}</span>
                   <span className="mt-2 text-sm">◂</span>
@@ -496,7 +496,7 @@ export default function ProjectPage() {
             ) : null}
 
             {isGuidanceOpen ? (
-              <div className="fixed inset-0 z-30 xl:hidden">
+              <div className="fixed inset-0 z-[90] xl:hidden">
                 <button type="button" aria-label="Close guidance" className="absolute inset-0 bg-slate-900/35" onClick={() => setIsGuidanceOpen(false)} />
                 <aside className="absolute inset-x-0 bottom-0 max-h-[75vh] overflow-auto rounded-t-2xl border border-slate-200 bg-white p-4">
                   <div className="mb-2 flex items-center justify-between">
@@ -521,7 +521,7 @@ export default function ProjectPage() {
             ) : null}
 
             {isDetailsPanelOpen ? (
-              <div className="pointer-events-none fixed inset-0 z-[70]">
+              <div className="pointer-events-none fixed inset-0 z-[95]">
                 <div className="pointer-events-auto absolute inset-y-0 left-0 w-full border-r border-slate-200 bg-white shadow-xl sm:max-w-[420px]">
                   <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                     <p className="text-base font-semibold text-slate-900">Card details</p>
