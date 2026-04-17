@@ -9,18 +9,27 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function immutableUnchanged(field) {
+      return !(field in request.resource.data) || request.resource.data[field] == resource.data[field];
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid)
-        && request.resource.data.uid == request.auth.uid
-        && (!("plan" in request.resource.data) || request.resource.data.plan == "free");
+        && request.resource.data.uid == request.auth.uid;
       allow update: if isOwner(uid)
         && request.resource.data.uid == request.auth.uid
-        && (!("plan" in request.resource.data) || request.resource.data.plan == resource.data.plan || resource.data.plan == "free");
+        // Never allow the client to self-escalate plan/admin flags.
+        && immutableUnchanged("plan")
+        // Server-controlled generation usage flags must remain immutable from client writes.
+        && immutableUnchanged("hasGeneratedProjectEver")
+        && immutableUnchanged("generationCount")
+        && immutableUnchanged("isAdmin");
       allow delete: if false;
     }
 
     match /usage/{uid} {
+      // Usage records are authoritative cost-control state. Only trusted server/admin SDK writes are allowed.
       allow read: if isOwner(uid);
       allow write, delete, create, update: if false;
     }
@@ -28,7 +37,13 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
       allow create: if false;
-      allow update: if isSignedIn() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid
+        && immutableUnchanged("ownerUid")
+        && immutableUnchanged("createdAt")
+        && immutableUnchanged("id")
+        && immutableUnchanged("status");
       allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 

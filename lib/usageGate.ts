@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/lib/server/firebase-admin";
+import { evaluateGenerationReservationState, isOutOfGenerationCredits } from "@/lib/security/generation-guard";
 
 export const ADMIN_EMAILS = ["ms.sorgente@gmail.com"] as const;
 
@@ -14,6 +15,8 @@ export const FREE_LIMITS = {
 } as const;
 
 export type UserPlan = "free" | "early_access" | "paid" | "admin";
+
+export type GenerationStatus = "not_started" | "in_progress" | "completed" | "failed";
 
 export type UsageAction =
   | "create_project"
@@ -58,24 +61,39 @@ export type GateResponse = {
 type GateAllowed = { allowed: true; plan: UserPlan };
 type GateDenied = { allowed: false; plan: UserPlan; reason: GateReason; trigger: GateTrigger };
 
-type UsageRecord = {
+export type UsageRecord = {
   uid: string;
   lifetimeProjectsCreated: number;
   lifetimeDesignGenerations: number;
   activeProjectCount: number;
   deletedProjectCount: number;
+  generationAttempts: number;
   regenerations: number;
   aiReviews: number;
   improvements: number;
   aiAdditions: number;
+  hasGeneratedProjectEver: boolean;
+  generationStatus: GenerationStatus;
+  generationReservedAt: Timestamp | null;
+  generationInProgressAt: Timestamp | null;
+  generationInProgressProjectId: string | null;
+  firstGeneratedAt: Timestamp | null;
+  lastGenerationAttemptAt: Timestamp | null;
   firstProjectCreatedAt: Timestamp | null;
   firstDesignGeneratedAt: Timestamp | null;
   lastProjectCreatedAt: Timestamp | null;
   lastDesignGeneratedAt: Timestamp | null;
-  generationReservedAt: Timestamp | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 };
+
+export type ReservationFailure = { allowed: false; response: GateResponse };
+export type ReservationConflict = { allowed: false; conflict: true; message: string; status: 409 };
+export type GenerationReservation = { allowed: true; plan: UserPlan } | ReservationFailure | ReservationConflict;
+type ReservationTransactionResult =
+  | { ok: true }
+  | { ok: false; conflict: true; message: string }
+  | { ok: false; response: GateResponse };
 
 function parseAuthToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
@@ -87,25 +105,41 @@ function clampCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
-function mapUsage(uid: string, data: Record<string, unknown> | undefined): UsageRecord {
+function parseGenerationStatus(value: unknown): GenerationStatus {
+  if (value === "in_progress" || value === "completed" || value === "failed") return value;
+  return "not_started";
+}
+
+export function mapUsage(uid: string, data: Record<string, unknown> | undefined): UsageRecord {
   return {
     uid,
     lifetimeProjectsCreated: clampCount(data?.lifetimeProjectsCreated),
     lifetimeDesignGenerations: clampCount(data?.lifetimeDesignGenerations),
     activeProjectCount: clampCount(data?.activeProjectCount),
     deletedProjectCount: clampCount(data?.deletedProjectCount),
+    generationAttempts: clampCount(data?.generationAttempts),
     regenerations: clampCount(data?.regenerations),
     aiReviews: clampCount(data?.aiReviews),
     improvements: clampCount(data?.improvements),
     aiAdditions: clampCount(data?.aiAdditions),
+    hasGeneratedProjectEver: data?.hasGeneratedProjectEver === true,
+    generationStatus: parseGenerationStatus(data?.generationStatus),
+    generationReservedAt: data?.generationReservedAt instanceof Timestamp ? data.generationReservedAt : null,
+    generationInProgressAt: data?.generationInProgressAt instanceof Timestamp ? data.generationInProgressAt : null,
+    generationInProgressProjectId: typeof data?.generationInProgressProjectId === "string" ? data.generationInProgressProjectId : null,
+    lastGenerationAttemptAt: data?.lastGenerationAttemptAt instanceof Timestamp ? data.lastGenerationAttemptAt : null,
+    firstGeneratedAt: data?.firstGeneratedAt instanceof Timestamp ? data.firstGeneratedAt : null,
     firstProjectCreatedAt: data?.firstProjectCreatedAt instanceof Timestamp ? data.firstProjectCreatedAt : null,
     firstDesignGeneratedAt: data?.firstDesignGeneratedAt instanceof Timestamp ? data.firstDesignGeneratedAt : null,
     lastProjectCreatedAt: data?.lastProjectCreatedAt instanceof Timestamp ? data.lastProjectCreatedAt : null,
     lastDesignGeneratedAt: data?.lastDesignGeneratedAt instanceof Timestamp ? data.lastDesignGeneratedAt : null,
-    generationReservedAt: data?.generationReservedAt instanceof Timestamp ? data.generationReservedAt : null,
     createdAt: data?.createdAt instanceof Timestamp ? data.createdAt : null,
     updatedAt: data?.updatedAt instanceof Timestamp ? data.updatedAt : null,
   };
+}
+
+export function isFreeUserOutOfGenerationCredits(usage: Pick<UsageRecord, "lifetimeDesignGenerations" | "hasGeneratedProjectEver">) {
+  return isOutOfGenerationCredits(usage, FREE_LIMITS.maxLifetimeDesignGenerations);
 }
 
 export function isAdminBypass(email?: string | null) {
@@ -163,15 +197,22 @@ export async function getOrCreateUsage(uid: string): Promise<UsageRecord> {
       lifetimeDesignGenerations: 0,
       activeProjectCount: 0,
       deletedProjectCount: 0,
+      generationAttempts: 0,
       regenerations: 0,
       aiReviews: 0,
       improvements: 0,
       aiAdditions: 0,
+      hasGeneratedProjectEver: false,
+      generationStatus: "not_started" as const,
+      generationReservedAt: null,
+      generationInProgressAt: null,
+      generationInProgressProjectId: null,
+      firstGeneratedAt: null,
+      lastGenerationAttemptAt: null,
       firstProjectCreatedAt: null,
       firstDesignGeneratedAt: null,
       lastProjectCreatedAt: null,
       lastDesignGeneratedAt: null,
-      generationReservedAt: null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -195,7 +236,12 @@ export async function assertCanCreateProject(uid: string, email?: string | null)
   if (plan !== "free") return allow(plan);
 
   const usage = await getOrCreateUsage(uid);
-  if (usage.lifetimeProjectsCreated >= FREE_LIMITS.maxLifetimeProjectsCreated || usage.lifetimeDesignGenerations >= FREE_LIMITS.maxLifetimeDesignGenerations || usage.generationReservedAt) {
+  if (
+    usage.lifetimeProjectsCreated >= FREE_LIMITS.maxLifetimeProjectsCreated ||
+    isFreeUserOutOfGenerationCredits(usage) ||
+    usage.generationReservedAt ||
+    usage.generationStatus === "in_progress"
+  ) {
     return deny(plan, "free_lifetime_project_limit", "second_project");
   }
 
@@ -207,7 +253,7 @@ export async function assertCanGenerateDesign(uid: string, email?: string | null
   if (plan !== "free") return allow(plan);
 
   const usage = await getOrCreateUsage(uid);
-  if (usage.lifetimeDesignGenerations >= FREE_LIMITS.maxLifetimeDesignGenerations) {
+  if (isFreeUserOutOfGenerationCredits(usage)) {
     return deny(plan, "free_lifetime_generation_limit", "generate_design");
   }
 
@@ -248,11 +294,16 @@ export async function reserveLifetimeProjectGeneration(uid: string, email?: stri
   const plan = await getUserPlan(uid, email);
   if (plan !== "free") return { allowed: true, plan };
 
-  const result = await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction<ReservationTransactionResult>(async (tx) => {
     const usageSnap = await tx.get(usageRef);
     const usage = mapUsage(uid, usageSnap.exists ? (usageSnap.data() as Record<string, unknown>) : undefined);
 
-    if (usage.lifetimeProjectsCreated >= FREE_LIMITS.maxLifetimeProjectsCreated || usage.lifetimeDesignGenerations >= FREE_LIMITS.maxLifetimeDesignGenerations || usage.generationReservedAt) {
+    if (
+      usage.lifetimeProjectsCreated >= FREE_LIMITS.maxLifetimeProjectsCreated ||
+      isFreeUserOutOfGenerationCredits(usage) ||
+      usage.generationReservedAt ||
+      usage.generationStatus === "in_progress"
+    ) {
       return { ok: false as const, response: getGateResponse("free_lifetime_project_limit", "second_project") };
     }
 
@@ -261,6 +312,7 @@ export async function reserveLifetimeProjectGeneration(uid: string, email?: stri
       {
         uid,
         generationReservedAt: FieldValue.serverTimestamp(),
+        generationStatus: "not_started",
         updatedAt: FieldValue.serverTimestamp(),
         createdAt: usage.createdAt ?? FieldValue.serverTimestamp(),
       },
@@ -270,8 +322,100 @@ export async function reserveLifetimeProjectGeneration(uid: string, email?: stri
     return { ok: true as const };
   });
 
-  if (!result.ok) return { allowed: false, plan, response: result.response };
+  if (!result.ok) {
+    if ("response" in result) return { allowed: false, plan, response: result.response };
+    return { allowed: false, plan, response: getGateResponse("free_lifetime_project_limit", "second_project") };
+  }
   return { allowed: true, plan };
+}
+
+// Security-critical guard: acquire a server-side lock before any paid generation call.
+export async function reserveGenerationAttempt(uid: string, email?: string | null, projectId?: string): Promise<GenerationReservation> {
+  const db = getFirebaseAdminDb();
+  const usageRef = db.collection("usage").doc(uid);
+  const plan = await getUserPlan(uid, email);
+
+  const result = await db.runTransaction(async (tx) => {
+    const usageSnap = await tx.get(usageRef);
+    const usage = mapUsage(uid, usageSnap.exists ? (usageSnap.data() as Record<string, unknown>) : undefined);
+
+    const decision = evaluateGenerationReservationState({ plan, usage, maxLifetimeDesignGenerations: FREE_LIMITS.maxLifetimeDesignGenerations });
+    if (!decision.allowed && decision.reason === "in_progress") {
+      return { ok: false as const, conflict: true as const, message: "A generation is already in progress. Please wait." };
+    }
+
+    const baseUpdate: Record<string, unknown> = {
+      uid,
+      generationStatus: "in_progress",
+      generationInProgressAt: FieldValue.serverTimestamp(),
+      generationInProgressProjectId: projectId ?? null,
+      generationAttempts: usage.generationAttempts + 1,
+      lastGenerationAttemptAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: usage.createdAt ?? FieldValue.serverTimestamp(),
+    };
+
+    if (plan === "free") {
+      if (!decision.allowed && decision.reason === "limit_reached") {
+        return { ok: false as const, response: getGateResponse("free_lifetime_generation_limit", "generate_design") };
+      }
+
+      // Count the lifetime free generation at reservation time so retries cannot loop on failures.
+      baseUpdate.hasGeneratedProjectEver = true;
+      baseUpdate.lifetimeDesignGenerations = Math.max(usage.lifetimeDesignGenerations, 1);
+      baseUpdate.lifetimeProjectsCreated = Math.max(usage.lifetimeProjectsCreated, 1);
+      baseUpdate.firstGeneratedAt = usage.firstGeneratedAt ?? FieldValue.serverTimestamp();
+      baseUpdate.firstDesignGeneratedAt = usage.firstDesignGeneratedAt ?? FieldValue.serverTimestamp();
+      baseUpdate.lastDesignGeneratedAt = FieldValue.serverTimestamp();
+      baseUpdate.firstProjectCreatedAt = usage.firstProjectCreatedAt ?? FieldValue.serverTimestamp();
+      baseUpdate.lastProjectCreatedAt = FieldValue.serverTimestamp();
+      baseUpdate.generationReservedAt = null;
+    }
+
+    tx.set(usageRef, baseUpdate, { merge: true });
+    return { ok: true as const };
+  });
+
+  if (!result.ok && "conflict" in result) {
+    return { allowed: false, conflict: true, message: result.message ?? "A generation is already in progress. Please wait.", status: 409 };
+  }
+  if (!result.ok) {
+    return { allowed: false, response: result.response };
+  }
+  return { allowed: true, plan };
+}
+
+export async function markGenerationCompleted(uid: string, plan: UserPlan) {
+  const db = getFirebaseAdminDb();
+  const usageRef = db.collection("usage").doc(uid);
+  await usageRef.set(
+    {
+      uid,
+      generationStatus: "completed",
+      generationInProgressAt: null,
+      generationInProgressProjectId: null,
+      generationReservedAt: null,
+      hasGeneratedProjectEver: plan === "free" ? true : FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function markGenerationFailed(uid: string) {
+  const db = getFirebaseAdminDb();
+  const usageRef = db.collection("usage").doc(uid);
+  await usageRef.set(
+    {
+      uid,
+      generationStatus: "failed",
+      generationInProgressAt: null,
+      generationInProgressProjectId: null,
+      generationReservedAt: null,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 export async function incrementUsage(uid: string, action: UsageAction): Promise<void> {
@@ -289,14 +433,11 @@ export async function incrementUsage(uid: string, action: UsageAction): Promise<
     };
 
     if (action === "generate_design") {
-      baseUpdate.lifetimeProjectsCreated = usage.lifetimeProjectsCreated + 1;
-      baseUpdate.lifetimeDesignGenerations = usage.lifetimeDesignGenerations + 1;
       baseUpdate.activeProjectCount = usage.activeProjectCount + 1;
-      baseUpdate.firstProjectCreatedAt = usage.firstProjectCreatedAt ?? FieldValue.serverTimestamp();
-      baseUpdate.lastProjectCreatedAt = FieldValue.serverTimestamp();
-      baseUpdate.firstDesignGeneratedAt = usage.firstDesignGeneratedAt ?? FieldValue.serverTimestamp();
-      baseUpdate.lastDesignGeneratedAt = FieldValue.serverTimestamp();
       baseUpdate.generationReservedAt = null;
+      baseUpdate.generationStatus = "completed";
+      baseUpdate.generationInProgressAt = null;
+      baseUpdate.generationInProgressProjectId = null;
     } else if (action === "regenerate_design") {
       baseUpdate.regenerations = usage.regenerations + 1;
     } else if (action === "ai_review") {
@@ -314,7 +455,7 @@ export async function incrementUsage(uid: string, action: UsageAction): Promise<
 export async function releaseGenerationReservation(uid: string) {
   const db = getFirebaseAdminDb();
   const usageRef = db.collection("usage").doc(uid);
-  await usageRef.set({ generationReservedAt: null, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await usageRef.set({ generationReservedAt: null, generationStatus: "not_started", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 
 export async function markProjectDeleted(uid: string) {

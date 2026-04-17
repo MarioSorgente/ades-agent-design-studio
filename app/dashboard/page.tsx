@@ -78,6 +78,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<ProjectTab>("mine");
   const [usageGate, setUsageGate] = useState<{ isOpen: boolean; trigger: UsageGateTrigger }>({ isOpen: false, trigger: "second_project" });
   const [hasExistingProject, setHasExistingProject] = useState(false);
+  const [canCreateProject, setCanCreateProject] = useState(true);
+  const [usageStatus, setUsageStatus] = useState<"not_started" | "in_progress" | "completed" | "failed">("not_started");
 
   function toUserTriggeredModal(trigger?: UsageGateTrigger): UsageGateTrigger {
     if (trigger === "generate_design") return "second_project";
@@ -89,6 +91,8 @@ export default function DashboardPage() {
     void getUsageSummaryForUser(user.uid).then((summary) => {
       if (!summary) return;
       setHasExistingProject(summary.hasExistingProject);
+      setCanCreateProject(summary.canCreateProject || summary.isAdminBypass);
+      setUsageStatus(summary.usage.generationStatus);
     });
   }, [user]);
 
@@ -151,10 +155,6 @@ export default function DashboardPage() {
   }, [activeTab, qualityByProject]);
 
   useEffect(() => {
-    setHasExistingProject(projects.length > 0);
-  }, [projects.length]);
-
-  useEffect(() => {
     if (!generatingProjectId) return;
     const generatingProject = projects.find((project) => project.id === generatingProjectId);
     if (generatingProject?.status === "generated") {
@@ -165,6 +165,10 @@ export default function DashboardPage() {
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user || isCreating) return;
+    if (!canCreateProject || usageStatus === "in_progress") {
+      setUsageGate({ isOpen: true, trigger: "second_project" });
+      return;
+    }
     if (!newIdeaPrompt.trim()) {
       setErrorMessage("Add the idea prompt so ADES can generate steps, loops, and evals.");
       return;
@@ -193,6 +197,12 @@ export default function DashboardPage() {
           return;
         }
         throw new Error(payload.error || "Project created, but AI generation failed.");
+      }
+      const summary = await getUsageSummaryForUser(user.uid);
+      if (summary) {
+        setHasExistingProject(summary.hasExistingProject);
+        setCanCreateProject(summary.canCreateProject || summary.isAdminBypass);
+        setUsageStatus(summary.usage.generationStatus);
       }
       setNewTitle("");
       setNewIdeaPrompt("");
@@ -241,6 +251,12 @@ export default function DashboardPage() {
     setErrorMessage(null);
     try {
       await deleteProjectForUser(projectId, user.uid);
+      const summary = await getUsageSummaryForUser(user.uid);
+      if (summary) {
+        setHasExistingProject(summary.hasExistingProject);
+        setCanCreateProject(summary.canCreateProject || summary.isAdminBypass);
+        setUsageStatus(summary.usage.generationStatus);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not delete project.");
     }
@@ -370,14 +386,27 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">ADES will generate a first structured board so you can refine quickly.</p>
-                  <button type="submit" disabled={isCreating || !user || !newIdeaPrompt.trim()} className="ades-primary-btn px-5 py-3 disabled:opacity-50">
+                  <p className="text-xs text-slate-500">
+                    {canCreateProject
+                      ? "ADES will generate a first structured board so you can refine quickly."
+                      : "Your free beta generation limit is reached. Deleting projects does not reset this limit."}
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={isCreating || !user || !newIdeaPrompt.trim() || !canCreateProject || usageStatus === "in_progress"}
+                    className="ades-primary-btn px-5 py-3 disabled:opacity-50"
+                  >
                     {isCreating ? "Creating + Generating..." : "Create project"}
                   </button>
                 </div>
               </form>
             </div>
           </div>
+          {!canCreateProject ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              You can continue using your existing project, but free beta accounts cannot start another AI generation.
+            </div>
+          ) : null}
 
           {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
           {generatingProjectId ? (
