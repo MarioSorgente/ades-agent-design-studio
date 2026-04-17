@@ -3,12 +3,13 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import {
-  assertCanUseAi,
   getAuthenticatedUser,
   getGateResponse,
-  incrementUsage,
+  isAdminBypass,
   logGateDeny,
-  releaseGenerationReservation,
+  markGenerationCompleted,
+  markGenerationFailed,
+  reserveGenerationAttempt,
 } from "@/lib/usageGate";
 import {
   type AdesBoardSnapshot,
@@ -492,12 +493,28 @@ export async function POST(request: Request) {
     const projectData = snapshot.data() as { ownerUid?: string; status?: string };
     if (projectData.ownerUid !== uid) return NextResponse.json({ error: "You do not have access to this project." }, { status: 403 });
 
-    const action = projectData.status === "generated" ? "regenerate_design" : "generate_design";
-    const gate = await assertCanUseAi(uid, email, action);
-    if (!gate.allowed) {
-      logGateDeny({ uid, email, action, reason: gate.reason });
-      return NextResponse.json(getGateResponse(gate.reason, gate.trigger), { status: 403 });
+    if (projectData.status === "generating") {
+      return NextResponse.json({ error: "A generation is already in progress for this project." }, { status: 409 });
     }
+
+    if (projectData.status === "generated" && !isAdminBypass(email)) {
+      logGateDeny({ uid, email, action: "regenerate_design", reason: "free_regeneration_blocked" });
+      return NextResponse.json(getGateResponse("free_regeneration_blocked", "regenerate"), { status: 403 });
+    }
+
+    const reservation = await reserveGenerationAttempt(uid, email, projectId);
+    if (!reservation.allowed) {
+      if ("conflict" in reservation && reservation.conflict) {
+        return NextResponse.json({ error: reservation.message }, { status: reservation.status });
+      }
+      if ("response" in reservation) {
+        logGateDeny({ uid, email, action: "generate_design", reason: reservation.response.reason });
+        return NextResponse.json(reservation.response, { status: 403 });
+      }
+      return NextResponse.json({ error: "Generation blocked." }, { status: 403 });
+    }
+
+    await projectRef.update({ status: "generating", updatedAt: FieldValue.serverTimestamp() });
 
     const openai = getOpenAIClient();
 
@@ -557,11 +574,7 @@ export async function POST(request: Request) {
       board,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (gate.plan === "free") {
-      await incrementUsage(uid, "generate_design");
-    } else {
-      await releaseGenerationReservation(uid);
-    }
+    await markGenerationCompleted(uid, reservation.plan);
 
     return NextResponse.json({
       project: { id: projectId, title: generatedDesign.title, summary: generatedDesign.summary, status: "generated" },
@@ -576,7 +589,9 @@ export async function POST(request: Request) {
     if (requestProjectId) {
       try {
         const { uid } = await getAuthenticatedUser(request);
-        await releaseGenerationReservation(uid);
+        await markGenerationFailed(uid);
+        const db = getFirebaseAdminDb();
+        await db.collection("projects").doc(requestProjectId).set({ status: "draft", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       } catch {
         // noop
       }

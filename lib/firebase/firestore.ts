@@ -418,6 +418,9 @@ export type UsageSummaryRecord = {
     lifetimeDesignGenerations: number;
     activeProjectCount: number;
     deletedProjectCount: number;
+    generationAttempts: number;
+    hasGeneratedProjectEver: boolean;
+    generationStatus: "not_started" | "in_progress" | "completed" | "failed";
     regenerations: number;
     aiReviews: number;
     improvements: number;
