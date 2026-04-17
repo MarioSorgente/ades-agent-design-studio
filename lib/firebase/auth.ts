@@ -1,12 +1,15 @@
 import {
+  getRedirectResult,
   GoogleAuthProvider,
   browserLocalPersistence,
   getAuth,
   onAuthStateChanged,
   setPersistence,
+  signInWithRedirect,
   signInWithPopup,
   signOut,
   type Auth,
+  type AuthError,
   type NextOrObserver,
   type User,
   type UserCredential,
@@ -60,7 +63,25 @@ export function subscribeToAuthState(nextOrObserver: NextOrObserver<User>): Unsu
   return onAuthStateChanged(auth, nextOrObserver);
 }
 
-export async function signInWithGoogle(): Promise<UserCredential> {
+function shouldFallbackToRedirect(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? String((error as AuthError).code || "") : "";
+  return (
+    code.includes("auth/popup-blocked") ||
+    code.includes("auth/popup-closed-by-user") ||
+    code.includes("auth/operation-not-supported-in-this-environment") ||
+    code.includes("auth/web-storage-unsupported") ||
+    code.includes("auth/disallowed-useragent")
+  );
+}
+
+export async function consumeRedirectSignInResult(): Promise<UserCredential | null> {
+  const auth = getClientAuth();
+  if (!auth || !hasFirebaseEnv()) return null;
+  await ensureLocalAuthPersistence(auth);
+  return getRedirectResult(auth);
+}
+
+export async function signInWithGoogle(options?: { preferRedirect?: boolean }): Promise<"popup" | "redirect"> {
   const auth = getClientAuth();
 
   if (!auth || !hasFirebaseEnv()) {
@@ -68,7 +89,22 @@ export async function signInWithGoogle(): Promise<UserCredential> {
   }
 
   await ensureLocalAuthPersistence(auth);
-  return signInWithPopup(auth, provider);
+
+  if (options?.preferRedirect) {
+    await signInWithRedirect(auth, provider);
+    return "redirect";
+  }
+
+  try {
+    await signInWithPopup(auth, provider);
+    return "popup";
+  } catch (error) {
+    if (!shouldFallbackToRedirect(error)) {
+      throw error;
+    }
+    await signInWithRedirect(auth, provider);
+    return "redirect";
+  }
 }
 
 export async function signOutUser() {

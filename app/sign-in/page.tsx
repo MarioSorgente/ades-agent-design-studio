@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithGoogle } from "@/lib/firebase/auth";
+import { consumeRedirectSignInResult, signInWithGoogle } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
 import { getMissingFirebaseEnvKeys } from "@/lib/firebase/config";
 
@@ -22,6 +22,13 @@ function getSafeRedirectTarget(value: string | null): string {
 
 function getFriendlyAuthError(message: string): { title: string; detail?: string } {
   const lowered = message.toLowerCase();
+
+  if (lowered.includes("auth/disallowed-useragent") || lowered.includes("disallowed_useragent")) {
+    return {
+      title: "Google blocked this browser for sign-in.",
+      detail: "Open this link in Chrome, Safari, Edge, or Firefox (not an in-app browser like Instagram/Slack/FB).",
+    };
+  }
 
   if (lowered.includes("auth/unauthorized-domain")) {
     return {
@@ -57,6 +64,12 @@ function getFriendlyAuthError(message: string): { title: string; detail?: string
   };
 }
 
+function isLikelyEmbeddedBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent || "";
+  return /(FBAN|FBAV|Instagram|Line\/|LinkedInApp|Twitter|wv)/i.test(userAgent);
+}
+
 function GoogleMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
@@ -89,6 +102,14 @@ export default function SignInPage() {
       router.replace(redirectTarget);
     }
   }, [redirectTarget, router, status]);
+
+  useEffect(() => {
+    if (!isConfigured) return;
+    void consumeRedirectSignInResult().catch((error) => {
+      const message = error instanceof Error ? error.message : "Unable to complete Google sign-in.";
+      setErrorMessage(message);
+    });
+  }, [isConfigured]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-5 py-6 md:px-8">
@@ -138,8 +159,10 @@ export default function SignInPage() {
               setErrorMessage(null);
               setIsSubmitting(true);
               try {
-                await signInWithGoogle();
-                router.replace(redirectTarget);
+                const mode = await signInWithGoogle({ preferRedirect: isLikelyEmbeddedBrowser() });
+                if (mode === "popup") {
+                  router.replace(redirectTarget);
+                }
               } catch (error) {
                 const message = error instanceof Error ? error.message : "Unable to sign in with Google.";
                 setErrorMessage(message);

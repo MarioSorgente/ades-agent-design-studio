@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
+    "test:security": "node --test tests/security/*.test.mjs",
     "test:milestones": "node scripts/milestone-check.mjs"
   },
   "dependencies": {
