@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { consumeRedirectSignInResult, signInWithGoogle } from "@/lib/firebase/auth";
@@ -86,7 +85,6 @@ export default function SignInPage() {
   const status = useAuthStore((state) => state.status);
   const isConfigured = useAuthStore((state) => state.isConfigured);
   const [redirectTarget, setRedirectTarget] = useState("/dashboard");
-  const [backTarget, setBackTarget] = useState("/");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,8 +94,24 @@ export default function SignInPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRedirectTarget(getSafeRedirectTarget(params.get("redirect")));
-    setBackTarget(getSafeRedirectTarget(params.get("back")));
   }, []);
+
+  function handleBack() {
+    if (typeof window === "undefined") {
+      router.push("/");
+      return;
+    }
+
+    const hasSameOriginReferrer =
+      Boolean(document.referrer) && new URL(document.referrer).origin === window.location.origin;
+
+    if (window.history.length > 1 && hasSameOriginReferrer) {
+      router.back();
+      return;
+    }
+
+    router.push("/");
+  }
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -121,10 +135,14 @@ export default function SignInPage() {
 
         <div className="relative w-full max-w-md rounded-[2rem] border border-slate-200/90 bg-white/95 p-7 shadow-[0_30px_70px_-55px_rgba(15,23,42,0.75)] md:p-8">
           <div className="flex items-center justify-between">
-            <Link href={backTarget} className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+            >
               <span aria-hidden>←</span>
-              {backTarget === "/demo" ? "Back to demo" : "Back home"}
-            </Link>
+              Back
+            </button>
             <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-700">
               Secure sign-in
             </span>
