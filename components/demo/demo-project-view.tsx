@@ -43,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "step",
     title: "Step details",
-    message: "Click any item in the canvas to open a more detailed view here.",
+    message: "Clicking items in the canvas opens a more detailed view here.",
     targetSelector: `[data-node-id='${DEMO_PRIMARY_STEP_ID}']`,
     viewMode: "flow",
     focusNodeId: DEMO_PRIMARY_STEP_ID,
@@ -94,7 +94,7 @@ const TOUR_STEPS: TourStep[] = [
 export function DemoProjectView() {
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState<boolean>(() => false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isFreeExplore, setIsFreeExplore] = useState(false);
   const [hasCompletedTour, setHasCompletedTour] = useState(false);
@@ -115,7 +115,8 @@ export function DemoProjectView() {
   useEffect(() => {
     const snapshot = createDemoBoardSnapshot();
     loadBoardSnapshot(snapshot);
-    setSelectedNodeId(DEMO_PRIMARY_STEP_ID);
+    setSelectedNodeId(null);
+    setIsDetailsPanelOpen(false);
   }, [loadBoardSnapshot]);
 
   useEffect(() => {
@@ -124,7 +125,12 @@ export function DemoProjectView() {
     setViewMode(currentTourStep.viewMode);
     if (currentTourStep.focusNodeId) {
       setSelectedNodeId(currentTourStep.focusNodeId);
-      setIsDetailsPanelOpen(true);
+      if (currentTourStep.id === "step") {
+        setIsDetailsPanelOpen(true);
+        setContextMessage("Clicking items in the canvas opens a more detailed view here.");
+      } else {
+        setIsDetailsPanelOpen(true);
+      }
       setFocusNonce(Date.now());
     }
   }, [currentTourStep, isTourOpen]);
@@ -182,6 +188,8 @@ export function DemoProjectView() {
     setIsFreeExplore(false);
     setHasCompletedTour(false);
     setRevealedStateLocked(false);
+    setIsDetailsPanelOpen(false);
+    setSelectedNodeId(null);
     setIsTourOpen(true);
     setTourStepIndex(0);
     setContextMessage(null);
