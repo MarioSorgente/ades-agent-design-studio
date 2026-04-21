@@ -6,6 +6,7 @@ import { useAdesBoardStore } from "@/lib/board/store";
 
 type StudioBoardProps = {
   className?: string;
+  readOnly?: boolean;
   viewMode?: BoardViewMode;
   focusTarget?: {
     nodeId: string;
@@ -47,7 +48,24 @@ function isWeakEval(node: AdesNode) {
 
 const MAX_VISIBLE_EVALS = 3;
 
-export function StudioBoard({ className, viewMode = "flow", focusTarget, selectedNodeId, isDetailsPanelOpen = false, detailsInsetPx = 0, onSelectNode, onAddStepAt, onAddStepToEnd, onDuplicateStep, onDeleteNode, onDeleteAttachment, onAddConnectedNode, onOpenDetails, onAddNotice }: StudioBoardProps) {
+export function StudioBoard({
+  className,
+  readOnly = false,
+  viewMode = "flow",
+  focusTarget,
+  selectedNodeId,
+  isDetailsPanelOpen = false,
+  detailsInsetPx = 0,
+  onSelectNode,
+  onAddStepAt,
+  onAddStepToEnd,
+  onDuplicateStep,
+  onDeleteNode,
+  onDeleteAttachment,
+  onAddConnectedNode,
+  onOpenDetails,
+  onAddNotice,
+}: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
@@ -338,7 +356,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
           >
             <div className="mx-auto min-w-max">
               <div className="flex items-start gap-10">
-                <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} />
+                {!readOnly ? <AddStepChip label="+ Add step at beginning" onClick={() => onAddStepAt(0)} /> : null}
                 {flowRows.map((row, index) => {
                   const isSelected = selectedNodeId === row.step.id;
                   const isEvalsExpanded = isCategoryExpanded(row.step.id, "evals");
@@ -350,7 +368,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                   return (
                     <div key={row.step.id} className="flex items-start gap-6">
                       <div ref={(el) => { stepRefMap.current[row.step.id] = el; }} className="relative z-10 flex w-[520px] flex-col items-center" data-step-id={row.step.id}>
-                        {isSelected ? (
+                        {isSelected && !readOnly ? (
                           <div className="z-40 mb-3 inline-flex min-h-10 max-w-full flex-wrap items-center justify-end gap-1.5 self-end rounded-xl border border-indigo-200 bg-white p-1.5 shadow-lg">
                             <button type="button" title="Open card details" onClick={(event) => { event.stopPropagation(); onOpenDetails(row.step.id); }} className="h-9 w-9 cursor-pointer rounded-md border border-slate-300 bg-white text-base font-semibold leading-none text-slate-700 hover:border-indigo-300 hover:text-indigo-700">▢</button>
                             <details className="relative z-40" onClick={(event) => event.stopPropagation()}>
@@ -392,7 +410,8 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                 isExpanded={isEvalsExpanded}
                                 isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "evals"}
                                 onToggle={() => toggleCategory(row.step.id, "evals")}
-                                onAdd={() => handleAddConnected(row.step.id, "evals")}
+                                onAdd={readOnly ? undefined : () => handleAddConnected(row.step.id, "evals")}
+                                readOnly={readOnly}
                               >
                                 <AttachmentList
                                   items={visibleEvals.map((node) => ({
@@ -409,6 +428,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "eval")}
                                   deleteLabel="Delete eval"
                                   tone="blue"
+                                  readOnly={readOnly}
                                 />
                                 {row.evalNodes.length > MAX_VISIBLE_EVALS ? (
                                   <button
@@ -430,7 +450,8 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                 isExpanded={isReflectionsExpanded}
                                 isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "reflections"}
                                 onToggle={() => toggleCategory(row.step.id, "reflections")}
-                                onAdd={() => handleAddConnected(row.step.id, "reflections")}
+                                onAdd={readOnly ? undefined : () => handleAddConnected(row.step.id, "reflections")}
+                                readOnly={readOnly}
                               >
                                 <AttachmentList
                                   items={row.reflectionNodes.map((node) => ({
@@ -447,6 +468,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "reflection")}
                                   deleteLabel="Delete reflection"
                                   tone="purple"
+                                  readOnly={readOnly}
                                 />
                               </AttachmentSection>
 
@@ -459,7 +481,8 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                 isExpanded={isSafeguardsExpanded}
                                 isHighlighted={highlightedCategory?.stepId === row.step.id && highlightedCategory.kind === "safeguards"}
                                 onToggle={() => toggleCategory(row.step.id, "safeguards")}
-                                onAdd={() => handleAddConnected(row.step.id, "safeguards")}
+                                onAdd={readOnly ? undefined : () => handleAddConnected(row.step.id, "safeguards")}
+                                readOnly={readOnly}
                               >
                                 <AttachmentList
                                   items={row.riskNodes.map((node) => ({
@@ -476,6 +499,7 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                                   onDeleteNode={(nodeId) => onDeleteAttachment(nodeId, "safeguard")}
                                   deleteLabel="Delete safeguard"
                                   tone="amber"
+                                  readOnly={readOnly}
                                 />
                               </AttachmentSection>
                             </div>
@@ -484,13 +508,13 @@ export function StudioBoard({ className, viewMode = "flow", focusTarget, selecte
                       </div>
                       <div className="flex items-center gap-6 pt-[142px]">
                         <div className="h-[2px] w-12 bg-slate-300" />
-                        <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} />
+                        {!readOnly ? <AddStepChip label="+ Add step here" onClick={() => onAddStepAt(index + 1)} /> : null}
                         {index < flowRows.length - 1 ? <div className="h-[2px] w-12 bg-slate-300" /> : null}
                       </div>
                     </div>
                   );
                 })}
-                <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} />
+                {!readOnly ? <AddStepChip label="+ Add step at end" onClick={onAddStepToEnd} /> : null}
               </div>
             </div>
           </div>
@@ -524,6 +548,7 @@ function AttachmentSection({
   isHighlighted,
   onToggle,
   onAdd,
+  readOnly = false,
 }: {
   title: string;
   count: number;
@@ -534,7 +559,8 @@ function AttachmentSection({
   isExpanded: boolean;
   isHighlighted?: boolean;
   onToggle: () => void;
-  onAdd: () => void;
+  onAdd?: () => void;
+  readOnly?: boolean;
 }) {
   const classes = {
     blue: "border-blue-200 bg-blue-50/55",
@@ -554,17 +580,19 @@ function AttachmentSection({
           <span className={`text-base leading-none ${textClasses[tone]}`}>{isExpanded ? "▾" : "▸"}</span>
           <span className={`text-[15px] font-semibold ${textClasses[tone]}`}>{title} · {count}</span>
         </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onAdd();
-          }}
-          className={`h-8 w-8 min-h-8 min-w-8 rounded-md border bg-white text-lg font-semibold leading-none ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
-          aria-label={`Add ${title.toLowerCase()}`}
-        >
-          +
-        </button>
+        {!readOnly && onAdd ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdd();
+            }}
+            className={`h-8 w-8 min-h-8 min-w-8 rounded-md border bg-white text-lg font-semibold leading-none ${tone === "amber" ? "border-amber-300 text-amber-800 hover:bg-amber-100" : tone === "purple" ? "border-purple-300 text-purple-800 hover:bg-purple-100" : "border-blue-300 text-blue-800 hover:bg-blue-100"}`}
+            aria-label={`Add ${title.toLowerCase()}`}
+          >
+            +
+          </button>
+        ) : null}
       </div>
       {isExpanded ? <div className="mt-2">{children}</div> : null}
     </div>
@@ -580,6 +608,7 @@ function AttachmentList({
   onDeleteNode,
   deleteLabel,
   tone = "blue",
+  readOnly = false,
 }: {
   items: Array<{ id: string; categoryLabel: string; label: string; subLabel: string; detail?: string }>;
   emptyMessage: string;
@@ -589,6 +618,7 @@ function AttachmentList({
   onDeleteNode: (nodeId: string) => void;
   deleteLabel: string;
   tone?: "blue" | "purple" | "amber";
+  readOnly?: boolean;
 }) {
   if (!items.length) return <p className="text-sm text-slate-600">{emptyMessage}</p>;
   const itemClass = {
@@ -612,18 +642,20 @@ function AttachmentList({
             <p className="mt-1 text-[13px] text-slate-700">{item.subLabel}</p>
             {item.detail ? <p className="mt-0.5 text-[13px] text-slate-600">{item.detail}</p> : null}
           </button>
-          <button
-            type="button"
-            title={deleteLabel}
-            aria-label={deleteLabel}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDeleteNode(item.id);
-            }}
-            className="absolute right-2.5 top-2.5 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-transparent text-base text-slate-500 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
-          >
-            🗑
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              title={deleteLabel}
+              aria-label={deleteLabel}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeleteNode(item.id);
+              }}
+              className="absolute right-2.5 top-2.5 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-transparent text-base text-slate-500 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              🗑
+            </button>
+          ) : null}
         </div>
       ))}
     </div>

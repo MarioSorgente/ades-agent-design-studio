@@ -1,379 +1,376 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AdesGuideAvatar } from "@/components/demo/ades-guide-avatar";
-import { GuidedTour } from "@/components/demo/guided-tour";
-import { demoProject } from "@/lib/demo/sample-project";
+import { useEffect, useMemo, useState } from "react";
+import { BoardInspector } from "@/components/board/board-inspector";
+import { StudioBoard } from "@/components/board/studio-board";
+import { AdesGuideAvatar, type GuideAvatarMood } from "@/components/demo/ades-guide-avatar";
+import {
+  createDemoBoardSnapshot,
+  DEMO_EVAL_NODE_ID,
+  DEMO_EVAL_STEP_ID,
+  DEMO_PRIMARY_STEP_ID,
+  demoProjectRecord,
+  DEMO_REFLECTION_NODE_ID,
+  DEMO_REFLECTION_STEP_ID,
+  DEMO_SAFEGUARD_NODE_ID,
+  DEMO_SAFEGUARD_STEP_ID,
+} from "@/lib/demo/sample-project";
+import { useAdesBoardStore } from "@/lib/board/store";
+import type { AdesNode, BoardViewMode } from "@/lib/board/types";
+import { analyzeBoardQuality } from "@/lib/board/quality";
 
-const detailTitleByType = {
-  step: "Step details",
-  eval: "Eval details",
-  safeguard: "Safeguard details",
-  readiness: "Readiness details",
-} as const;
+type DemoStepId = "overview" | "step" | "evals" | "reflections" | "safeguards" | "readiness" | "complete";
 
-type DemoDetail =
-  | { type: "step"; id: string }
-  | { type: "eval"; id: string }
-  | { type: "safeguard"; id: string }
-  | { type: "readiness" };
+type TourStep = {
+  id: DemoStepId;
+  title: string;
+  message: string;
+  targetSelector: string;
+  viewMode: BoardViewMode;
+  focusNodeId?: string;
+  attachmentKind?: "evals" | "reflections" | "safeguards";
+};
+
+const TOUR_STEPS: TourStep[] = [
+  {
+    id: "overview",
+    title: "Canvas",
+    message: "This is the workflow canvas. It shows how the agent operates before anything is built.",
+    targetSelector: "[data-demo-target='canvas']",
+    viewMode: "flow",
+  },
+  {
+    id: "step",
+    title: "Step details",
+    message: "Each step defines a specific part of the workflow, including purpose, inputs, and outputs.",
+    targetSelector: `[data-node-id='${DEMO_PRIMARY_STEP_ID}']`,
+    viewMode: "flow",
+    focusNodeId: DEMO_PRIMARY_STEP_ID,
+  },
+  {
+    id: "evals",
+    title: "Evals",
+    message: "Evals define how success is measured for this design.",
+    targetSelector: `[data-step-id='${DEMO_EVAL_STEP_ID}'][data-attachment-kind='evals']`,
+    viewMode: "flow",
+    focusNodeId: DEMO_EVAL_NODE_ID,
+    attachmentKind: "evals",
+  },
+  {
+    id: "reflections",
+    title: "Reflections",
+    message: "Reflections capture assumptions, open questions, and design reasoning.",
+    targetSelector: `[data-step-id='${DEMO_REFLECTION_STEP_ID}'][data-attachment-kind='reflections']`,
+    viewMode: "flow",
+    focusNodeId: DEMO_REFLECTION_NODE_ID,
+    attachmentKind: "reflections",
+  },
+  {
+    id: "safeguards",
+    title: "Safeguards",
+    message: "Safeguards reduce risk and force escalation before mistakes reach customers.",
+    targetSelector: `[data-step-id='${DEMO_SAFEGUARD_STEP_ID}'][data-attachment-kind='safeguards']`,
+    viewMode: "flow",
+    focusNodeId: DEMO_SAFEGUARD_NODE_ID,
+    attachmentKind: "safeguards",
+  },
+  {
+    id: "readiness",
+    title: "Readiness",
+    message: "Readiness shows how complete the design is and what still needs work.",
+    targetSelector: "[data-demo-target='readiness']",
+    viewMode: "flow",
+  },
+  {
+    id: "complete",
+    title: "Completion",
+    message:
+      "In the full product, ADES can automatically generate evals, reflections, and safeguards for each step. Sign in to create your own project.",
+    targetSelector: "[data-demo-target='cta']",
+    viewMode: "flow",
+  },
+];
 
 export function DemoProjectView() {
-  const workspaceRef = useRef<HTMLElement | null>(null);
-  const flowRef = useRef<HTMLDivElement | null>(null);
-  const selectedStepRef = useRef<HTMLButtonElement | null>(null);
-  const inspectorRef = useRef<HTMLDivElement | null>(null);
-  const evalRef = useRef<HTMLDivElement | null>(null);
-  const safeguardRef = useRef<HTMLDivElement | null>(null);
-  const readinessRef = useRef<HTMLButtonElement | null>(null);
-
+  const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [isTourOpen, setIsTourOpen] = useState(false);
-  const [tourStep, setTourStep] = useState(0);
   const [isFreeExplore, setIsFreeExplore] = useState(false);
-  const [selectedDetail, setSelectedDetail] = useState<DemoDetail>({ type: "step", id: demoProject.steps[0].id });
+  const [hasCompletedTour, setHasCompletedTour] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+  const [focusNonce, setFocusNonce] = useState(0);
+  const [contextMessage, setContextMessage] = useState<string | null>(null);
 
-  const tourSteps = useMemo(
-    () => [
-      {
-        id: "flow",
-        targetRef: flowRef,
-        title: "Inspect the flow",
-        description: "This is the agent flow. It shows the sequence of decisions and actions before anything is built.",
-      },
-      {
-        id: "details",
-        targetRef: inspectorRef,
-        title: "Open a step",
-        description: "Click a step to inspect its purpose, logic, inputs, and outputs.",
-      },
-      {
-        id: "evals",
-        targetRef: evalRef,
-        title: "Review evals",
-        description: "Evals define how you'll know the agent is working well.",
-      },
-      {
-        id: "safeguards",
-        targetRef: safeguardRef,
-        title: "Check safeguards",
-        description: "Safeguards reduce risk before deployment, like PII protection or human review.",
-      },
-      {
-        id: "readiness",
-        targetRef: readinessRef,
-        title: "Assess readiness",
-        description: "ADES helps you judge whether the design is truly ready, not just impressive on paper.",
-      },
-    ],
-    [],
-  );
+  const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
+  const nodes = useAdesBoardStore((state) => state.nodes);
+  const edges = useAdesBoardStore((state) => state.edges);
+  const readiness = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
 
-  const selectedItem = useMemo(() => {
-    if (selectedDetail.type === "step") {
-      return demoProject.steps.find((step) => step.id === selectedDetail.id) ?? demoProject.steps[0];
-    }
-    if (selectedDetail.type === "eval") {
-      return demoProject.evals.find((item) => item.id === selectedDetail.id) ?? demoProject.evals[0];
-    }
-    if (selectedDetail.type === "safeguard") {
-      return demoProject.safeguards.find((item) => item.id === selectedDetail.id) ?? demoProject.safeguards[0];
-    }
-    return demoProject.readiness;
-  }, [selectedDetail]);
+  const currentTourStep = TOUR_STEPS[tourStepIndex] ?? TOUR_STEPS[0];
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
-  function startTour() {
+  useEffect(() => {
+    const snapshot = createDemoBoardSnapshot();
+    loadBoardSnapshot(snapshot);
+    setSelectedNodeId(DEMO_PRIMARY_STEP_ID);
+  }, [loadBoardSnapshot]);
+
+  useEffect(() => {
+    if (!isTourOpen) return;
+
+    setViewMode(currentTourStep.viewMode);
+    if (currentTourStep.focusNodeId) {
+      setSelectedNodeId(currentTourStep.focusNodeId);
+      setIsDetailsPanelOpen(true);
+      setFocusNonce(Date.now());
+    }
+  }, [currentTourStep, isTourOpen]);
+
+  useEffect(() => {
+    if (!isTourOpen) {
+      setHighlightRect(null);
+      return;
+    }
+
+    let raf = 0;
+    let observer: ResizeObserver | null = null;
+
+    const update = () => {
+      const element = document.querySelector(currentTourStep.targetSelector) as HTMLElement | null;
+      if (!element) {
+        setHighlightRect(null);
+        return;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 4 || rect.height < 4) return;
+      setHighlightRect(rect);
+      element.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    };
+
+    raf = window.requestAnimationFrame(update);
+    const root = document.querySelector("[data-demo-target='workspace-root']") as HTMLElement | null;
+    observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(update);
+    });
+    if (root) observer.observe(root);
+
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [currentTourStep.targetSelector, isTourOpen]);
+
+  function finishTour() {
+    setIsTourOpen(false);
+    setIsFreeExplore(true);
+    setHasCompletedTour(true);
+    setHighlightRect(null);
+    setContextMessage("Demo complete. You can now explore freely or create your own project.");
+  }
+
+  function handleStartTour() {
     setIsFreeExplore(false);
-    setTourStep(0);
+    setHasCompletedTour(false);
     setIsTourOpen(true);
-    window.requestAnimationFrame(() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setTourStepIndex(0);
+    setContextMessage(null);
   }
 
   function handleExploreFreely() {
     setIsTourOpen(false);
     setIsFreeExplore(true);
-    window.requestAnimationFrame(() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setHighlightRect(null);
+    setContextMessage("Free explore mode is active. Click any step, eval, reflection, or safeguard.");
   }
 
-  function resetDemoState() {
-    setSelectedDetail({ type: "step", id: demoProject.steps[0].id });
-    setTourStep(0);
-    setIsTourOpen(false);
-    setIsFreeExplore(false);
-  }
-
-  function onTourNext() {
-    setTourStep((current) => {
-      const next = Math.min(current + 1, tourSteps.length - 1);
-      if (current === tourSteps.length - 1) setIsTourOpen(false);
-      return next;
-    });
-  }
-
-  useEffect(() => {
-    if (!isTourOpen) return;
-
-    if (tourStep === 1) {
-      const focusStep = demoProject.steps[1];
-      setSelectedDetail({ type: "step", id: focusStep.id });
-      window.requestAnimationFrame(() => selectedStepRef.current?.focus({ preventScroll: true }));
+  function handleNext() {
+    if (!isTourOpen) {
+      handleStartTour();
       return;
     }
-
-    if (tourStep === 2) {
-      setSelectedDetail({ type: "eval", id: demoProject.evals[0].id });
+    if (tourStepIndex >= TOUR_STEPS.length - 1) {
+      finishTour();
       return;
     }
-
-    if (tourStep === 3) {
-      setSelectedDetail({ type: "safeguard", id: demoProject.safeguards[0].id });
-      return;
-    }
-
-    if (tourStep === 4) {
-      setSelectedDetail({ type: "readiness" });
-    }
-  }, [isTourOpen, tourStep]);
-
-  function shouldPulse(stepIndex: number) {
-    return isTourOpen && tourStep === stepIndex;
+    setTourStepIndex((prev) => prev + 1);
   }
+
+  function handleBack() {
+    setTourStepIndex((prev) => Math.max(0, prev - 1));
+  }
+
+  function handleSelectedNode(nodeId: string | null) {
+    setSelectedNodeId(nodeId);
+    if (!nodeId) return;
+
+    const selectedNode = nodeById.get(nodeId);
+    if (!selectedNode) return;
+    setContextMessage(messageForNode(selectedNode));
+  }
+
+  const avatarMood: GuideAvatarMood = isTourOpen
+    ? tourStepIndex === TOUR_STEPS.length - 1
+      ? "complete"
+      : "guiding"
+    : hasCompletedTour
+      ? "complete"
+      : contextMessage
+        ? "focused"
+        : isFreeExplore
+          ? "observing"
+          : "idle";
 
   return (
-    <div className="space-y-5">
-      <section className="ades-panel flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4">
+      <section className="ades-panel flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="mb-2 flex items-center gap-2">
-            <AdesGuideAvatar className="h-9 w-9" />
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">ADES walkthrough</p>
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Try ADES in 60 seconds</h1>
-          <p className="mt-1.5 text-sm text-slate-600 md:text-base">Design, inspect, and improve an AI agent before you build it.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Public demo</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Try ADES in 60 seconds</h1>
+          <p className="mt-1 text-sm text-slate-600">This is the real ADES project workspace shown in safe read-only demo mode.</p>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="ades-primary-btn" onClick={startTour}>
-            Start guided demo
-          </button>
-          <button type="button" className="ades-ghost-btn" onClick={handleExploreFreely}>
-            Explore freely
-          </button>
+        <div className="flex flex-wrap gap-2" data-demo-target="cta">
+          <button type="button" className="ades-primary-btn" onClick={handleStartTour}>Start guided demo</button>
+          <button type="button" className="ades-ghost-btn" onClick={handleExploreFreely}>Explore freely</button>
+          <Link href="/sign-in?redirect=%2Fdashboard" className="ades-ghost-btn">Create your own project</Link>
         </div>
       </section>
 
-      <section ref={workspaceRef} className="ades-panel space-y-4" aria-label="ADES demo workspace">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 md:text-xl">{demoProject.title}</h2>
-            <p className="text-sm text-slate-500">Interactive sample project</p>
+      {hasCompletedTour ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+          Demo complete. You can now explore freely or create your own project.
+        </p>
+      ) : null}
+
+      <section className="relative flex min-h-[700px] gap-3" data-demo-target="workspace-root">
+        <div className="min-w-0 flex-1" data-demo-target="canvas">
+          <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{demoProjectRecord.title}</p>
+              <p className="text-xs text-slate-600">{demoProjectRecord.summary}</p>
+              <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">Read-only demo · no sign-in required</p>
+            </div>
+            <div className="flex items-center gap-2" data-demo-target="readiness">
+              <button
+                type="button"
+                onClick={() => setContextMessage("Readiness shows how complete this design is before piloting.")}
+                className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700"
+              >
+                Readiness {readiness.score}/100
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="ades-ghost-btn" onClick={resetDemoState}>
-              Reset demo
-            </button>
-            <button type="button" className="ades-ghost-btn" onClick={startTour}>
-              Replay guided demo
-            </button>
-            <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn">
-              Create your own project
-            </Link>
+          <div className="mb-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+            After sign-in, ADES can automatically generate evals, reflections, and safeguards for each step of your workflow.
           </div>
+
+          <StudioBoard
+            className="h-full min-h-[620px]"
+            readOnly
+            viewMode={viewMode}
+            selectedNodeId={selectedNodeId}
+            isDetailsPanelOpen={isDetailsPanelOpen}
+            detailsInsetPx={420}
+            onSelectNode={handleSelectedNode}
+            onAddStepAt={() => undefined}
+            onAddStepToEnd={() => undefined}
+            onDuplicateStep={() => undefined}
+            onDeleteNode={() => undefined}
+            onDeleteAttachment={() => undefined}
+            onAddConnectedNode={() => null}
+            onOpenDetails={(nodeId) => {
+              handleSelectedNode(nodeId);
+              setIsDetailsPanelOpen(true);
+            }}
+            focusTarget={
+              isTourOpen && currentTourStep.focusNodeId
+                ? {
+                    nodeId: currentTourStep.focusNodeId,
+                    attachmentKind: currentTourStep.attachmentKind,
+                    nonce: focusNonce,
+                  }
+                : null
+            }
+          />
         </div>
 
-        {isFreeExplore ? (
-          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
-            Explore freely mode is on. Click Replay guided demo anytime.
+        <aside className="hidden w-[400px] shrink-0 rounded-2xl border border-slate-200 bg-white p-3 xl:block">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details</p>
+            <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setIsDetailsPanelOpen((prev) => !prev)}>
+              {isDetailsPanelOpen ? "Collapse" : "Open"}
+            </button>
+          </div>
+          {isDetailsPanelOpen ? <BoardInspector viewMode={viewMode} nodeId={selectedNodeId} readOnly /> : <p className="text-sm text-slate-500">Inspector collapsed.</p>}
+        </aside>
+
+        <aside className="pointer-events-auto fixed bottom-4 right-4 z-[120] w-[360px] rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+          <div className="flex items-center gap-3">
+            <AdesGuideAvatar className="h-14 w-14" mood={avatarMood} />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ADES</p>
+              <p className="text-xs text-slate-500">
+                {isTourOpen
+                  ? `Step ${tourStepIndex + 1} / ${TOUR_STEPS.length}`
+                  : hasCompletedTour
+                    ? "Demo completed"
+                    : isFreeExplore
+                      ? "Exploring freely"
+                      : "Ready to guide"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-slate-900">{isTourOpen ? currentTourStep.title : hasCompletedTour ? "Demo complete" : "Guided assistant"}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {isTourOpen
+              ? currentTourStep.message
+              : contextMessage ??
+                (hasCompletedTour
+                  ? "In the full product, ADES can automatically generate evals, reflections, and safeguards for each step. Sign in to create your own project."
+                  : isFreeExplore
+                    ? "Explore the real workspace freely, or replay the guide for a structured walkthrough."
+                    : "Start the walkthrough to see how ADES helps teams design reliable agents.")}
           </p>
-        ) : null}
-
-        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="space-y-4">
-            <div
-              ref={flowRef}
-              className={`rounded-2xl border bg-slate-50 p-4 transition ${shouldPulse(0) ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}
-            >
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Flow canvas</p>
-              <div className="relative grid gap-2 md:grid-cols-4">
-                {demoProject.steps.map((step, index) => {
-                  const isActive = selectedDetail.type === "step" && selectedDetail.id === step.id;
-                  const isTourFocus = shouldPulse(1) && index === 1;
-                  return (
-                    <button
-                      key={step.id}
-                      ref={isActive ? selectedStepRef : undefined}
-                      type="button"
-                      className={`relative rounded-xl border p-3 text-left transition ${
-                        isActive
-                          ? "border-indigo-500 bg-white ring-2 ring-indigo-200 shadow-[0_10px_24px_-18px_rgba(79,70,229,0.9)]"
-                          : "border-slate-200 bg-white hover:border-indigo-300"
-                      } ${isTourFocus ? "animate-pulse" : ""}`}
-                      onClick={() => setSelectedDetail({ type: "step", id: step.id })}
-                    >
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{index + 1}</span>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{step.title}</p>
-                    </button>
-                  );
-                })}
-                <div className="pointer-events-none absolute inset-x-5 top-1/2 hidden -translate-y-1/2 border-t border-dashed border-slate-300 md:block" />
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div
-                ref={evalRef}
-                className={`rounded-2xl border bg-white p-3 transition ${shouldPulse(2) ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Evals</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {demoProject.evals.map((evalItem) => (
-                    <button
-                      key={evalItem.id}
-                      type="button"
-                      onClick={() => setSelectedDetail({ type: "eval", id: evalItem.id })}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                        selectedDetail.type === "eval" && selectedDetail.id === evalItem.id
-                          ? "border-indigo-400 bg-indigo-50 text-indigo-800"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-300"
-                      }`}
-                    >
-                      {evalItem.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                ref={safeguardRef}
-                className={`rounded-2xl border bg-white p-3 transition ${shouldPulse(3) ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Safeguards</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {demoProject.safeguards.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedDetail({ type: "safeguard", id: item.id })}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                        selectedDetail.type === "safeguard" && selectedDetail.id === item.id
-                          ? "border-indigo-400 bg-indigo-50 text-indigo-800"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-300"
-                      }`}
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <button
-              ref={readinessRef}
-              type="button"
-              onClick={() => setSelectedDetail({ type: "readiness" })}
-              className={`w-full rounded-2xl border bg-white p-4 text-left transition ${
-                shouldPulse(4) || selectedDetail.type === "readiness"
-                  ? "border-indigo-400 ring-2 ring-indigo-200"
-                  : "border-slate-200 hover:border-indigo-300"
-              }`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Readiness</p>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-2xl font-semibold text-slate-900">{demoProject.readiness.overall}%</p>
-                <p className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  {demoProject.readiness.summary}
-                </p>
-              </div>
-              <p className="mt-2 text-xs text-slate-500">Complete: workflow and safeguards. Missing: broader edge-case eval set.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleBack} disabled={!isTourOpen || tourStepIndex === 0}>Back</button>
+            <button type="button" className="ades-primary-btn px-3 py-1.5 text-xs" onClick={handleNext}>
+              {isTourOpen ? (tourStepIndex === TOUR_STEPS.length - 1 ? "Finish" : "Next") : "Start"}
             </button>
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleStartTour}>Replay</button>
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={() => { setIsTourOpen(false); setHighlightRect(null); }}>Skip</button>
           </div>
+        </aside>
 
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2">
-                <AdesGuideAvatar className="h-8 w-8" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ADES</p>
-                  <p className="text-xs text-slate-500">Guardian of agent design</p>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-slate-600">{isTourOpen ? tourSteps[tourStep].description : "Start guided demo for a 5-step product walkthrough."}</p>
-            </div>
-
-            <div
-              ref={inspectorRef}
-              className={`rounded-2xl border bg-white p-4 transition ${shouldPulse(1) ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Inspector</p>
-              <h3 className="mt-2 text-base font-semibold text-slate-900">{detailTitleByType[selectedDetail.type]}</h3>
-
-              {selectedDetail.type === "step" && "inputs" in selectedItem ? (
-                <div className="mt-3 space-y-3 text-sm text-slate-700">
-                  <p className="font-medium text-slate-900">{selectedItem.title}</p>
-                  <p className="text-slate-600">{selectedItem.summary}</p>
-                  <div className="grid gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inputs</p>
-                    <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
-                      {selectedItem.inputs.map((input) => (
-                        <li key={input}>{input}</li>
-                      ))}
-                    </ul>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Outputs</p>
-                    <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
-                      {selectedItem.outputs.map((output) => (
-                        <li key={output}>{output}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ) : null}
-
-              {selectedDetail.type === "eval" && "target" in selectedItem ? (
-                <div className="mt-3 space-y-2 text-sm">
-                  <p className="font-medium text-slate-900">{selectedItem.name}</p>
-                  <p className="text-slate-600">{selectedItem.description}</p>
-                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">Target: {selectedItem.target}</p>
-                </div>
-              ) : null}
-
-              {selectedDetail.type === "safeguard" && "trigger" in selectedItem ? (
-                <div className="mt-3 space-y-2 text-sm">
-                  <p className="font-medium text-slate-900">{selectedItem.name}</p>
-                  <p className="text-slate-600">{selectedItem.description}</p>
-                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">Trigger: {selectedItem.trigger}</p>
-                </div>
-              ) : null}
-
-              {selectedDetail.type === "readiness" && "breakdown" in selectedItem ? (
-                <div className="mt-3 space-y-2 text-sm">
-                  {selectedItem.breakdown.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                        <span>{item.label}</span>
-                        <span>{item.score}%</span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">{item.note}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        {isTourOpen && highlightRect ? (
+          <div
+            className="pointer-events-none fixed z-[110] rounded-2xl border border-indigo-400 bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.26)]"
+            style={{
+              top: Math.max(6, highlightRect.top - 8),
+              left: Math.max(6, highlightRect.left - 8),
+              width: highlightRect.width + 16,
+              height: highlightRect.height + 16,
+            }}
+          />
+        ) : null}
       </section>
-
-      <GuidedTour
-        isOpen={isTourOpen}
-        steps={tourSteps}
-        activeStep={tourStep}
-        onNext={onTourNext}
-        onBack={() => setTourStep((current) => Math.max(current - 1, 0))}
-        onSkip={() => {
-          setIsTourOpen(false);
-          setIsFreeExplore(true);
-        }}
-        onRestart={startTour}
-      />
     </div>
   );
+}
+
+function messageForNode(node: AdesNode) {
+  if (node.type === "eval") return "These evals define how quality is measured.";
+  if (node.type === "reflection") return "Reflections capture the team's reasoning and open questions.";
+  if (node.type === "risk") return "Safeguards reduce risk before launch.";
+  if (node.type === "goal" || node.type === "task" || node.type === "handoff") return "You're looking at a workflow step.";
+  return "Explore this block to understand how the design works.";
 }

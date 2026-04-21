@@ -9,7 +9,7 @@ const evalCategories: EvalCategory[] = ["task_success", "reasoning_quality", "to
 
 const TEXTAREA_CLASS = "ades-input min-h-[88px] resize-y text-[15px] leading-7";
 
-export function BoardInspector({ viewMode, nodeId }: { viewMode: BoardViewMode; nodeId: string | null }) {
+export function BoardInspector({ viewMode, nodeId, readOnly = false }: { viewMode: BoardViewMode; nodeId: string | null; readOnly?: boolean }) {
   const updateNode = useAdesBoardStore((state) => state.updateNode);
   const selectedNode = useAdesBoardStore((state) => (nodeId ? state.nodes.find((node) => node.id === nodeId) ?? null : null));
 
@@ -64,14 +64,14 @@ export function BoardInspector({ viewMode, nodeId }: { viewMode: BoardViewMode; 
         </div>
       </div>
 
-      <Field label="Title"><input value={selectedNode.data.label} onChange={(event) => updateField("label", event.target.value)} className="ades-input text-[15px]" /></Field>
+      <Field label="Title"><input value={selectedNode.data.label} onChange={(event) => updateField("label", event.target.value)} className="ades-input text-[15px]" readOnly={readOnly} /></Field>
 
       {(selectedNode.type === "goal" || selectedNode.type === "task" || selectedNode.type === "handoff") ? (
         <>
-          <Field label="Why this exists"><textarea value={selectedNode.data.whyThisStepExists || selectedNode.data.purpose} onChange={(event) => { updateField("whyThisStepExists", event.target.value); updateField("purpose", event.target.value); }} rows={4} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Inputs"><textarea value={selectedNode.data.inputs} onChange={(event) => updateField("inputs", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Outputs"><textarea value={selectedNode.data.outputs} onChange={(event) => updateField("outputs", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Completion criteria"><textarea value={selectedNode.data.completionCriteria} onChange={(event) => updateField("completionCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
+          <Field label="Why this exists"><textarea value={selectedNode.data.whyThisStepExists || selectedNode.data.purpose} onChange={(event) => { updateField("whyThisStepExists", event.target.value); updateField("purpose", event.target.value); }} rows={4} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Inputs"><textarea value={selectedNode.data.inputs} onChange={(event) => updateField("inputs", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Outputs"><textarea value={selectedNode.data.outputs} onChange={(event) => updateField("outputs", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Completion criteria"><textarea value={selectedNode.data.completionCriteria} onChange={(event) => updateField("completionCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
           <ReadOnlyList title="Tools" items={selectedNode.data.tools} emptyMessage="No tools listed." />
           <ReadOnlyList title="Attached evals" items={selectedNode.data.evals.map((item) => item.name)} emptyMessage="No attached eval definitions." />
           <ReadOnlyList title="Reflections" items={[...selectedNode.data.reflectionHooks.map((hook) => hook.trigger)]} emptyMessage="No reflection hooks yet." />
@@ -81,42 +81,42 @@ export function BoardInspector({ viewMode, nodeId }: { viewMode: BoardViewMode; 
 
       {selectedNode.type === "eval" ? (
         <Section title="Eval details">
-          <Field label="Eval title"><input value={selectedNode.data.evalName} onChange={(event) => updateField("evalName", event.target.value)} className="ades-input text-[15px]" /></Field>
-          <Field label="Eval question"><textarea value={selectedNode.data.evalQuestion} onChange={(event) => updateField("evalQuestion", event.target.value)} rows={4} className={TEXTAREA_CLASS} /></Field>
+          <Field label="Eval title"><input value={selectedNode.data.evalName} onChange={(event) => updateField("evalName", event.target.value)} className="ades-input text-[15px]" readOnly={readOnly} /></Field>
+          <Field label="Eval question"><textarea value={selectedNode.data.evalQuestion} onChange={(event) => updateField("evalQuestion", event.target.value)} rows={4} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
           <Field label="Category">
-            <select value={selectedNode.data.evalCategory} onChange={(event) => updateField("evalCategory", event.target.value)} className="ades-input text-[15px]">
+            <select value={selectedNode.data.evalCategory} onChange={(event) => updateField("evalCategory", event.target.value)} className="ades-input text-[15px]" disabled={readOnly}>
               {evalCategories.map((category) => (<option key={category} value={category}>{category.replace(/_/g, " ")}</option>))}
             </select>
           </Field>
           <Field label="Scope">
-            <select value={selectedNode.data.evalScope} onChange={(event) => updateField("evalScope", event.target.value)} className="ades-input text-[15px]">
+            <select value={selectedNode.data.evalScope} onChange={(event) => updateField("evalScope", event.target.value)} className="ades-input text-[15px]" disabled={readOnly}>
               <option value="step">Step-level</option>
               <option value="flow">End-to-end</option>
             </select>
           </Field>
-          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Threshold / scoring"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Failure examples / dataset notes"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
+          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Threshold / scoring"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Failure examples / dataset notes"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
         </Section>
       ) : null}
 
       {selectedNode.type === "reflection" ? (
         <Section title="Reflection details">
-          <Field label="Trigger"><input value={selectedNode.data.reflectionTrigger} onChange={(event) => updateField("reflectionTrigger", event.target.value)} className="ades-input text-[15px]" /></Field>
+          <Field label="Trigger"><input value={selectedNode.data.reflectionTrigger} onChange={(event) => updateField("reflectionTrigger", event.target.value)} className="ades-input text-[15px]" readOnly={readOnly} /></Field>
           <Field label="Loop target">
-            <select value={selectedNode.data.reflectionLoopTarget} onChange={(event) => updateField("reflectionLoopTarget", event.target.value)} className="ades-input text-[15px]">
+            <select value={selectedNode.data.reflectionLoopTarget} onChange={(event) => updateField("reflectionLoopTarget", event.target.value)} className="ades-input text-[15px]" disabled={readOnly}>
               <option value="same_step">Returns to this step</option>
               <option value="previous_step">Returns to previous step</option>
             </select>
           </Field>
-          <Field label="Reflection prompt"><textarea value={selectedNode.data.reflectionPrompt} onChange={(event) => updateField("reflectionPrompt", event.target.value)} rows={4} className={TEXTAREA_CLASS} /></Field>
-          <Field label="Revision action"><textarea value={selectedNode.data.feedbackAction} onChange={(event) => updateField("feedbackAction", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
+          <Field label="Reflection prompt"><textarea value={selectedNode.data.reflectionPrompt} onChange={(event) => updateField("reflectionPrompt", event.target.value)} rows={4} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Revision action"><textarea value={selectedNode.data.feedbackAction} onChange={(event) => updateField("feedbackAction", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
         </Section>
       ) : null}
 
       {selectedNode.type === "risk" ? (
         <Section title="Safeguard details">
-          <Field label="Mitigation / confidence check"><textarea value={selectedNode.data.confidenceCheck} onChange={(event) => updateField("confidenceCheck", event.target.value)} rows={3} className={TEXTAREA_CLASS} /></Field>
+          <Field label="Mitigation / confidence check"><textarea value={selectedNode.data.confidenceCheck} onChange={(event) => updateField("confidenceCheck", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
         </Section>
       ) : null}
     </div>
