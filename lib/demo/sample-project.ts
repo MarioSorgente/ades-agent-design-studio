@@ -1,94 +1,92 @@
-export type DemoStep = {
-  id: string;
-  title: string;
-  summary: string;
-  inputs: string[];
-  outputs: string[];
-};
+import type { AdesBoardSnapshot } from "@/lib/board/types";
+import { createStarterBoard } from "@/lib/board/starter-board";
 
-export type DemoEval = {
-  id: string;
-  name: string;
-  description: string;
-  target: string;
-};
+export const DEMO_PRIMARY_STEP_ID = "task-2";
+export const DEMO_EVAL_NODE_ID = "eval-1";
+export const DEMO_SAFEGUARD_NODE_ID = "risk-1";
 
-export type DemoSafeguard = {
-  id: string;
-  name: string;
-  description: string;
-  trigger: string;
-};
-
-export const demoProject = {
+export const demoProjectRecord = {
+  id: "demo-customer-support-refund-agent",
   title: "Customer Support Refund Agent",
-  description:
-    "An AI agent that helps classify refund requests, checks policy, drafts a response, and escalates risky cases.",
-  steps: [
-    {
-      id: "intake",
-      title: "Intake request",
-      summary: "Collect issue type, order ID, and refund reason from the customer.",
-      inputs: ["Customer message", "Order ID", "Refund reason"],
-      outputs: ["Structured request", "Missing info flags"],
-    },
-    {
-      id: "policy-check",
-      title: "Check refund policy",
-      summary: "Compare request facts to refund rules and eligibility windows.",
-      inputs: ["Structured request", "Refund policy rules"],
-      outputs: ["Eligibility decision", "Policy rationale"],
-    },
-    {
-      id: "draft-response",
-      title: "Draft response",
-      summary: "Prepare approve, deny, or clarify response with clear next actions.",
-      inputs: ["Eligibility decision", "Policy rationale"],
-      outputs: ["Customer-ready draft", "Action checklist"],
-    },
-    {
-      id: "human-escalation",
-      title: "Escalate risky cases",
-      summary: "Route edge cases, high-value orders, or suspicious signals to human review.",
-      inputs: ["Draft response", "Risk signals"],
-      outputs: ["Escalation packet", "Handoff owner"],
-    },
-  ] as DemoStep[],
-  evals: [
-    {
-      id: "policy-accuracy",
-      name: "Policy accuracy",
-      description: "Checks if approval/denial decisions match policy outcomes on test cases.",
-      target: ">= 95% correct policy decisions on the validation set.",
-    },
-    {
-      id: "response-clarity",
-      name: "Response clarity",
-      description: "Measures whether responses are short, understandable, and actionable.",
-      target: ">= 4.5/5 average human clarity rating.",
-    },
-  ] as DemoEval[],
-  safeguards: [
-    {
-      id: "pii-masking",
-      name: "PII masking",
-      description: "Mask sensitive customer fields before internal summaries are shared.",
-      trigger: "Applies before logging and handoff messages.",
-    },
-    {
-      id: "human-handoff",
-      name: "Human handoff for high-risk cases",
-      description: "Force human review when confidence is low or fraud risk is high.",
-      trigger: "Triggered by low confidence, policy conflicts, or fraud signals.",
-    },
-  ] as DemoSafeguard[],
-  readiness: {
-    overall: 82,
-    summary: "Ready for pilot with small improvements.",
-    breakdown: [
-      { label: "Workflow clarity", score: 85, note: "Flow is complete and easy to inspect." },
-      { label: "Eval coverage", score: 78, note: "Good start; add edge-case dataset examples." },
-      { label: "Safeguards", score: 83, note: "Critical risks are covered with human fallback." },
-    ],
-  },
-} as const;
+  summary:
+    "A precompiled ADES project that classifies refund requests, applies policy, drafts responses, and escalates risky edge-cases.",
+  audience: "Support operations leads",
+  constraints: "Policy-safe, low latency, human escalation for risk",
+  status: "generated" as const,
+};
+
+export function createDemoBoardSnapshot(): AdesBoardSnapshot {
+  const board = createStarterBoard();
+
+  const renamedNodes = board.nodes.map((node) => {
+    if (node.id === "goal-1") {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: "Customer support refund agent",
+          purpose: "Handle refund requests with policy-aware reasoning and clear next actions.",
+          inputs: "Customer message, order metadata",
+          outputs: "Decision rationale + customer-ready reply",
+        },
+      };
+    }
+
+    if (node.id === "task-1") {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: "Intake request",
+          purpose: "Extract refund reason, item details, and urgency from the incoming ticket.",
+          inputs: "Ticket text, account history",
+          outputs: "Structured refund request",
+        },
+      };
+    }
+
+    if (node.id === "task-2") {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: "Check policy eligibility",
+          purpose: "Apply refund rules by order type, timing window, and exception constraints.",
+          inputs: "Structured request + policy rules",
+          outputs: "Eligibility decision + rationale",
+        },
+      };
+    }
+
+    if (node.id === "task-5") {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: "Draft customer response",
+          purpose: "Generate a concise approve/deny/clarify response with transparent reasoning.",
+          outputs: "Ready-to-send reply and internal notes",
+        },
+      };
+    }
+
+    if (node.id === "risk-1") {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: "High-risk refund safeguard",
+          body: "Require human review for fraud signals, high-value refunds, or policy conflicts.",
+          confidenceCheck: "Escalate if safety confidence < 0.85 or fraud score > threshold.",
+        },
+      };
+    }
+
+    return node;
+  });
+
+  return {
+    nodes: renamedNodes,
+    edges: board.edges,
+  };
+}
