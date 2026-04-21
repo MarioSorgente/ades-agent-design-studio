@@ -60,6 +60,9 @@ export default function HomePage() {
             <Link href="/dashboard" className="ades-primary-btn px-6 py-3">
               Design an agent
             </Link>
+            <Link href="/demo" className="ades-ghost-btn px-6 py-3">
+              Interactive demo
+            </Link>
             <a
               href="mailto:ms.sorgente@gmail.com?subject=Request%20a%20demo%20-%20ADES&body=Hi%20Mario%2C%0A%0AI%20would%20like%20to%20request%20a%20demo%20of%20ADES.%0A%0ABest%2C"
               className="ades-ghost-btn px-6 py-3"
