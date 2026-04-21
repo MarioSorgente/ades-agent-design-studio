@@ -286,7 +286,6 @@ export function DemoProjectView() {
             </>
           )}
         </div>
-        <p className="mt-2 text-xs font-medium text-slate-600">Everything is free to start.</p>
       </section>
 
       <section className="relative flex min-h-[700px] gap-3" data-demo-target="workspace-root">

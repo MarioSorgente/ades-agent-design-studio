@@ -342,11 +342,27 @@ export function StudioBoard({
   return (
     <div
       id="ades-canvas-export"
-      className={`canvas-shell relative h-full min-h-[480px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
+      className={`canvas-shell relative flex h-full min-h-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 ${className ?? ""}`}
     >
+      <div className="mb-3 flex shrink-0 justify-end">
+        <div className="zoom-controls">
+          {navigationHint ? (
+            <p className="mb-2 block text-right text-[11px] font-medium text-slate-500">
+              {navigationHint}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-lg ring-1 ring-slate-100">
+            <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
+            <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
+            <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
+            <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
+            <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={resetView}>Reset</button>
+          </div>
+        </div>
+      </div>
       <div
         ref={flowViewportRef}
-        className="canvas-viewport relative z-0 h-full overflow-auto pb-20"
+        className="canvas-viewport relative z-0 min-h-0 flex-1 overflow-auto pb-20"
         style={{
           paddingLeft: isDetailsPanelOpen ? detailsInsetPx : 0,
           transition: "padding-left 180ms ease",
@@ -524,21 +540,6 @@ export function StudioBoard({
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="zoom-controls pointer-events-none absolute right-4 top-4 z-[90]">
-        {navigationHint ? (
-          <p className="pointer-events-auto mb-2 block text-right text-[11px] font-medium text-slate-500">
-            {navigationHint}
-          </p>
-        ) : null}
-        <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-lg ring-1 ring-slate-100">
-          <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
-          <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
-          <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
-          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
-          <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={resetView}>Reset</button>
         </div>
       </div>
     </div>
