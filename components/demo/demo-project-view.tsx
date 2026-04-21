@@ -43,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "step",
     title: "Step details",
-    message: "Each step defines a specific part of the workflow, including purpose, inputs, and outputs.",
+    message: "Click any item in the canvas to open a more detailed view here.",
     targetSelector: `[data-node-id='${DEMO_PRIMARY_STEP_ID}']`,
     viewMode: "flow",
     focusNodeId: DEMO_PRIMARY_STEP_ID,
@@ -94,7 +94,7 @@ const TOUR_STEPS: TourStep[] = [
 export function DemoProjectView() {
   const [viewMode, setViewMode] = useState<BoardViewMode>("flow");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isFreeExplore, setIsFreeExplore] = useState(false);
   const [hasCompletedTour, setHasCompletedTour] = useState(false);
@@ -235,12 +235,14 @@ export function DemoProjectView() {
     <div className="space-y-4">
       <section className="ades-panel px-6 py-5">
         <div className="max-w-4xl space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Interactive demo</p>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{demoProjectRecord.title}</h1>
           <p className="text-sm text-slate-700">{demoProjectRecord.summary}</p>
           <p className="text-sm text-slate-600">
             Design the workflow, inspect each step, and define evals, reflections, safeguards, and readiness before you build.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] font-medium text-slate-600">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] font-medium text-slate-600">
+            <span className="rounded-full border border-indigo-200/80 bg-indigo-50 px-2.5 py-1 text-indigo-700">Sample workflow</span>
             {["Workflow", "Evals", "Reflections", "Safeguards", "Readiness"].map((feature) => (
               <span key={feature} className="rounded-full bg-slate-100 px-2.5 py-1">
                 {feature}
@@ -254,7 +256,8 @@ export function DemoProjectView() {
         data-demo-target="completion-cta"
         className="rounded-2xl border border-indigo-200/80 bg-indigo-50/60 px-5 py-5 shadow-[0_18px_45px_-40px_rgba(15,23,42,0.7)]"
       >
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700/80">Your project</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
           {hasCompletedTour ? "Create your own project for free" : "Take the interactive demo"}
         </h2>
         <p className="mt-2 max-w-3xl text-sm text-slate-700">
@@ -395,7 +398,6 @@ export function DemoProjectView() {
               {isTourOpen ? (tourStepIndex === TOUR_STEPS.length - 1 ? "Finish" : "Next") : "Start"}
             </button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
-            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleStartTour}>Replay</button>
           </div>
         </aside>
 
