@@ -86,6 +86,7 @@ export default function SignInPage() {
   const status = useAuthStore((state) => state.status);
   const isConfigured = useAuthStore((state) => state.isConfigured);
   const [redirectTarget, setRedirectTarget] = useState("/dashboard");
+  const [backTarget, setBackTarget] = useState("/");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -95,6 +96,7 @@ export default function SignInPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRedirectTarget(getSafeRedirectTarget(params.get("redirect")));
+    setBackTarget(getSafeRedirectTarget(params.get("back")));
   }, []);
 
   useEffect(() => {
@@ -119,9 +121,9 @@ export default function SignInPage() {
 
         <div className="relative w-full max-w-md rounded-[2rem] border border-slate-200/90 bg-white/95 p-7 shadow-[0_30px_70px_-55px_rgba(15,23,42,0.75)] md:p-8">
           <div className="flex items-center justify-between">
-            <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            <Link href={backTarget} className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
               <span aria-hidden>←</span>
-              Back home
+              {backTarget === "/demo" ? "Back to demo" : "Back home"}
             </Link>
             <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-700">
               Secure sign-in
