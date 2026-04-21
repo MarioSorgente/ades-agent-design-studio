@@ -230,7 +230,7 @@ export function DemoProjectView() {
 
   return (
     <div className="space-y-4">
-      <section className="ades-panel flex flex-wrap items-start justify-between gap-4 px-6 py-5">
+      <section className="ades-panel px-6 py-5">
         <div className="max-w-4xl space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{demoProjectRecord.title}</h1>
           <p className="text-sm text-slate-700">{demoProjectRecord.summary}</p>
@@ -244,46 +244,27 @@ export function DemoProjectView() {
               </span>
             ))}
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Public read-only demo · no sign-in required</p>
-        </div>
-        <div className="min-w-[280px] max-w-[360px] space-y-2 rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-[0_16px_35px_-30px_rgba(15,23,42,0.65)]" data-demo-target="cta">
-          <p className="text-sm font-semibold text-slate-900">Create your own project for free</p>
-          <p className="text-xs leading-relaxed text-slate-600">
-            Sign in to build your own workflow and let ADES generate evals, reflections, and safeguards for each step.
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="ades-ghost-btn px-3 py-2 text-xs" onClick={handleStartTour}>Start guided demo</button>
-            <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn px-3 py-2 text-xs">
-              Create your own project
-            </Link>
-          </div>
-          <p className="text-[11px] font-medium text-slate-500">Free to start.</p>
         </div>
       </section>
 
-      {hasCompletedTour ? (
-        <section data-demo-target="completion-cta" className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_-40px_rgba(15,23,42,0.7)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Demo complete</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">Create your own project for free</h2>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Sign in to design your workflow and let ADES automatically generate evals, reflections, and safeguards for each step.
-          </p>
-          <p className="mt-1 text-xs font-medium text-slate-500">Free to start.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn">Create your own project</Link>
-            <button type="button" className="ades-ghost-btn" onClick={handleStartTour}>Replay demo</button>
-          </div>
-        </section>
-      ) : null}
+      <section
+        data-demo-target="completion-cta"
+        className="rounded-2xl border border-indigo-200/80 bg-indigo-50/60 px-5 py-5 shadow-[0_18px_45px_-40px_rgba(15,23,42,0.7)]"
+      >
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">Create your own project for free</h2>
+        <p className="mt-2 max-w-3xl text-sm text-slate-700">
+          Sign in and try ADES for free. Build your own workflow and let ADES generate evals, reflections, and safeguards for each step.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn">Start free</Link>
+          <button type="button" className="ades-ghost-btn" onClick={handleStartTour}>Start guided demo</button>
+        </div>
+        <p className="mt-2 text-xs font-medium text-slate-600">No payment required to start.</p>
+      </section>
 
       <section className="relative flex min-h-[700px] gap-3" data-demo-target="workspace-root">
         <div className="min-w-0 flex-1" data-demo-target="canvas">
-          <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{demoProjectRecord.title}</p>
-              <p className="text-xs text-slate-600">{demoProjectRecord.summary}</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Public read-only demo · no sign-in required</p>
-            </div>
+          <div className="mb-2 flex items-center justify-end rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
             <div className="flex items-center gap-2" data-demo-target="readiness">
               <button
                 type="button"
@@ -336,20 +317,32 @@ export function DemoProjectView() {
         </aside>
 
         <aside className="pointer-events-auto fixed bottom-4 right-4 z-[120] w-[360px] rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-xl backdrop-blur">
-          <div className="flex items-center gap-3">
-            <AdesGuideAvatar className="h-14 w-14" mood={avatarMood} />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ADES</p>
-              <p className="text-xs text-slate-500">
-                {isTourOpen
-                  ? `Step ${tourStepIndex + 1} / ${TOUR_STEPS.length}`
-                  : hasCompletedTour
-                    ? "Demo completed"
-                    : isFreeExplore
-                      ? "Exploring freely"
-                      : "Ready to guide"}
-              </p>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <AdesGuideAvatar className="h-14 w-14" mood={avatarMood} />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ADES</p>
+                <p className="text-xs text-slate-500">
+                  {isTourOpen
+                    ? `Step ${tourStepIndex + 1} / ${TOUR_STEPS.length}`
+                    : hasCompletedTour
+                      ? "Demo completed"
+                      : isFreeExplore
+                        ? "Exploring freely"
+                        : "Ready to guide"}
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              className="ades-ghost-btn px-2.5 py-1 text-xs"
+              onClick={() => {
+                setIsTourOpen(false);
+                setHighlightRect(null);
+              }}
+            >
+              Skip
+            </button>
           </div>
           <p className="mt-3 text-sm font-semibold text-slate-900">{isTourOpen ? currentTourStep.title : hasCompletedTour ? "Demo completed" : "Guided assistant"}</p>
           <p className="mt-1 text-sm text-slate-600">
@@ -369,7 +362,6 @@ export function DemoProjectView() {
             </button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleStartTour}>Replay</button>
-            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={() => { setIsTourOpen(false); setHighlightRect(null); }}>Skip</button>
           </div>
         </aside>
 
