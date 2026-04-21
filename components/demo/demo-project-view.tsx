@@ -8,15 +8,19 @@ import { AdesGuideAvatar, type GuideAvatarMood } from "@/components/demo/ades-gu
 import {
   createDemoBoardSnapshot,
   DEMO_EVAL_NODE_ID,
+  DEMO_EVAL_STEP_ID,
   DEMO_PRIMARY_STEP_ID,
   demoProjectRecord,
+  DEMO_REFLECTION_NODE_ID,
+  DEMO_REFLECTION_STEP_ID,
   DEMO_SAFEGUARD_NODE_ID,
+  DEMO_SAFEGUARD_STEP_ID,
 } from "@/lib/demo/sample-project";
 import { useAdesBoardStore } from "@/lib/board/store";
-import type { BoardViewMode } from "@/lib/board/types";
+import type { AdesNode, BoardViewMode } from "@/lib/board/types";
 import { analyzeBoardQuality } from "@/lib/board/quality";
 
-type DemoStepId = "overview" | "first-step" | "evals" | "safeguards" | "readiness" | "complete";
+type DemoStepId = "overview" | "step" | "evals" | "reflections" | "safeguards" | "readiness" | "complete";
 
 type TourStep = {
   id: DemoStepId;
@@ -25,21 +29,21 @@ type TourStep = {
   targetSelector: string;
   viewMode: BoardViewMode;
   focusNodeId?: string;
-  attachmentKind?: "evals" | "safeguards";
+  attachmentKind?: "evals" | "reflections" | "safeguards";
 };
 
 const TOUR_STEPS: TourStep[] = [
   {
     id: "overview",
-    title: "Canvas overview",
-    message: "Start here — this is the real ADES workspace shown in read-only public demo mode.",
+    title: "Canvas",
+    message: "This is the workflow canvas. It shows how the agent operates before anything is built.",
     targetSelector: "[data-demo-target='canvas']",
     viewMode: "flow",
   },
   {
-    id: "first-step",
-    title: "First step",
-    message: "Each step defines part of the workflow with purpose, inputs, outputs, and completion criteria.",
+    id: "step",
+    title: "Step details",
+    message: "Each step defines a specific part of the workflow, including purpose, inputs, and outputs.",
     targetSelector: `[data-node-id='${DEMO_PRIMARY_STEP_ID}']`,
     viewMode: "flow",
     focusNodeId: DEMO_PRIMARY_STEP_ID,
@@ -47,17 +51,26 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "evals",
     title: "Evals",
-    message: "Evals define how success is measured before this agent ships.",
-    targetSelector: `[data-step-id='${DEMO_PRIMARY_STEP_ID}'][data-attachment-kind='evals']`,
+    message: "Evals define how success is measured for this design.",
+    targetSelector: `[data-step-id='${DEMO_EVAL_STEP_ID}'][data-attachment-kind='evals']`,
     viewMode: "flow",
     focusNodeId: DEMO_EVAL_NODE_ID,
     attachmentKind: "evals",
   },
   {
+    id: "reflections",
+    title: "Reflections",
+    message: "Reflections capture assumptions, open questions, and design reasoning.",
+    targetSelector: `[data-step-id='${DEMO_REFLECTION_STEP_ID}'][data-attachment-kind='reflections']`,
+    viewMode: "flow",
+    focusNodeId: DEMO_REFLECTION_NODE_ID,
+    attachmentKind: "reflections",
+  },
+  {
     id: "safeguards",
     title: "Safeguards",
-    message: "Safeguards control risk and force escalation before mistakes reach customers.",
-    targetSelector: `[data-step-id='${DEMO_PRIMARY_STEP_ID}'][data-attachment-kind='safeguards']`,
+    message: "Safeguards reduce risk and force escalation before mistakes reach customers.",
+    targetSelector: `[data-step-id='${DEMO_SAFEGUARD_STEP_ID}'][data-attachment-kind='safeguards']`,
     viewMode: "flow",
     focusNodeId: DEMO_SAFEGUARD_NODE_ID,
     attachmentKind: "safeguards",
@@ -65,14 +78,15 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "readiness",
     title: "Readiness",
-    message: "Readiness summarizes whether the design is safe and complete enough for a pilot.",
+    message: "Readiness shows how complete the design is and what still needs work.",
     targetSelector: "[data-demo-target='readiness']",
     viewMode: "flow",
   },
   {
     id: "complete",
-    title: "Demo complete",
-    message: "You just explored the real ADES canvas. Ready to build your own agent design?",
+    title: "Completion",
+    message:
+      "In the full product, ADES can automatically generate evals, reflections, and safeguards for each step. Sign in to create your own project.",
     targetSelector: "[data-demo-target='cta']",
     viewMode: "flow",
   },
@@ -84,9 +98,11 @@ export function DemoProjectView() {
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isFreeExplore, setIsFreeExplore] = useState(false);
+  const [hasCompletedTour, setHasCompletedTour] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
+  const [contextMessage, setContextMessage] = useState<string | null>(null);
 
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const nodes = useAdesBoardStore((state) => state.nodes);
@@ -94,6 +110,7 @@ export function DemoProjectView() {
   const readiness = useMemo(() => analyzeBoardQuality({ nodes, edges }), [edges, nodes]);
 
   const currentTourStep = TOUR_STEPS[tourStepIndex] ?? TOUR_STEPS[0];
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
   useEffect(() => {
     const snapshot = createDemoBoardSnapshot();
@@ -150,38 +167,67 @@ export function DemoProjectView() {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [currentTourStep.targetSelector, isTourOpen, tourStepIndex]);
+  }, [currentTourStep.targetSelector, isTourOpen]);
 
-  const avatarMood: GuideAvatarMood = !isTourOpen
-    ? isFreeExplore
-      ? "observing"
-      : "idle"
-    : currentTourStep.id === "complete"
-      ? "complete"
-      : "guiding";
+  function finishTour() {
+    setIsTourOpen(false);
+    setIsFreeExplore(true);
+    setHasCompletedTour(true);
+    setHighlightRect(null);
+    setContextMessage("Demo complete. You can now explore freely or create your own project.");
+  }
 
   function handleStartTour() {
     setIsFreeExplore(false);
+    setHasCompletedTour(false);
     setIsTourOpen(true);
     setTourStepIndex(0);
+    setContextMessage(null);
   }
 
   function handleExploreFreely() {
     setIsTourOpen(false);
     setIsFreeExplore(true);
+    setHighlightRect(null);
+    setContextMessage("Free explore mode is active. Click any step, eval, reflection, or safeguard.");
   }
 
   function handleNext() {
-    setTourStepIndex((prev) => {
-      const next = Math.min(prev + 1, TOUR_STEPS.length - 1);
-      if (next === TOUR_STEPS.length - 1) setIsTourOpen(true);
-      return next;
-    });
+    if (!isTourOpen) {
+      handleStartTour();
+      return;
+    }
+    if (tourStepIndex >= TOUR_STEPS.length - 1) {
+      finishTour();
+      return;
+    }
+    setTourStepIndex((prev) => prev + 1);
   }
 
   function handleBack() {
     setTourStepIndex((prev) => Math.max(0, prev - 1));
   }
+
+  function handleSelectedNode(nodeId: string | null) {
+    setSelectedNodeId(nodeId);
+    if (!nodeId) return;
+
+    const selectedNode = nodeById.get(nodeId);
+    if (!selectedNode) return;
+    setContextMessage(messageForNode(selectedNode));
+  }
+
+  const avatarMood: GuideAvatarMood = isTourOpen
+    ? tourStepIndex === TOUR_STEPS.length - 1
+      ? "complete"
+      : "guiding"
+    : hasCompletedTour
+      ? "complete"
+      : contextMessage
+        ? "focused"
+        : isFreeExplore
+          ? "observing"
+          : "idle";
 
   return (
     <div className="space-y-4">
@@ -189,7 +235,7 @@ export function DemoProjectView() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Public demo</p>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Try ADES in 60 seconds</h1>
-          <p className="mt-1 text-sm text-slate-600">This is the actual ADES project workspace in safe read-only mode.</p>
+          <p className="mt-1 text-sm text-slate-600">This is the real ADES project workspace shown in safe read-only demo mode.</p>
         </div>
         <div className="flex flex-wrap gap-2" data-demo-target="cta">
           <button type="button" className="ades-primary-btn" onClick={handleStartTour}>Start guided demo</button>
@@ -198,16 +244,33 @@ export function DemoProjectView() {
         </div>
       </section>
 
+      {hasCompletedTour ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+          Demo complete. You can now explore freely or create your own project.
+        </p>
+      ) : null}
+
       <section className="relative flex min-h-[700px] gap-3" data-demo-target="workspace-root">
         <div className="min-w-0 flex-1" data-demo-target="canvas">
           <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
             <div>
               <p className="text-sm font-semibold text-slate-900">{demoProjectRecord.title}</p>
-              <p className="text-xs text-slate-500">Read-only demo project · no sign in required</p>
+              <p className="text-xs text-slate-600">{demoProjectRecord.summary}</p>
+              <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">Read-only demo · no sign-in required</p>
             </div>
             <div className="flex items-center gap-2" data-demo-target="readiness">
-              <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700">Readiness {readiness.score}/100</span>
+              <button
+                type="button"
+                onClick={() => setContextMessage("Readiness shows how complete this design is before piloting.")}
+                className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700"
+              >
+                Readiness {readiness.score}/100
+              </button>
             </div>
+          </div>
+
+          <div className="mb-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+            After sign-in, ADES can automatically generate evals, reflections, and safeguards for each step of your workflow.
           </div>
 
           <StudioBoard
@@ -217,7 +280,7 @@ export function DemoProjectView() {
             selectedNodeId={selectedNodeId}
             isDetailsPanelOpen={isDetailsPanelOpen}
             detailsInsetPx={420}
-            onSelectNode={setSelectedNodeId}
+            onSelectNode={handleSelectedNode}
             onAddStepAt={() => undefined}
             onAddStepToEnd={() => undefined}
             onDuplicateStep={() => undefined}
@@ -225,7 +288,7 @@ export function DemoProjectView() {
             onDeleteAttachment={() => undefined}
             onAddConnectedNode={() => null}
             onOpenDetails={(nodeId) => {
-              setSelectedNodeId(nodeId);
+              handleSelectedNode(nodeId);
               setIsDetailsPanelOpen(true);
             }}
             focusTarget={
@@ -250,32 +313,41 @@ export function DemoProjectView() {
           {isDetailsPanelOpen ? <BoardInspector viewMode={viewMode} nodeId={selectedNodeId} readOnly /> : <p className="text-sm text-slate-500">Inspector collapsed.</p>}
         </aside>
 
-        <aside className="pointer-events-auto fixed bottom-4 right-4 z-[120] w-[330px] rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
-          <div className="flex items-center gap-2">
-            <AdesGuideAvatar className="h-10 w-10" mood={avatarMood} />
+        <aside className="pointer-events-auto fixed bottom-4 right-4 z-[120] w-[360px] rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+          <div className="flex items-center gap-3">
+            <AdesGuideAvatar className="h-14 w-14" mood={avatarMood} />
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ADES</p>
               <p className="text-xs text-slate-500">
-                {isTourOpen ? `Step ${tourStepIndex + 1} / ${TOUR_STEPS.length}` : isFreeExplore ? "Exploring freely" : "Idle"}
+                {isTourOpen
+                  ? `Step ${tourStepIndex + 1} / ${TOUR_STEPS.length}`
+                  : hasCompletedTour
+                    ? "Demo completed"
+                    : isFreeExplore
+                      ? "Exploring freely"
+                      : "Ready to guide"}
               </p>
             </div>
           </div>
-          <p className="mt-3 text-sm font-semibold text-slate-900">{currentTourStep.title}</p>
+          <p className="mt-3 text-sm font-semibold text-slate-900">{isTourOpen ? currentTourStep.title : hasCompletedTour ? "Demo complete" : "Guided assistant"}</p>
           <p className="mt-1 text-sm text-slate-600">
             {isTourOpen
               ? currentTourStep.message
-              : isFreeExplore
-                ? "You're exploring the live workspace freely. Click Replay to restart the guided path."
-                : "Start here — this canvas is the real ADES design workspace."}
+              : contextMessage ??
+                (hasCompletedTour
+                  ? "In the full product, ADES can automatically generate evals, reflections, and safeguards for each step. Sign in to create your own project."
+                  : isFreeExplore
+                    ? "Explore the real workspace freely, or replay the guide for a structured walkthrough."
+                    : "Start the walkthrough to see how ADES helps teams design reliable agents.")}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleBack} disabled={!isTourOpen || tourStepIndex === 0}>Back</button>
-            <button type="button" className="ades-primary-btn px-3 py-1.5 text-xs" onClick={isTourOpen ? handleNext : handleStartTour}>
+            <button type="button" className="ades-primary-btn px-3 py-1.5 text-xs" onClick={handleNext}>
               {isTourOpen ? (tourStepIndex === TOUR_STEPS.length - 1 ? "Finish" : "Next") : "Start"}
             </button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleStartTour}>Replay</button>
-            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={() => setIsTourOpen(false)}>Skip</button>
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={() => { setIsTourOpen(false); setHighlightRect(null); }}>Skip</button>
           </div>
         </aside>
 
@@ -293,4 +365,12 @@ export function DemoProjectView() {
       </section>
     </div>
   );
+}
+
+function messageForNode(node: AdesNode) {
+  if (node.type === "eval") return "These evals define how quality is measured.";
+  if (node.type === "reflection") return "Reflections capture the team's reasoning and open questions.";
+  if (node.type === "risk") return "Safeguards reduce risk before launch.";
+  if (node.type === "goal" || node.type === "task" || node.type === "handoff") return "You're looking at a workflow step.";
+  return "Explore this block to understand how the design works.";
 }
