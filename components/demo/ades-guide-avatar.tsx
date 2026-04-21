@@ -25,11 +25,11 @@ export function AdesGuideAvatar({ className, mood = "idle", ...props }: HTMLAttr
 
   return (
     <div
-      className={`relative overflow-hidden rounded-full border bg-gradient-to-br from-white to-slate-50 shadow-lg ${ringClass} ${className ?? ""}`}
+      className={`relative overflow-hidden rounded-full border bg-gradient-to-br from-white to-slate-50 shadow-lg transition-all ${mood === "complete" ? "shadow-emerald-200/80" : ""} ${ringClass} ${className ?? ""}`}
       {...props}
     >
-      <div className={`absolute inset-1 rounded-full blur-[2px] ${haloClass} ${mood === "guiding" ? "animate-pulse" : ""}`} />
-      <div className={`absolute inset-0 ${mood === "guiding" || mood === "focused" ? "animate-[spin_8s_linear_infinite]" : ""}`}>
+      <div className={`absolute inset-1 rounded-full blur-[2px] ${haloClass} ${mood === "guiding" || mood === "complete" ? "animate-pulse" : ""}`} />
+      <div className={`absolute inset-0 ${mood === "guiding" || mood === "focused" || mood === "complete" ? "animate-[spin_8s_linear_infinite]" : ""}`}>
         <div className="absolute inset-[8%] rounded-full border border-white/80" />
       </div>
 
