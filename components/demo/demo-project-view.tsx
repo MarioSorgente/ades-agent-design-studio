@@ -102,6 +102,7 @@ export function DemoProjectView() {
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const [contextMessage, setContextMessage] = useState<string | null>(null);
+  const [revealedStateLocked, setRevealedStateLocked] = useState(false);
 
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const nodes = useAdesBoardStore((state) => state.nodes);
@@ -172,6 +173,7 @@ export function DemoProjectView() {
     setIsTourOpen(false);
     setIsFreeExplore(true);
     setHasCompletedTour(true);
+    setRevealedStateLocked(true);
     setHighlightRect(null);
     setContextMessage("Demo complete. You can replay the guide or keep exploring the workspace.");
   }
@@ -179,6 +181,7 @@ export function DemoProjectView() {
   function handleStartTour() {
     setIsFreeExplore(false);
     setHasCompletedTour(false);
+    setRevealedStateLocked(false);
     setIsTourOpen(true);
     setTourStepIndex(0);
     setContextMessage(null);
@@ -251,15 +254,36 @@ export function DemoProjectView() {
         data-demo-target="completion-cta"
         className="rounded-2xl border border-indigo-200/80 bg-indigo-50/60 px-5 py-5 shadow-[0_18px_45px_-40px_rgba(15,23,42,0.7)]"
       >
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900">Create your own project for free</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+          {hasCompletedTour ? "Create your own project for free" : "Take the interactive demo"}
+        </h2>
         <p className="mt-2 max-w-3xl text-sm text-slate-700">
-          Sign in and try ADES for free. Build your own workflow and let ADES generate evals, reflections, and safeguards for each step.
+          {hasCompletedTour
+            ? "Sign in and try ADES for free. Build your own workflow and let ADES generate evals, reflections, and safeguards for each step."
+            : "See how ADES structures a workflow with evals, reflections, safeguards, and readiness."}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn">Start free</Link>
-          <button type="button" className="ades-ghost-btn" onClick={handleStartTour}>Start guided demo</button>
+          {hasCompletedTour ? (
+            <>
+              <Link href="/sign-in?redirect=%2Fdashboard&back=%2Fdemo" className="ades-primary-btn">
+                Start free
+              </Link>
+              <button type="button" className="ades-ghost-btn" onClick={handleStartTour}>
+                Replay demo
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="ades-primary-btn" onClick={handleStartTour}>
+                Start guided demo
+              </button>
+              <Link href="/sign-in?redirect=%2Fdashboard&back=%2Fdemo" className="ades-ghost-btn">
+                Start free
+              </Link>
+            </>
+          )}
         </div>
-        <p className="mt-2 text-xs font-medium text-slate-600">No payment required to start.</p>
+        <p className="mt-2 text-xs font-medium text-slate-600">Everything is free to start.</p>
       </section>
 
       <section className="relative flex min-h-[700px] gap-3" data-demo-target="workspace-root">
@@ -303,6 +327,16 @@ export function DemoProjectView() {
                   }
                 : null
             }
+            expandedByStepOverride={
+              revealedStateLocked
+                ? {
+                    [DEMO_EVAL_STEP_ID]: { evals: true },
+                    [DEMO_REFLECTION_STEP_ID]: { reflections: true },
+                    [DEMO_SAFEGUARD_STEP_ID]: { safeguards: true },
+                  }
+                : undefined
+            }
+            navigationHint="Pan and zoom to explore the workflow."
           />
         </div>
 

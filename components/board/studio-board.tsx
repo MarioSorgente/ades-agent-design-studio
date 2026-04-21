@@ -25,6 +25,8 @@ type StudioBoardProps = {
   onAddConnectedNode: (sourceId: string, type: AdesNodeType) => string | null;
   onOpenDetails: (nodeId: string) => void;
   onAddNotice?: (message: string) => void;
+  expandedByStepOverride?: Record<string, AttachmentExpansionState>;
+  navigationHint?: string;
 };
 
 type EvalFilter = "all" | "missing" | "end_to_end" | "tool_use" | "safety";
@@ -65,6 +67,8 @@ export function StudioBoard({
   onAddConnectedNode,
   onOpenDetails,
   onAddNotice,
+  expandedByStepOverride,
+  navigationHint,
 }: StudioBoardProps) {
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
@@ -212,6 +216,8 @@ export function StudioBoard({
   }
 
   function isCategoryExpanded(stepId: string, kind: AttachmentKind) {
+    const override = expandedByStepOverride?.[stepId]?.[kind];
+    if (typeof override === "boolean") return override;
     const explicit = expandedByStep[stepId]?.[kind];
     if (typeof explicit === "boolean") return explicit;
     return selectedFlowStepId === stepId;
@@ -525,6 +531,11 @@ export function StudioBoard({
         className="zoom-controls pointer-events-none absolute bottom-4 z-[90]"
         style={{ left: isDetailsPanelOpen ? `${detailsInsetPx + 16}px` : "16px", transition: "left 180ms ease" }}
       >
+        {navigationHint ? (
+          <p className="pointer-events-auto mb-2 inline-flex rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
+            {navigationHint}
+          </p>
+        ) : null}
         <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md">
           <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
           <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
