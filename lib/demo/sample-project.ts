@@ -13,7 +13,7 @@ export const demoProjectRecord = {
   id: "demo-customer-support-refund-agent",
   title: "Customer Support Refund Agent",
   summary:
-    "This agent reviews incoming refund requests, checks policy eligibility, drafts a response, and escalates risky or ambiguous cases to a human.",
+    "This agent reviews refund requests, checks policy eligibility, drafts replies, and escalates risky cases to a human.",
   audience: "Support operations leads",
   constraints: "Policy-safe, low latency, human escalation for risk",
   status: "generated" as const,
