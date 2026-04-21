@@ -85,7 +85,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "complete",
     title: "Demo complete",
-    message: "You've seen how ADES works. Now create your own project for free.",
+    message: "You've seen how ADES works. Ready to design your own workflow?",
     targetSelector: "[data-demo-target='completion-cta']",
     viewMode: "flow",
   },
@@ -173,7 +173,7 @@ export function DemoProjectView() {
     setIsFreeExplore(true);
     setHasCompletedTour(true);
     setHighlightRect(null);
-    setContextMessage("Demo complete. Sign in to create your own project for free.");
+    setContextMessage("Demo complete. You can replay the guide or keep exploring the workspace.");
   }
 
   function handleStartTour() {
@@ -230,17 +230,34 @@ export function DemoProjectView() {
 
   return (
     <div className="space-y-4">
-      <section className="ades-panel flex flex-wrap items-center justify-between gap-4 px-6 py-5">
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Public demo · read-only</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Try ADES in 60 seconds</h1>
-          <p className="text-sm text-slate-600">Explore a real project canvas, then sign in to build your own agent design.</p>
+      <section className="ades-panel flex flex-wrap items-start justify-between gap-4 px-6 py-5">
+        <div className="max-w-4xl space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{demoProjectRecord.title}</h1>
+          <p className="text-sm text-slate-700">{demoProjectRecord.summary}</p>
+          <p className="text-sm text-slate-600">
+            Design the workflow, inspect each step, and define evals, reflections, safeguards, and readiness before you build.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] font-medium text-slate-600">
+            {["Workflow", "Evals", "Reflections", "Safeguards", "Readiness"].map((feature) => (
+              <span key={feature} className="rounded-full bg-slate-100 px-2.5 py-1">
+                {feature}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Public read-only demo · no sign-in required</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2" data-demo-target="cta">
-          <button type="button" className="ades-primary-btn" onClick={handleStartTour}>Start guided demo</button>
-          <Link href="/sign-in?redirect=%2Fdashboard" className="ades-ghost-btn px-3 py-2 text-xs">
-            Create your own project for free
-          </Link>
+        <div className="min-w-[280px] max-w-[360px] space-y-2 rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-[0_16px_35px_-30px_rgba(15,23,42,0.65)]" data-demo-target="cta">
+          <p className="text-sm font-semibold text-slate-900">Create your own project for free</p>
+          <p className="text-xs leading-relaxed text-slate-600">
+            Sign in to build your own workflow and let ADES generate evals, reflections, and safeguards for each step.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="ades-ghost-btn px-3 py-2 text-xs" onClick={handleStartTour}>Start guided demo</button>
+            <Link href="/sign-in?redirect=%2Fdashboard" className="ades-primary-btn px-3 py-2 text-xs">
+              Create your own project
+            </Link>
+          </div>
+          <p className="text-[11px] font-medium text-slate-500">Free to start.</p>
         </div>
       </section>
 
@@ -277,15 +294,6 @@ export function DemoProjectView() {
               </button>
             </div>
           </div>
-
-          {!hasCompletedTour ? (
-            <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-xs text-slate-600">
-              <p>Sign in to create your own project for free and unlock automatic evals, reflections, and safeguards.</p>
-              <Link href="/sign-in?redirect=%2Fdashboard" className="font-semibold text-slate-900">
-                Start free
-              </Link>
-            </div>
-          ) : null}
 
           <StudioBoard
             className="h-full min-h-[620px]"
@@ -343,13 +351,13 @@ export function DemoProjectView() {
               </p>
             </div>
           </div>
-          <p className="mt-3 text-sm font-semibold text-slate-900">{isTourOpen ? currentTourStep.title : hasCompletedTour ? "Create your own project for free" : "Guided assistant"}</p>
+          <p className="mt-3 text-sm font-semibold text-slate-900">{isTourOpen ? currentTourStep.title : hasCompletedTour ? "Demo completed" : "Guided assistant"}</p>
           <p className="mt-1 text-sm text-slate-600">
             {isTourOpen
               ? currentTourStep.message
               : contextMessage ??
                 (hasCompletedTour
-                  ? "You've seen the workflow canvas. Sign in to build your own agent project for free."
+                  ? "You've seen how ADES works. Replay the guide or keep exploring this sample workflow."
                   : isFreeExplore
                     ? "Explore the workspace freely, or replay the guide for a structured walkthrough."
                     : "Start the walkthrough to see how ADES helps teams design reliable agents.")}
@@ -359,13 +367,7 @@ export function DemoProjectView() {
             <button type="button" className="ades-primary-btn px-3 py-1.5 text-xs" onClick={handleNext}>
               {isTourOpen ? (tourStepIndex === TOUR_STEPS.length - 1 ? "Finish" : "Next") : "Start"}
             </button>
-            {hasCompletedTour ? (
-              <Link href="/sign-in?redirect=%2Fdashboard" className="ades-ghost-btn px-3 py-1.5 text-xs">
-                Create your own project
-              </Link>
-            ) : (
-              <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
-            )}
+            <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleExploreFreely}>Explore freely</button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={handleStartTour}>Replay</button>
             <button type="button" className="ades-ghost-btn px-3 py-1.5 text-xs" onClick={() => { setIsTourOpen(false); setHighlightRect(null); }}>Skip</button>
           </div>
