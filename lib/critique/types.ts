@@ -1,9 +1,18 @@
 export type CritiqueSeverity = "low" | "medium" | "high";
+export type ReadinessDimension =
+  | "workflow_clarity"
+  | "decomposition_quality"
+  | "reflection_logic"
+  | "eval_coverage"
+  | "safeguard_coverage"
+  | "handoff_readiness";
 
 export type CritiqueItem = {
   id: string;
   severity: CritiqueSeverity;
   message: string;
+  whyItMatters: string;
+  affectedDimensions: ReadinessDimension[];
   recommendation: string;
 };
 

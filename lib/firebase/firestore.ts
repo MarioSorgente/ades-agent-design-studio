@@ -25,10 +25,14 @@ export type ProjectRecord = {
   description: string;
   ideaPrompt: string;
   audience: string;
+  contextProblem: string;
+  desiredOutcome: string;
   status: "draft" | "generating" | "generated" | string;
   board: AdesBoardSnapshot | null;
   summary: string;
   constraints: string;
+  humanInvolvement: string;
+  riskLevel: "low" | "medium" | "high" | "";
   assumptions: string[];
   critiqueSeed: string[];
   critique: CritiqueResult | null;
@@ -188,7 +192,26 @@ function parseBoardSnapshot(value: unknown): AdesBoardSnapshot | null {
 function isCritiqueItem(value: unknown): value is CritiqueItem {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
-  return typeof item.id === "string" && (item.severity === "low" || item.severity === "medium" || item.severity === "high") && typeof item.message === "string" && typeof item.recommendation === "string";
+  const hasDimensions =
+    item.affectedDimensions === undefined ||
+    (Array.isArray(item.affectedDimensions) &&
+      item.affectedDimensions.every(
+      (dimension) =>
+        dimension === "workflow_clarity" ||
+        dimension === "decomposition_quality" ||
+        dimension === "reflection_logic" ||
+        dimension === "eval_coverage" ||
+        dimension === "safeguard_coverage" ||
+        dimension === "handoff_readiness",
+    ));
+  return (
+    typeof item.id === "string" &&
+    (item.severity === "low" || item.severity === "medium" || item.severity === "high") &&
+    typeof item.message === "string" &&
+    typeof item.recommendation === "string" &&
+    (item.whyItMatters === undefined || typeof item.whyItMatters === "string") &&
+    hasDimensions
+  );
 }
 
 function isCritiqueSuggestion(value: unknown): value is CritiqueSuggestion {
@@ -221,7 +244,16 @@ function parseCritique(value: unknown): CritiqueResult | null {
   return {
     summary: critique.summary,
     categoryReviews: Array.isArray(critique.categoryReviews) ? critique.categoryReviews.filter(isCategoryReview) : [],
-    critiqueItems: critique.critiqueItems.filter(isCritiqueItem),
+    critiqueItems: critique.critiqueItems
+      .filter(isCritiqueItem)
+      .map((item) => ({
+        ...item,
+        whyItMatters: typeof item.whyItMatters === "string" ? item.whyItMatters : "This weakens design readiness and can cause build/planning ambiguity.",
+        affectedDimensions:
+          Array.isArray(item.affectedDimensions) && item.affectedDimensions.length
+            ? item.affectedDimensions
+            : ["workflow_clarity"],
+      })),
     missingReflections: critique.missingReflections.filter(isCritiqueSuggestion),
     missingEvals: critique.missingEvals.filter(isCritiqueSuggestion),
     missingBusinessMetrics: critique.missingBusinessMetrics.filter(isCritiqueSuggestion),
@@ -237,10 +269,14 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     description: String(data.description ?? ""),
     ideaPrompt: String(data.ideaPrompt ?? ""),
     audience: String(data.audience ?? ""),
+    contextProblem: stringOrEmpty(data.contextProblem),
+    desiredOutcome: stringOrEmpty(data.desiredOutcome),
     status,
     board: parseBoardSnapshot(data.board),
     summary: stringOrEmpty(data.summary),
     constraints: stringOrEmpty(data.constraints),
+    humanInvolvement: stringOrEmpty(data.humanInvolvement),
+    riskLevel: data.riskLevel === "low" || data.riskLevel === "medium" || data.riskLevel === "high" ? data.riskLevel : "",
     assumptions: isStringArray(data.assumptions) ? data.assumptions : [],
     critiqueSeed: isStringArray(data.critiqueSeed) ? data.critiqueSeed : [],
     critique: parseCritique(data.critique),
