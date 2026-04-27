@@ -32,6 +32,16 @@ type GenerateResponse = {
 
 type CritiqueResponse = { critique: CritiqueResult; gated?: boolean; trigger?: UsageGateTrigger };
 type ReadinessDimensionItem = { key: string; label: string; ready: boolean; note: string };
+const blueprintFieldTips = {
+  initiative: "What agent are you designing?",
+  title: "A short internal name for this project.",
+  targetUser: "Who is this agent for, or who will interact with it?",
+  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
+  desiredOutcome: "What successful change should happen if this agent works well?",
+  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
+  humanInvolvement: "When should a human review, approve, or take over?",
+  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
+} as const;
 
 function isMainStep(node: AdesNode) {
   return node.type === "goal" || node.type === "task" || node.type === "handoff";
@@ -78,6 +88,33 @@ function getReadinessChecklist(qualityReport: ReturnType<typeof analyzeBoardQual
     const critiqueCount = critiqueByDimension.get(item.key) ?? 0;
     return critiqueCount > 0 ? { ...item, ready: false, note: `${item.note} ${critiqueCount} critique finding(s) currently affect this dimension.` } : item;
   });
+}
+
+function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <span>{label}</span>
+      <TooltipInfo text={tooltip} />
+    </p>
+  );
+}
+
+function TooltipInfo({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        aria-label={text}
+        title={text}
+      >
+        i
+      </button>
+      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
 }
 
 export default function ProjectPage() {
@@ -547,14 +584,39 @@ export default function ProjectPage() {
 
             {showRegenerateForm ? (
               <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
-                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-2">
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Initiative<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Target user<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Context / problem<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Desired outcome<span className="mt-1 block text-[10px] font-medium normal-case text-slate-500">What successful change should happen if this agent works well?</span><textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Human involvement / escalation<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="When should a person review or take over?" /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Risk level (optional)<select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-2">
+                  <div>
+                    <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                    <textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} placeholder="Example: Agent for triaging support tickets" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                    <input className="ades-input mt-1" value={project.title} readOnly aria-label="Project title (optional)" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                    <input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Example: Support operations leads" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} placeholder="Example: Slow ticket routing and uneven quality" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} placeholder="Example: Faster triage with consistent escalation quality" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Example: PII policy, 2s latency, existing CRM only" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="Example: Human review for low confidence or policy flags" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                    <select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                  </div>
                   <div className="flex items-end">
                     <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from blueprint"}</button>
                   </div>
@@ -652,13 +714,38 @@ export default function ProjectPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">Blueprint</h3>
                     <p className="mt-1 text-xs text-slate-600">Create the first workflow, evals, and safeguards from your idea.</p>
-                    <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Initiative<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Target user<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Context / problem<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Desired outcome<span className="mt-1 block text-[10px] font-medium normal-case text-slate-500">What successful change should happen if this agent works well?</span><textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Human involvement / escalation<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="When should a person review or take over?" /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Risk level (optional)<select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+                    <div className="mt-3">
+                      <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                      <textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} placeholder="Example: Agent for triaging support tickets" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                      <input className="ades-input mt-1" value={project.title} readOnly aria-label="Project title (optional)" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                      <input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Example: Support operations leads" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} placeholder="Example: Slow ticket routing and uneven quality" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} placeholder="Example: Faster triage with consistent escalation quality" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Example: PII policy, 2s latency, existing CRM only" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="Example: Human review for low confidence or policy flags" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                      <select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                    </div>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating design…" : "Generate board from blueprint"}</button>

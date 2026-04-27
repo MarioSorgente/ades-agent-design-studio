@@ -51,6 +51,16 @@ const workflowClarityTooltip = "Is the workflow clear enough to build and test?"
 const evalReadinessTooltip = "Are evals explicit enough to verify behavior?";
 const safeguardsTooltip = "Are safeguards and escalation points explicit where risk exists?";
 const weakestAreaTooltip = "The most important gap to fix next before this design is ready to test.";
+const blueprintFieldTips = {
+  initiative: "What agent are you designing?",
+  title: "A short internal name for this project.",
+  targetUser: "Who is this agent for, or who will interact with it?",
+  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
+  desiredOutcome: "What successful change should happen if this agent works well?",
+  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
+  humanInvolvement: "When should a human review, approve, or take over?",
+  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
+} as const;
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -377,28 +387,51 @@ export default function DashboardPage() {
               <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a build-ready agent design with clear workflow, critique-ready evals, and safeguards.</p>
 
               <form onSubmit={handleCreateProject} className="mt-6 rounded-[1.7rem] border border-slate-200/90 bg-white/95 p-4 shadow-[0_25px_55px_-42px_rgba(15,23,42,0.55)] md:p-5">
-                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Blueprint (lean design intent)</label>
-                <textarea
-                  value={newIdeaPrompt}
-                  onChange={(event) => setNewIdeaPrompt(event.target.value)}
-                  placeholder="Initiative: what agent are you designing?"
-                  className="ades-input mt-3 min-h-28 rounded-2xl"
-                  maxLength={1800}
-                />
-
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional)" className="ades-input" maxLength={100} />
-                  <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Target user" className="ades-input" maxLength={240} />
-                  <input value={newContextProblem} onChange={(event) => setNewContextProblem(event.target.value)} type="text" placeholder="Context / problem" className="ades-input" maxLength={360} />
-                  <input value={newDesiredOutcome} onChange={(event) => setNewDesiredOutcome(event.target.value)} type="text" placeholder="Desired outcome" className="ades-input" maxLength={300} />
-                  <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
-                  <input value={newHumanInvolvement} onChange={(event) => setNewHumanInvolvement(event.target.value)} type="text" placeholder="Human involvement / escalation" className="ades-input" maxLength={260} />
-                  <select value={newRiskLevel} onChange={(event) => setNewRiskLevel(event.target.value as "" | "low" | "medium" | "high")} className="ades-input">
-                    <option value="">Risk level (optional)</option>
-                    <option value="low">Risk: low</option>
-                    <option value="medium">Risk: medium</option>
-                    <option value="high">Risk: high</option>
-                  </select>
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Blueprint</label>
+                <div className="mt-3">
+                  <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                  <textarea
+                    value={newIdeaPrompt}
+                    onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                    placeholder="Example: Agent for triaging support tickets"
+                    className="ades-input mt-1 min-h-24 rounded-2xl"
+                    maxLength={1800}
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                    <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Example: Support triage v1" className="ades-input mt-1" maxLength={100} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                    <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Example: Support operations leads" className="ades-input mt-1" maxLength={240} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                    <input value={newContextProblem} onChange={(event) => setNewContextProblem(event.target.value)} type="text" placeholder="Example: Slow ticket routing and uneven quality" className="ades-input mt-1" maxLength={360} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                    <input value={newDesiredOutcome} onChange={(event) => setNewDesiredOutcome(event.target.value)} type="text" placeholder="Example: Faster triage with consistent escalation quality" className="ades-input mt-1" maxLength={300} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                    <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Example: PII policy, 2s latency, existing CRM only" className="ades-input mt-1" maxLength={400} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                    <input value={newHumanInvolvement} onChange={(event) => setNewHumanInvolvement(event.target.value)} type="text" placeholder="Example: Human review for low confidence or policy flags" className="ades-input mt-1" maxLength={260} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                    <select value={newRiskLevel} onChange={(event) => setNewRiskLevel(event.target.value as "" | "low" | "medium" | "high")} className="ades-input mt-1">
+                      <option value="">Not specified</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
                 </div>
                 <p className="mt-2 text-[11px] text-slate-500">Desired outcome = “What successful change should happen if this agent works well?”</p>
 
@@ -632,6 +665,33 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
         <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
       </div>
     </div>
+  );
+}
+
+function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <span>{label}</span>
+      <TooltipInfo text={tooltip} />
+    </p>
+  );
+}
+
+function TooltipInfo({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        aria-label={text}
+        title={text}
+      >
+        i
+      </button>
+      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
   );
 }
 
