@@ -433,8 +433,6 @@ export default function DashboardPage() {
                     </select>
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">Desired outcome = “What successful change should happen if this agent works well?”</p>
-
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
                     {canCreateProject
