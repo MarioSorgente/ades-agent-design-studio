@@ -49,9 +49,17 @@ const AI_SCHEMA = {
           id: { type: "string" },
           severity: { type: "string", enum: ["low", "medium", "high"] },
           message: { type: "string" },
+          whyItMatters: { type: "string" },
+          affectedDimensions: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["workflow_clarity", "decomposition_quality", "reflection_logic", "eval_coverage", "safeguard_coverage", "handoff_readiness"]
+            }
+          },
           recommendation: { type: "string" }
         },
-        required: ["id", "severity", "message", "recommendation"]
+        required: ["id", "severity", "message", "whyItMatters", "affectedDimensions", "recommendation"]
       }
     },
     missingReflections: {
@@ -225,7 +233,7 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You critique ADES boards for PM users. Return JSON only. Review with this five-question framework: workflow clarity, decomposition quality, tool logic, reflection/feedback placement, eval readiness. For each category, mark pass or needs_work and provide one concrete recommendation. Focus critique items on highest-impact failures and keep suggestions actionable."
+            "You critique ADES boards for PM users. Return JSON only. Review with this five-question framework: workflow clarity, decomposition quality, tool logic, reflection/feedback placement, eval readiness. For each category, mark pass or needs_work and provide one concrete recommendation. Critique items must include what is missing, why it matters, which readiness dimensions are affected, and what to fix next."
         },
         {
           role: "user",
