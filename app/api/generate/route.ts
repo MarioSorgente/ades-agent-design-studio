@@ -35,7 +35,11 @@ type GenerateRequest = {
   projectId?: string;
   ideaPrompt?: string;
   audience?: string;
+  contextProblem?: string;
+  desiredOutcome?: string;
   constraints?: string;
+  humanInvolvement?: string;
+  riskLevel?: "low" | "medium" | "high" | "";
 };
 
 type GeneratedStep = {
@@ -480,7 +484,11 @@ export async function POST(request: Request) {
     console.info("[/api/generate] Request context", { projectId });
     const ideaPrompt = clampText(body.ideaPrompt, 1800);
     const audience = clampText(body.audience, 240);
+    const contextProblem = clampText(body.contextProblem, 360);
+    const desiredOutcome = clampText(body.desiredOutcome, 300);
     const constraints = clampText(body.constraints, 400);
+    const humanInvolvement = clampText(body.humanInvolvement, 260);
+    const riskLevel = body.riskLevel === "low" || body.riskLevel === "medium" || body.riskLevel === "high" ? body.riskLevel : "";
 
     if (!projectId || !ideaPrompt) return NextResponse.json({ error: "projectId and ideaPrompt are required." }, { status: 400 });
 
@@ -531,7 +539,7 @@ export async function POST(request: Request) {
         },
         {
           role: "user",
-          content: `Idea: ${ideaPrompt}\nAudience: ${audience || "General users"}\nConstraints: ${constraints || "None"}\nReturn an implementation-ready, PM-testable workflow that satisfies all five quality gates.`,
+          content: `Initiative: ${ideaPrompt}\nTarget user: ${audience || "General users"}\nContext / problem: ${contextProblem || "Not specified"}\nDesired outcome: ${desiredOutcome || "Not specified"}\nConstraints: ${constraints || "None"}\nHuman involvement / escalation expectation: ${humanInvolvement || "Escalate only on low confidence, policy, or safety risk."}\nRisk level: ${riskLevel || "Not specified"}\nReturn an implementation-ready, PM-testable workflow that satisfies all five quality gates.`,
         },
       ],
       text: {
@@ -569,7 +577,11 @@ export async function POST(request: Request) {
       quality,
       ideaPrompt,
       audience,
+      contextProblem,
+      desiredOutcome,
       constraints,
+      humanInvolvement,
+      riskLevel,
       status: "generated",
       board,
       updatedAt: FieldValue.serverTimestamp(),

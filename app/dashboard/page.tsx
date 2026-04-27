@@ -47,15 +47,20 @@ function isGeneratingProject(project: ProjectRecord, generatingProjectId: string
   return project.status === "generating" || (generatingProjectId === project.id && project.status !== "generated");
 }
 
-const designReadinessTooltip =
-  "How ready this agent design is for testing. Calculated from Workflow Clarity, Eval Readiness, and Safeguards. This is a design-time readiness score, not runtime agent performance.";
-const workflowClarityTooltip =
-  "Checks whether the agent workflow is specific enough to build and test. A clear step has a purpose, input, output, and success condition. Backend also checks decomposition quality and tool logic.";
-const evalReadinessTooltip =
-  "Checks whether the design has meaningful evals for the full workflow and important steps. Good evals include a clear question, pass criteria, threshold or scoring rule, and failure examples or dataset notes.";
-const safeguardsTooltip =
-  "Checks whether risky or uncertain steps include reflection, human feedback, confidence checks, or escalation. Safeguards should appear where quality, safety, or ambiguity risk exists — not everywhere.";
+const workflowClarityTooltip = "Is the workflow clear enough to build and test?";
+const evalReadinessTooltip = "Are evals explicit enough to verify behavior?";
+const safeguardsTooltip = "Are safeguards and escalation points explicit where risk exists?";
 const weakestAreaTooltip = "The most important gap to fix next before this design is ready to test.";
+const blueprintFieldTips = {
+  initiative: "What agent are you designing?",
+  title: "A short internal name for this project.",
+  targetUser: "Who is this agent for, or who will interact with it?",
+  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
+  desiredOutcome: "What successful change should happen if this agent works well?",
+  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
+  humanInvolvement: "When should a human review, approve, or take over?",
+  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
+} as const;
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -67,7 +72,11 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newIdeaPrompt, setNewIdeaPrompt] = useState("");
   const [newAudience, setNewAudience] = useState("");
+  const [newContextProblem, setNewContextProblem] = useState("");
+  const [newDesiredOutcome, setNewDesiredOutcome] = useState("");
   const [newConstraints, setNewConstraints] = useState("");
+  const [newHumanInvolvement, setNewHumanInvolvement] = useState("");
+  const [newRiskLevel, setNewRiskLevel] = useState<"" | "low" | "medium" | "high">("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -187,7 +196,11 @@ export default function DashboardPage() {
           projectId,
           ideaPrompt: newIdeaPrompt,
           audience: newAudience,
+          contextProblem: newContextProblem,
+          desiredOutcome: newDesiredOutcome,
           constraints: newConstraints,
+          humanInvolvement: newHumanInvolvement,
+          riskLevel: newRiskLevel,
         }),
       });
       const payload = (await response.json()) as { error?: string; gated?: boolean; trigger?: UsageGateTrigger };
@@ -207,7 +220,11 @@ export default function DashboardPage() {
       setNewTitle("");
       setNewIdeaPrompt("");
       setNewAudience("");
+      setNewContextProblem("");
+      setNewDesiredOutcome("");
       setNewConstraints("");
+      setNewHumanInvolvement("");
+      setNewRiskLevel("");
       setGeneratingProjectId(null);
     } catch (error) {
       setGeneratingProjectId(null);
@@ -367,22 +384,54 @@ export default function DashboardPage() {
 
               <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Agent design workspace</p>
               <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">Let&apos;s design something, {userName}.</h1>
-              <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a testable agent with structured tasks, reflection loops, eval coverage, and business metrics.</p>
+              <p className="mt-3 max-w-2xl text-sm text-slate-600 md:text-base">Turn an idea into a build-ready agent design with clear workflow, critique-ready evals, and safeguards.</p>
 
               <form onSubmit={handleCreateProject} className="mt-6 rounded-[1.7rem] border border-slate-200/90 bg-white/95 p-4 shadow-[0_25px_55px_-42px_rgba(15,23,42,0.55)] md:p-5">
-                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Start a new project</label>
-                <textarea
-                  value={newIdeaPrompt}
-                  onChange={(event) => setNewIdeaPrompt(event.target.value)}
-                  placeholder="Describe the agent you want to design… Ask ADES to draft tasks, loops, risks, and evals."
-                  className="ades-input mt-3 min-h-28 rounded-2xl"
-                  maxLength={1800}
-                />
-
-                <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Project title (optional)" className="ades-input" maxLength={100} />
-                  <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Audience (optional)" className="ades-input" maxLength={240} />
-                  <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Constraints (optional)" className="ades-input" maxLength={400} />
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Blueprint</label>
+                <div className="mt-3">
+                  <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                  <textarea
+                    value={newIdeaPrompt}
+                    onChange={(event) => setNewIdeaPrompt(event.target.value)}
+                    placeholder="Example: Agent for triaging support tickets"
+                    className="ades-input mt-1 min-h-24 rounded-2xl"
+                    maxLength={1800}
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                    <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} type="text" placeholder="Example: Support triage v1" className="ades-input mt-1" maxLength={100} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                    <input value={newAudience} onChange={(event) => setNewAudience(event.target.value)} type="text" placeholder="Example: Support operations leads" className="ades-input mt-1" maxLength={240} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                    <input value={newContextProblem} onChange={(event) => setNewContextProblem(event.target.value)} type="text" placeholder="Example: Slow ticket routing and uneven quality" className="ades-input mt-1" maxLength={360} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                    <input value={newDesiredOutcome} onChange={(event) => setNewDesiredOutcome(event.target.value)} type="text" placeholder="Example: Faster triage with consistent escalation quality" className="ades-input mt-1" maxLength={300} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                    <input value={newConstraints} onChange={(event) => setNewConstraints(event.target.value)} type="text" placeholder="Example: PII policy, 2s latency, existing CRM only" className="ades-input mt-1" maxLength={400} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                    <input value={newHumanInvolvement} onChange={(event) => setNewHumanInvolvement(event.target.value)} type="text" placeholder="Example: Human review for low confidence or policy flags" className="ades-input mt-1" maxLength={260} />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                    <select value={newRiskLevel} onChange={(event) => setNewRiskLevel(event.target.value as "" | "low" | "medium" | "high")} className="ades-input mt-1">
+                      <option value="">Not specified</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -557,110 +606,132 @@ export default function DashboardPage() {
 }
 
 function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; projectId: string }) {
-  const clampedScore = Math.max(0, Math.min(100, quality.designReadinessScore));
-  const workflowScore = Math.max(0, Math.min(100, quality.workflowClarityPct));
-  const evalScore = Math.max(0, Math.min(100, quality.evalReadinessPct));
-  const safeguardsScore = Math.max(0, Math.min(100, quality.safeguardsPct));
-  const safeguardsValue = quality.safeguardsApplicable ? `${safeguardsScore}/100` : "N/A";
-  const readinessStatus = clampedScore >= 85 ? "Ready to test" : clampedScore >= 70 ? "Needs light refinement" : "Needs eval work";
+  const checklist = [
+    {
+      label: "Workflow clarity",
+      ready: quality.workflowClarityPct >= 80,
+      detail: getWorkflowClarityTip(quality),
+      tooltip: workflowClarityTooltip,
+      cta: quality.workflowClarityPct < 80 ? { label: "Fix steps", href: `/project/${projectId}?view=flow` } : null,
+    },
+    {
+      label: "Decomposition quality",
+      ready: quality.decompositionQuality.passed,
+      detail: quality.decompositionQuality.issues[0] ?? "Step granularity looks buildable.",
+      tooltip: "Are steps too broad or too fragmented?",
+      cta: quality.decompositionQuality.passed ? null : { label: "Refine flow", href: `/project/${projectId}?view=flow` },
+    },
+    {
+      label: "Reflection logic",
+      ready: quality.reflectionFeedback.passed,
+      detail: quality.reflectionFeedback.issues[0] ?? "Reflection is targeted to uncertainty and risk.",
+      tooltip: "Are reflection hooks intentional, not everywhere?",
+      cta: quality.reflectionFeedback.passed ? null : { label: "Review reflections", href: `/project/${projectId}?view=flow` },
+    },
+    {
+      label: "Eval coverage",
+      ready: quality.evalReadinessPct >= 80,
+      detail: getEvalReadinessTip(quality),
+      tooltip: evalReadinessTooltip,
+      cta: quality.evalReadinessPct < 80 ? { label: "Review evals", href: `/project/${projectId}?view=eval` } : null,
+    },
+    {
+      label: "Safeguard coverage",
+      ready: !quality.safeguardsApplicable || quality.safeguardsPct >= 80,
+      detail: getSafeguardsTip(quality),
+      tooltip: safeguardsTooltip,
+      cta: quality.safeguardsApplicable && quality.safeguardsPct < 80 ? { label: "Review safeguards", href: `/project/${projectId}` } : null,
+    },
+    {
+      label: "Handoff readiness",
+      ready: quality.workflowClarityPct >= 80 && quality.evalReadinessPct >= 80,
+      detail: quality.workflowClarityPct >= 80 && quality.evalReadinessPct >= 80 ? "Design intent and validation are clear for build planning." : "Tighten workflow outputs and eval expectations before handoff.",
+      tooltip: "Is this coherent enough for engineers to implement?",
+      cta: quality.workflowClarityPct >= 80 && quality.evalReadinessPct >= 80 ? null : { label: "Open studio", href: `/project/${projectId}` },
+    },
+  ];
+  const readyCount = checklist.filter((item) => item.ready).length;
 
   return (
-    <div className="grid gap-2.5">
-      <div className="grid gap-2.5 lg:grid-cols-[220px_1fr] lg:items-stretch">
-        <div className="rounded-xl border border-indigo-100/90 bg-indigo-50/70 px-3 py-2.5 shadow-[0_8px_22px_-20px_rgba(79,70,229,0.55)]">
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-700/85">
-            <span>Design readiness</span>
-            <span
-              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-indigo-200 bg-white text-[10px] font-bold normal-case text-indigo-600 opacity-70 transition hover:opacity-100 focus-visible:opacity-100"
-              title={designReadinessTooltip}
-              aria-label={designReadinessTooltip}
-            >
-              i
-            </span>
-          </p>
-          <p className="mt-1 text-3xl font-semibold leading-none text-slate-900">
-            {clampedScore}
-            <span className="text-base font-medium text-slate-500">/100</span>
-          </p>
-          <p className="mt-1 text-[11px] font-medium text-indigo-700/90">{readinessStatus}</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <MetricRow
-            label="Workflow Clarity"
-            value={`${workflowScore}/100`}
-            score={workflowScore}
-            tooltip={workflowClarityTooltip}
-            tip={getWorkflowClarityTip(quality)}
-            cta={workflowScore < 80 ? { label: "Fix steps", href: `/project/${projectId}?view=flow` } : null}
-          />
-          <MetricRow
-            label="Eval Readiness"
-            value={`${evalScore}/100`}
-            score={evalScore}
-            tooltip={evalReadinessTooltip}
-            tip={getEvalReadinessTip(quality)}
-            cta={evalScore < 80 ? { label: "Review evals", href: `/project/${projectId}?view=eval` } : null}
-          />
-          <MetricRow
-            label="Safeguards"
-            value={safeguardsValue}
-            score={quality.safeguardsApplicable ? safeguardsScore : null}
-            tooltip={safeguardsTooltip}
-            tip={getSafeguardsTip(quality)}
-            cta={quality.safeguardsApplicable && safeguardsScore < 80 ? { label: "Review safeguards", href: `/project/${projectId}?view=improvement` } : null}
-          />
-        </div>
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700/85">Readiness checklist · {readyCount}/6 ready</p>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {checklist.map((item) => (
+          <MetricRow key={item.label} label={item.label} ready={item.ready} tooltip={item.tooltip} tip={item.detail} cta={item.cta} />
+        ))}
+      </div>
+      <div className="mt-2">
+        <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
       </div>
     </div>
   );
 }
 
+function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <span>{label}</span>
+      <TooltipInfo text={tooltip} />
+    </p>
+  );
+}
+
+function TooltipInfo({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        aria-label={text}
+        title={text}
+      >
+        i
+      </button>
+      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 function getWorkflowClarityTip(quality: BoardQualityReport) {
-  if (quality.workflowClarityPct >= 80) return "Looks good";
+  if (quality.workflowClarityPct >= 80) return "Main steps are explicit.";
   if (quality.clearWorkflowSteps < quality.totalMainWorkflowSteps) {
     const unclearCount = quality.totalMainWorkflowSteps - quality.clearWorkflowSteps;
-    return unclearCount === 1 ? "1 step has unclear output" : `${unclearCount} steps need clearer IO`;
+    return unclearCount === 1 ? "1 step has unclear output." : `${unclearCount} steps need clearer IO.`;
   }
-  return "Tighten step clarity";
+  return "Tighten step clarity.";
 }
 
 function getEvalReadinessTip(quality: BoardQualityReport) {
-  if (quality.evalReadinessPct >= 80) return "Ready";
+  if (quality.evalReadinessPct >= 80) return "Coverage is solid.";
   const topIssue = quality.evalReadiness.issues[0] || "";
-  if (/safety/i.test(topIssue) && /tool/i.test(topIssue)) return "Missing safety + tool evals";
-  if (/safety/i.test(topIssue)) return "Missing safety eval";
-  if (/tool/i.test(topIssue)) return "Missing tool eval";
-  if (/end-to-end/i.test(topIssue)) return "Missing end-to-end eval";
-  return "Eval coverage needs work";
+  if (/end-to-end/i.test(topIssue)) return "Missing end-to-end eval.";
+  return "Eval coverage needs work.";
 }
 
 function getSafeguardsTip(quality: BoardQualityReport) {
-  if (!quality.safeguardsApplicable) return "Ready";
-  if (quality.safeguardsPct >= 80) return "Covered";
+  if (!quality.safeguardsApplicable) return "No risky steps detected yet.";
+  if (quality.safeguardsPct >= 80) return "Risky steps are safeguarded.";
   const missingCount = Math.max(0, quality.riskyOrUncertainSteps - quality.safeguardedRiskySteps);
-  return missingCount <= 1 ? "1 risky step missing safeguard" : `${missingCount} risky steps missing safeguards`;
+  return missingCount <= 1 ? "1 risky step missing safeguard." : `${missingCount} risky steps missing safeguards.`;
 }
 
 function MetricRow({
   label,
-  value,
-  score,
+  ready,
   tooltip,
   tip,
   cta,
 }: {
   label: string;
-  value: string;
-  score: number | null;
+  ready: boolean;
   tooltip: string;
   tip: string;
   cta: { label: string; href: string } | null;
 }) {
-  const barValue = score === null ? 0 : Math.max(0, Math.min(100, score));
-
   return (
-    <article className="rounded-xl border border-slate-200/90 bg-white px-3 py-2 shadow-[0_10px_20px_-22px_rgba(15,23,42,0.85)]">
+    <article className={`rounded-xl border px-3 py-2 shadow-[0_10px_20px_-22px_rgba(15,23,42,0.85)] ${ready ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/60"}`}>
       <p className="flex items-center justify-between gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
         <span className="truncate">{label}</span>
         <span
@@ -671,12 +742,9 @@ function MetricRow({
           i
         </span>
       </p>
-      <p className="mt-1 text-lg font-semibold leading-none text-slate-900">{value}</p>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-indigo-400/80" style={{ width: `${barValue}%` }} />
-      </div>
+      <p className="mt-1 text-sm font-semibold leading-none text-slate-900">{ready ? "Ready" : "Needs work"}</p>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <p className="truncate text-[11px] text-slate-600">{tip}</p>
+        <p className="text-[11px] text-slate-600">{tip}</p>
         {cta ? (
           <Link href={cta.href} className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 transition hover:border-indigo-300 hover:text-indigo-800">
             {cta.label}

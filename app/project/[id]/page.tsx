@@ -31,6 +31,17 @@ type GenerateResponse = {
 };
 
 type CritiqueResponse = { critique: CritiqueResult; gated?: boolean; trigger?: UsageGateTrigger };
+type ReadinessDimensionItem = { key: string; label: string; ready: boolean; note: string };
+const blueprintFieldTips = {
+  initiative: "What agent are you designing?",
+  title: "A short internal name for this project.",
+  targetUser: "Who is this agent for, or who will interact with it?",
+  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
+  desiredOutcome: "What successful change should happen if this agent works well?",
+  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
+  humanInvolvement: "When should a human review, approve, or take over?",
+  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
+} as const;
 
 function isMainStep(node: AdesNode) {
   return node.type === "goal" || node.type === "task" || node.type === "handoff";
@@ -53,6 +64,59 @@ function rebuildExecutionEdges(edges: AdesEdge[], orderedMainSteps: AdesNode[]) 
   return [...nonExecutionEdges, ...executionEdges];
 }
 
+function getReadinessChecklist(qualityReport: ReturnType<typeof analyzeBoardQuality>, critiqueResult: CritiqueResult | null): ReadinessDimensionItem[] {
+  const critiqueByDimension = new Map<string, number>();
+  critiqueResult?.critiqueItems.forEach((item) => {
+    item.affectedDimensions.forEach((dimension) => {
+      critiqueByDimension.set(dimension, (critiqueByDimension.get(dimension) ?? 0) + 1);
+    });
+  });
+
+  return [
+    { key: "workflow_clarity", label: "Workflow clarity", ready: qualityReport.workflowClarity.passed, note: qualityReport.workflowClarity.issues[0] ?? "Main steps have clear purpose, inputs, outputs, and completion criteria." },
+    { key: "decomposition_quality", label: "Decomposition quality", ready: qualityReport.decompositionQuality.passed, note: qualityReport.decompositionQuality.issues[0] ?? "Step granularity is practical for build planning." },
+    { key: "reflection_logic", label: "Reflection logic", ready: qualityReport.reflectionFeedback.passed, note: qualityReport.reflectionFeedback.issues[0] ?? "Reflection points are used intentionally where uncertainty exists." },
+    { key: "eval_coverage", label: "Eval coverage", ready: qualityReport.evalReadiness.passed, note: qualityReport.evalReadiness.issues[0] ?? "Evals cover end-to-end and critical-step outcomes." },
+    { key: "safeguard_coverage", label: "Safeguard coverage", ready: qualityReport.safeguardsApplicable ? qualityReport.safeguardsPct >= 75 : true, note: qualityReport.safeguardsApplicable ? `Safeguarded risky steps: ${qualityReport.safeguardedRiskySteps}/${qualityReport.riskyOrUncertainSteps}.` : "No risky steps detected yet." },
+    {
+      key: "handoff_readiness",
+      label: "Handoff readiness",
+      ready: qualityReport.workflowClarity.passed && qualityReport.evalReadiness.passed,
+      note: qualityReport.workflowClarity.passed && qualityReport.evalReadiness.passed ? "Workflow and eval intent are clear enough for build planning handoff." : "Clarify workflow outputs and eval plan before final handoff.",
+    },
+  ].map((item) => {
+    const critiqueCount = critiqueByDimension.get(item.key) ?? 0;
+    return critiqueCount > 0 ? { ...item, ready: false, note: `${item.note} ${critiqueCount} critique finding(s) currently affect this dimension.` } : item;
+  });
+}
+
+function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <span>{label}</span>
+      <TooltipInfo text={tooltip} />
+    </p>
+  );
+}
+
+function TooltipInfo({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        aria-label={text}
+        title={text}
+      >
+        i
+      </button>
+      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export default function ProjectPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
   const searchParams = useSearchParams();
@@ -66,7 +130,11 @@ export default function ProjectPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [ideaPrompt, setIdeaPrompt] = useState("");
   const [audience, setAudience] = useState("");
+  const [contextProblem, setContextProblem] = useState("");
+  const [desiredOutcome, setDesiredOutcome] = useState("");
   const [constraints, setConstraints] = useState("");
+  const [humanInvolvement, setHumanInvolvement] = useState("");
+  const [riskLevel, setRiskLevel] = useState<"" | "low" | "medium" | "high">("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSummary, setGenerationSummary] = useState<string>("");
@@ -182,7 +250,11 @@ export default function ProjectPage() {
     setSaveState("saved");
     setIdeaPrompt(project.ideaPrompt);
     setAudience(project.audience);
+    setContextProblem(project.contextProblem ?? "");
+    setDesiredOutcome(project.desiredOutcome ?? "");
     setConstraints(project.constraints);
+    setHumanInvolvement(project.humanInvolvement ?? "");
+    setRiskLevel(project.riskLevel ?? "");
     setGenerationSummary(project.summary);
     setCritiqueResult(project.critique);
   }, [isLoading, loadBoardSnapshot, project]);
@@ -271,7 +343,7 @@ export default function ProjectPage() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ projectId: project.id, ideaPrompt, audience, constraints }),
+        body: JSON.stringify({ projectId: project.id, ideaPrompt, audience, contextProblem, desiredOutcome, constraints, humanInvolvement, riskLevel }),
       });
 
       const payload = (await response.json()) as GenerateResponse | { error?: string };
@@ -288,7 +360,11 @@ export default function ProjectPage() {
       setSaveState("saved");
       setGenerationSummary(payload.project.summary);
       setCritiqueResult(null);
-      setProject((previous) => (previous ? { ...previous, title: payload.project.title, summary: payload.project.summary, status: "generated", ideaPrompt, audience, constraints, critique: null } : previous));
+      setProject((previous) =>
+        previous
+          ? { ...previous, title: payload.project.title, summary: payload.project.summary, status: "generated", ideaPrompt, audience, contextProblem, desiredOutcome, constraints, humanInvolvement, riskLevel, critique: null }
+          : previous,
+      );
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : "Generation failed.");
     } finally {
@@ -333,7 +409,25 @@ export default function ProjectPage() {
   }
 
   const handleExportMarkdown = () => project && downloadTextFile(`${project.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.md`, createProjectMarkdown({ ...project, board: getBoardSnapshot(), critique: critiqueResult ?? project.critique }), "text/markdown;charset=utf-8");
-  const handleExportJson = () => project && downloadTextFile(`${project.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.json`, createProjectJson({ ...project, board: getBoardSnapshot(), ideaPrompt, audience, constraints, summary: generationSummary || project.summary, critique: critiqueResult ?? project.critique }), "application/json;charset=utf-8");
+  const handleExportJson = () =>
+    project &&
+    downloadTextFile(
+      `${project.title.replace(/\s+/g, "-").toLowerCase() || "ades-project"}.json`,
+      createProjectJson({
+        ...project,
+        board: getBoardSnapshot(),
+        ideaPrompt,
+        audience,
+        contextProblem,
+        desiredOutcome,
+        constraints,
+        humanInvolvement,
+        riskLevel,
+        summary: generationSummary || project.summary,
+        critique: critiqueResult ?? project.critique,
+      }),
+      "application/json;charset=utf-8",
+    );
 
   async function handleExportImage() {
     if (isExportingImage) return;
@@ -366,10 +460,30 @@ export default function ProjectPage() {
       lastSavedHashRef.current = JSON.stringify(parsed.board);
       setIdeaPrompt(parsed.ideaPrompt);
       setAudience(parsed.audience);
+      setContextProblem(parsed.contextProblem);
+      setDesiredOutcome(parsed.desiredOutcome);
       setConstraints(parsed.constraints);
+      setHumanInvolvement(parsed.humanInvolvement);
+      setRiskLevel(parsed.riskLevel);
       setGenerationSummary(parsed.summary);
       setCritiqueResult(parsed.critique);
-      setProject((previous) => (previous ? { ...previous, title: parsed.title || previous.title, summary: parsed.summary, ideaPrompt: parsed.ideaPrompt, audience: parsed.audience, constraints: parsed.constraints, critique: parsed.critique } : previous));
+      setProject((previous) =>
+        previous
+          ? {
+              ...previous,
+              title: parsed.title || previous.title,
+              summary: parsed.summary,
+              ideaPrompt: parsed.ideaPrompt,
+              audience: parsed.audience,
+              contextProblem: parsed.contextProblem,
+              desiredOutcome: parsed.desiredOutcome,
+              constraints: parsed.constraints,
+              humanInvolvement: parsed.humanInvolvement,
+              riskLevel: parsed.riskLevel,
+              critique: parsed.critique,
+            }
+          : previous,
+      );
       await saveProjectBoardForUser(project.id, user.uid, parsed.board);
       setSaveState("saved");
     } catch (error) {
@@ -425,7 +539,7 @@ export default function ProjectPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{saveStateLabel}</span>
-                  <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">Readiness {qualityReport.score}/100</span>
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">Readiness checklist</span>
                   <div className="ml-1 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
                     <button type="button" onClick={() => setViewMode("flow")} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === "flow" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
                       Flow
@@ -437,6 +551,9 @@ export default function ProjectPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || !hasGeneratedDesign} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">
+                    {isCritiquing ? "Running critique…" : "Run critique"}
+                  </button>
                   <details className="relative">
                     <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">Export</summary>
                     <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
@@ -467,16 +584,57 @@ export default function ProjectPage() {
 
             {showRegenerateForm ? (
               <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
-                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-3">
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-2">
                   <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
-                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from idea"}</button>
+                    <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                    <textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} placeholder="Example: Agent for triaging support tickets" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                    <input className="ades-input mt-1" value={project.title} readOnly aria-label="Project title (optional)" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                    <input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Example: Support operations leads" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} placeholder="Example: Slow ticket routing and uneven quality" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} placeholder="Example: Faster triage with consistent escalation quality" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Example: PII policy, 2s latency, existing CRM only" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                    <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="Example: Human review for low confidence or policy flags" />
+                  </div>
+                  <div>
+                    <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                    <select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                  </div>
+                  <div className="flex items-end">
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn mt-2 w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Regenerating…" : "Regenerate from blueprint"}</button>
                   </div>
                 </div>
               </section>
             ) : null}
+
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Readiness review (checklist-first)</p>
+              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {getReadinessChecklist(qualityReport, critiqueResult).map((item) => (
+                  <article key={item.key} className={`rounded-xl border p-2.5 ${item.ready ? "border-emerald-200 bg-emerald-50/60" : "border-amber-200 bg-amber-50/60"}`}>
+                    <p className="text-xs font-semibold text-slate-900">{item.ready ? "✓" : "•"} {item.label}</p>
+                    <p className="mt-1 text-[11px] text-slate-700">{item.note}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
 
             <section className="relative flex min-h-0 flex-1">
               <div className={`min-w-0 flex-1 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
@@ -526,9 +684,12 @@ export default function ProjectPage() {
                       <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.severity} severity</p>
                         <p className="mt-1 text-sm text-slate-800">{item.message}</p>
-                        <p className="mt-1 text-xs text-slate-600">{item.recommendation}</p>
+                        <p className="mt-1 text-xs text-slate-600"><span className="font-semibold">Why it matters:</span> {item.whyItMatters}</p>
+                        <p className="mt-1 text-xs text-slate-600"><span className="font-semibold">Affected dimensions:</span> {item.affectedDimensions.map((dimension) => dimension.replaceAll("_", " ")).join(", ")}</p>
+                        <p className="mt-1 text-xs text-slate-600"><span className="font-semibold">Fix next:</span> {item.recommendation}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setViewMode("flow")}>Go to view</button>
+                          <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setAddNotice("Add to board is contextual — use + on any step to apply this recommendation.")}>Add to board</button>
                           <button type="button" className="ades-ghost-btn px-2 py-1 text-xs" onClick={() => setDismissedFindingIds((prev) => [...prev, item.id])}>Dismiss</button>
                         </div>
                       </article>
@@ -551,15 +712,45 @@ export default function ProjectPage() {
               <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Generate agent design</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">Blueprint</h3>
                     <p className="mt-1 text-xs text-slate-600">Create the first workflow, evals, and safeguards from your idea.</p>
-                    <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Idea<textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Audience<input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} /></label>
-                    <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Constraints<textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Policy, latency, budget..." /></label>
+                    <div className="mt-3">
+                      <BlueprintLabel label="Initiative" tooltip={blueprintFieldTips.initiative} />
+                      <textarea className="ades-input mt-1 min-h-[84px] resize-y" value={ideaPrompt} onChange={(event) => setIdeaPrompt(event.target.value)} placeholder="Example: Agent for triaging support tickets" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Project title (optional)" tooltip={blueprintFieldTips.title} />
+                      <input className="ades-input mt-1" value={project.title} readOnly aria-label="Project title (optional)" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Target user" tooltip={blueprintFieldTips.targetUser} />
+                      <input className="ades-input mt-1" value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Example: Support operations leads" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Context / problem" tooltip={blueprintFieldTips.contextProblem} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={contextProblem} onChange={(event) => setContextProblem(event.target.value)} placeholder="Example: Slow ticket routing and uneven quality" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Desired outcome" tooltip={blueprintFieldTips.desiredOutcome} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={desiredOutcome} onChange={(event) => setDesiredOutcome(event.target.value)} placeholder="Example: Faster triage with consistent escalation quality" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Constraints (optional)" tooltip={blueprintFieldTips.constraints} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Example: PII policy, 2s latency, existing CRM only" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Human involvement / escalation" tooltip={blueprintFieldTips.humanInvolvement} />
+                      <textarea className="ades-input mt-1 min-h-[66px] resize-y" value={humanInvolvement} onChange={(event) => setHumanInvolvement(event.target.value)} placeholder="Example: Human review for low confidence or policy flags" />
+                    </div>
+                    <div className="mt-2">
+                      <BlueprintLabel label="Risk level (optional)" tooltip={blueprintFieldTips.riskLevel} />
+                      <select className="ades-input mt-1" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value as "" | "low" | "medium" | "high")}><option value="">Not specified</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                    </div>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating design…" : "Generate agent design"}</button>
+                    <button type="button" onClick={() => void handleGenerateBoard()} disabled={isGenerating || !ideaPrompt.trim()} className="ades-primary-btn w-full px-3 py-2 text-xs disabled:opacity-60">{isGenerating ? "Generating design…" : "Generate board from blueprint"}</button>
                     {generationError ? <p className="mt-2 text-xs text-rose-600">{generationError}</p> : null}
+                    <p className="mt-2 text-xs text-slate-600">Build-ready handoff pulls from: design intent (blueprint), board workflow, eval coverage, and safeguards.</p>
                   </div>
                 </div>
               </section>

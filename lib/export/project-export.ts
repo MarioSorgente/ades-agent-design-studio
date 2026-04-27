@@ -77,11 +77,23 @@ ${project.summary || "No summary yet."}
 ## Target user
 ${project.audience || "Not specified"}
 
-## Idea prompt
+## Initiative
 ${project.ideaPrompt || "Not specified"}
+
+## Context / problem
+${project.contextProblem || "Not specified"}
+
+## Desired outcome
+${project.desiredOutcome || "Not specified"}
 
 ## Constraints
 ${project.constraints || "None"}
+
+## Human involvement / escalation expectation
+${project.humanInvolvement || "Not specified"}
+
+## Risk level (optional)
+${project.riskLevel || "Not specified"}
 
 ${sectionBlocks}
 
@@ -107,7 +119,11 @@ export function createProjectJson(project: ProjectRecord) {
         description: project.description,
         ideaPrompt: project.ideaPrompt,
         audience: project.audience,
+        contextProblem: project.contextProblem,
+        desiredOutcome: project.desiredOutcome,
         constraints: project.constraints,
+        humanInvolvement: project.humanInvolvement,
+        riskLevel: project.riskLevel,
         status: project.status,
         summary: project.summary,
         assumptions: project.assumptions,
@@ -126,7 +142,11 @@ export function parseImportJson(raw: string): {
   summary: string;
   ideaPrompt: string;
   audience: string;
+  contextProblem: string;
+  desiredOutcome: string;
   constraints: string;
+  humanInvolvement: string;
+  riskLevel: "" | "low" | "medium" | "high";
   critique: CritiqueResult | null;
   title?: string;
 } {
@@ -136,7 +156,11 @@ export function parseImportJson(raw: string): {
       summary?: string;
       ideaPrompt?: string;
       audience?: string;
+      contextProblem?: string;
+      desiredOutcome?: string;
       constraints?: string;
+      humanInvolvement?: string;
+      riskLevel?: "" | "low" | "medium" | "high";
       critique?: CritiqueResult | null;
       title?: string;
     };
@@ -151,7 +175,11 @@ export function parseImportJson(raw: string): {
     summary: parsed.project?.summary ?? "",
     ideaPrompt: parsed.project?.ideaPrompt ?? "",
     audience: parsed.project?.audience ?? "",
+    contextProblem: parsed.project?.contextProblem ?? "",
+    desiredOutcome: parsed.project?.desiredOutcome ?? "",
     constraints: parsed.project?.constraints ?? "",
+    humanInvolvement: parsed.project?.humanInvolvement ?? "",
+    riskLevel: parsed.project?.riskLevel === "low" || parsed.project?.riskLevel === "medium" || parsed.project?.riskLevel === "high" ? parsed.project.riskLevel : "",
     critique: parsed.project?.critique ?? null,
     title: parsed.project?.title,
   };
