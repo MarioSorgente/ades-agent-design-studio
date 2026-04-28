@@ -551,9 +551,6 @@ export default function ProjectPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || !hasGeneratedDesign} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">
-                    {isCritiquing ? "Running critique…" : "Run critique"}
-                  </button>
                   <details className="relative">
                     <summary className="ades-ghost-btn list-none cursor-pointer select-none px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">Export</summary>
                     <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
@@ -575,6 +572,12 @@ export default function ProjectPage() {
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regenerate from idea</p>
                         <p className="mt-1 text-xs text-slate-600">Warning: this may replace your current board structure.</p>
                         <button type="button" onClick={() => setShowRegenerateForm((prev) => !prev)} className="ades-ghost-btn mt-2 w-full px-2 py-1.5 text-xs">{showRegenerateForm ? "Hide form" : "Open regenerate form"}</button>
+                        <div className="mt-3 border-t border-slate-200 pt-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Advanced checks (optional)</p>
+                          <button type="button" onClick={() => void handleCritiqueBoard()} disabled={isCritiquing || !hasGeneratedDesign} className="ades-ghost-btn mt-2 w-full px-2 py-1.5 text-xs disabled:opacity-60">
+                            {isCritiquing ? "Running advanced critique…" : "Run advanced critique"}
+                          </button>
+                        </div>
                       </div>
                     </details>
                   )}
