@@ -21,6 +21,7 @@ import {
   type EvalCategory,
 } from "@/lib/board/types";
 import { analyzeBoardQuality } from "@/lib/board/quality";
+import { ADES_GENERATE_MASTER_SYSTEM_PROMPT, buildGenerateBlueprintPrompt } from "@/lib/ai/prompts/generate-master-prompt";
 
 type OpenAIDebug = {
   called: boolean;
@@ -534,12 +535,19 @@ export async function POST(request: Request) {
       input: [
         {
           role: "system",
-          content:
-            "You are the ADES design engine. Output JSON only and optimize for five quality gates: (1) workflow clarity: every step must include purpose, why this step exists, inputs, outputs, and completion criteria; (2) decomposition quality: avoid giant vague steps and noisy micro-steps, target 5-9 main steps unless complexity clearly needs more; (3) tool logic: for tool-use steps include tool name/category, why needed, exact input, expected output, how results are used, and failure mode handling; (4) reflection/feedback: include reflection loops only where uncertainty/quality risk exists, and human handoff only with explicit risk/policy/compliance/confidence justification, each with trigger, critique/review question, revision action, and stop condition; (5) eval readiness: include at least one end-to-end task-success eval plus critical step evals, tool-accuracy evals for tool steps, safety/compliance evals when risk exists, and robustness evals with clear verification question, pass criteria, threshold/scoring rule, dataset notes, and failure examples. Hard rules: never use placeholder names like New task/New goal/Step 1; never omit pass criteria; never imply score over 100.",
+          content: ADES_GENERATE_MASTER_SYSTEM_PROMPT,
         },
         {
           role: "user",
-          content: `Initiative: ${ideaPrompt}\nTarget user: ${audience || "General users"}\nContext / problem: ${contextProblem || "Not specified"}\nDesired outcome: ${desiredOutcome || "Not specified"}\nConstraints: ${constraints || "None"}\nHuman involvement / escalation expectation: ${humanInvolvement || "Escalate only on low confidence, policy, or safety risk."}\nRisk level: ${riskLevel || "Not specified"}\nReturn an implementation-ready, PM-testable workflow that satisfies all five quality gates.`,
+          content: buildGenerateBlueprintPrompt({
+            ideaPrompt,
+            audience,
+            contextProblem,
+            desiredOutcome,
+            constraints,
+            humanInvolvement,
+            riskLevel,
+          }),
         },
       ],
       text: {
