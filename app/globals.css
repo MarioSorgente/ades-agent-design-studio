@@ -16,6 +16,10 @@ body {
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background:
     radial-gradient(circle at top left, rgba(148, 163, 184, 0.16), transparent 28%),
