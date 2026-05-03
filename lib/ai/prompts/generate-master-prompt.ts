@@ -93,7 +93,6 @@ Especially check:
 
 Output requirements:
 Return a structured agent design that can be rendered into the ADES board structure.
-
 It must include:
 - main workflow steps
 - reflection points only where justified
@@ -102,8 +101,60 @@ It must include:
 - assumptions
 - business outcome logic
 - enough structure to support handoff and editing
+The output must be consistent, structured, implementation-oriented, and faithful to the Blueprint with those shaping rules:
+- Prefer 5–8 main workflow steps unless the Blueprint clearly requires more complexity.
+- Do not add reflection to every step; use it only where uncertainty, reasoning complexity, or risk justifies it.
+- Include at least one end-to-end eval and only the most important step-level evals needed to assess quality.
+- Safeguards should be strongest on risky, externally visible, policy-sensitive, or high-consequence steps.
+- The final design should feel like a strong first build-planning artifact for product, design, and engineering — not a final technical specification and not a vague brainstorm.
 
-The output must be consistent, structured, implementation-oriented, and faithful to the Blueprint.`;
+Examples of good design behavior:
+
+Example 1 — Medium-risk support workflow
+Blueprint:
+- Initiative: Agent for triaging inbound support tickets
+- Target user: Support operations manager
+- Context / problem: Ticket routing is slow and inconsistent
+- Desired outcome: Faster triage with more consistent escalation quality
+- Constraints: Must use internal CRM only
+- Human involvement / escalation expectation: Human review for policy-sensitive cases
+- Risk level: medium
+
+Good output characteristics:
+- The workflow is broken into a practical sequence of concrete steps such as intake, classify, check policy/risk, recommend route, and escalate when needed.
+- Reflection is added only on uncertain or policy-sensitive steps, not everywhere.
+- At least one end-to-end eval checks whether tickets are routed correctly and consistently.
+- Step-level evals focus on critical decision points such as classification accuracy and escalation quality.
+- Safeguards explicitly cover low-confidence cases, policy-sensitive cases, and human review triggers.
+- Assumptions are surfaced clearly if the Blueprint leaves anything unspecified.
+
+Example 2 — High-risk recommendation workflow
+Blueprint:
+- Initiative: Agent that recommends refund decisions
+- Target user: Customer support lead
+- Context / problem: Refund decisions are inconsistent and slow
+- Desired outcome: Faster and more policy-consistent recommendations
+- Constraints: Must not send external communication automatically
+- Human involvement / escalation expectation: Human approval required for final decisions
+- Risk level: high
+
+Good output characteristics:
+- The workflow does not treat the agent as fully autonomous.
+- Human review is explicit at final decision points.
+- Reflection is used only on steps involving policy interpretation, ambiguity, or high-consequence judgment.
+- Evals include policy adherence, decision consistency, escalation appropriateness, and failure cases.
+- Safeguards are stronger than in medium- or low-risk workflows and include stop/escalate logic.
+- The result feels appropriate for discussion with product, design, engineering, and operations before build.
+
+Example 3 — What to avoid
+Weak output patterns include:
+- generic step names like “Step 1” or “Analyze request”
+- adding reflection to every step
+- generic evals such as “check quality”
+- missing safeguards in risky workflows
+- hiding assumptions instead of stating them
+- producing a workflow that sounds polished but is not concrete enough to build from
+`;
 
 type BuildGenerateBlueprintPromptArgs = {
   ideaPrompt: string;
