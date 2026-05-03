@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthHeaderActions } from "@/components/auth/auth-header-actions";
+import { StartProjectCtaButton } from "@/components/landing/start-project-cta-button";
 
 const floatingSignals = [
   { label: "Reflection loop", className: "left-[5%] top-[20%] animate-float-slow 2xl:left-[10%]" },
@@ -9,10 +10,28 @@ const floatingSignals = [
   { label: "Human handoff", className: "right-[8%] bottom-[36%] animate-float-slow 2xl:right-[12%] 2xl:bottom-[41%]" }
 ];
 
+const journeySteps = [
+  {
+    label: "STEP 01",
+    title: "Describe the agent",
+    body: "Capture the initiative, target user, problem, desired outcome, constraints, risks, and human escalation needs."
+  },
+  {
+    label: "STEP 02",
+    title: "Generate the board",
+    body: "ADES turns the Blueprint into an editable agent workflow with steps, assumptions, evals, and safeguards."
+  },
+  {
+    label: "STEP 03",
+    title: "Refine and hand off",
+    body: "Strengthen the design, review readiness, and prepare a build-ready artifact for your team."
+  }
+];
+
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-5 py-6 md:px-8">
-      <header className="mb-6 rounded-3xl border border-slate-200/80 bg-white/85 p-5 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-6 px-5 py-6 md:px-8">
+      <header className="rounded-3xl border border-slate-200/80 bg-white/85 p-5 shadow-[0_20px_60px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:p-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Image src="/logo-ades.svg" alt="ADES logo" width={150} height={44} className="h-9 w-auto" priority />
@@ -49,11 +68,9 @@ export default function HomePage() {
             <span className="ml-2 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 bg-clip-text text-transparent">
               structure, critique, and confidence
             </span>
-            
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-            ADES helps builders break an AI agent into clear tasks, reflection loops, human checkpoints 
-            and evals. Before engineering starts
+            ADES helps builders break an AI agent into clear tasks, reflection loops, human checkpoints and evals before engineering starts.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -70,11 +87,47 @@ export default function HomePage() {
               Request a demo
             </a>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-10 grid gap-3 md:grid-cols-3">
-            <InteractiveCard title="Break down the agent" description="Canvas-first visualizaition, mapping the goal into tasks and loops" />
-            <InteractiveCard title="Improve the workflow" description="Add reflection loops, critique points and human feedback where quality can fail" />
-            <InteractiveCard title="Define the evals" description="Create evaluations for success, safety and robustness" />
+      <section className="ades-panel rounded-[2rem] border-slate-200/90 px-6 py-10 md:px-10 md:py-12">
+        <div className="flex flex-col gap-8">
+          <div className="max-w-3xl space-y-3">
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Intent → Blueprint → Board.</h2>
+            <p className="text-base text-slate-600 md:text-lg">
+              Turn a rough agent idea into a structured design workspace with flows, evals, safeguards, and handoff-ready details.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 md:gap-6">
+            {journeySteps.map((step, index) => (
+              <div key={step.label} className="relative">
+                <article className="h-full rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.7)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{step.label}</p>
+                  <h3 className="mt-3 text-2xl font-medium tracking-tight text-slate-900">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{step.body}</p>
+                </article>
+                {index < journeySteps.length - 1 && (
+                  <span className="pointer-events-none absolute -right-4 top-1/2 hidden -translate-y-1/2 text-3xl text-slate-300 md:block">
+                    →
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <BoardConceptMockup />
+
+          <div className="rounded-3xl border border-slate-800/80 bg-slate-900 px-5 py-6 text-white shadow-[0_25px_60px_-30px_rgba(15,23,42,0.9)] md:px-8 md:py-8">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-200">READY WHEN YOU ARE</p>
+                <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-white md:text-4xl">
+                  Sketch your first agent in under five minutes.
+                </h3>
+              </div>
+              <StartProjectCtaButton />
+            </div>
           </div>
         </div>
       </section>
@@ -82,11 +135,42 @@ export default function HomePage() {
   );
 }
 
-function InteractiveCard({ title, description }: { title: string; description: string }) {
+function BoardConceptMockup() {
+  const flowNodes = ["Intake", "Reason", "Act"];
+  const supportNodes = ["Eval", "Reflect", "Safeguard"];
+
   return (
-    <article className="group rounded-2xl border border-slate-200/80 bg-white/80 p-4 text-left shadow-[0_10px_30px_-26px_rgba(15,23,42,0.8)] transition hover:-translate-y-1 hover:border-indigo-200 hover:bg-white">
-      <h2 className="text-sm font-semibold text-slate-900 transition group-hover:text-indigo-700">{title}</h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
+    <article className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 md:p-6">
+      <div className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4 md:p-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          {flowNodes.map((node, index) => (
+            <div key={node} className="relative flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+              {node}
+              {index < flowNodes.length - 1 && (
+                <span className="pointer-events-none absolute -right-5 top-1/2 hidden -translate-y-1/2 text-xl text-slate-400 md:block">
+                  →
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {supportNodes.map((node) => (
+            <div key={node} className="rounded-xl border border-slate-300/90 bg-white px-4 py-3 text-center text-sm text-slate-600">
+              {node}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {["Flow", "Evals", "Safeguards"].map((pill) => (
+          <span key={pill} className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+            {pill}
+          </span>
+        ))}
+      </div>
     </article>
   );
 }
