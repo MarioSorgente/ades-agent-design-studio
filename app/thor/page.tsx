@@ -25,34 +25,38 @@ const steps = [
 export default function ThorPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-5 py-6 md:px-8">
-      <section className="ades-panel relative overflow-hidden rounded-[2rem] border-slate-200/90 px-6 py-12 md:px-12 md:py-16">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.12),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(147,51,234,0.12),transparent_36%),radial-gradient(circle_at_55%_88%,rgba(59,130,246,0.08),transparent_34%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:90px_90px]" />
+      <section className="ades-panel relative overflow-hidden rounded-[2rem] border-slate-200/90 px-6 py-12 md:px-12 md:py-18">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(99,102,241,0.14),transparent_42%),radial-gradient(circle_at_84%_20%,rgba(56,189,248,0.1),transparent_40%),radial-gradient(circle_at_52%_86%,rgba(148,163,184,0.08),transparent_36%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.055)_1px,transparent_1px)] bg-[size:96px_96px]" />
 
         <div className="relative z-10 mx-auto max-w-5xl">
-          <p className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">
+          <p className="inline-flex items-center rounded-full border border-indigo-200/80 bg-indigo-50/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.17em] text-indigo-700/90">
             THOR · TOKEN HEALTH & OPTIMIZATION ROUTER
           </p>
 
-          <p className="mt-5 text-sm font-medium text-slate-600">THOR · Token Health &amp; Optimization Router</p>
-
-          <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
+          <h1 className="mt-7 max-w-4xl text-[2.15rem] font-semibold leading-[1.1] tracking-[-0.02em] text-slate-900 md:text-[3rem] lg:text-[3.7rem] lg:leading-[1.04]">
             Get more from your LLM before you hit the limit.
           </h1>
 
-          <p className="mt-5 max-w-3xl text-base leading-relaxed text-slate-600 md:text-lg">
+          <p className="mt-6 max-w-3xl text-base leading-relaxed text-slate-600 md:text-[1.12rem] md:leading-relaxed">
             THOR cleans messy prompts, removes repeated context and automatically helps you use every token more effectively. Get more useful output from the same AI plan.
           </p>
 
-          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">MORE OUTPUT · FEWER LIMITS · SAME QUALITY</p>
+          <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-700/90">MORE OUTPUT · FEWER LIMITS · SAME QUALITY</p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <a href="https://chromewebstore.google.com" target="_blank" rel="noreferrer" className="ades-primary-btn px-6 py-3" data-thor-cta="install-claude">
+          <div className="mt-9 flex flex-wrap items-center gap-3.5">
+            <a
+              href="https://chromewebstore.google.com"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-700 via-indigo-700 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(49,46,129,0.75)] transition duration-200 hover:-translate-y-0.5 hover:from-indigo-600 hover:to-blue-500"
+              data-thor-cta="install-claude"
+            >
               Install THOR for Claude
             </a>
             <a
               href="mailto:ms.sorgente@gmail.com?subject=THOR%20early%20access&body=Hi%2C%20I%27d%20like%20to%20join%20THOR%20early%20access."
-              className="ades-ghost-btn px-6 py-3"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white/90 px-6 py-3 text-sm font-semibold text-slate-700 shadow-[0_8px_24px_-20px_rgba(15,23,42,0.8)] transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700"
               data-thor-cta="early-access"
             >
               Join early access
