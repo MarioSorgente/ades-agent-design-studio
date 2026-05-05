@@ -31,19 +31,20 @@ export default function ThorPage() {
 
         <div className="relative z-10 mx-auto max-w-5xl">
           <p className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">
-            ADES Labs · Companion tool
+            THOR · TOKEN HEALTH & OPTIMIZATION ROUTER
           </p>
 
+          <p className="mt-5 text-sm font-medium text-slate-600">THOR · Token Health &amp; Optimization Router</p>
+
           <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Your AI is not expensive.
-            <span className="ml-2 text-slate-500 italic">Your context is messy.</span>
+            Get more from your LLM before you hit the limit.
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-relaxed text-slate-600 md:text-lg">
-            THOR helps Claude and ChatGPT users get more output from the same AI plan by reducing token waste without compromising quality.
+            THOR cleans messy prompts, removes repeated context and automatically helps you use every token more effectively. Get more useful output from the same AI plan.
           </p>
 
-          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">More output · Fewer limits · Lower cost</p>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">MORE OUTPUT · FEWER LIMITS · SAME QUALITY</p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href="https://chromewebstore.google.com" target="_blank" rel="noreferrer" className="ades-primary-btn px-6 py-3" data-thor-cta="install-claude">
