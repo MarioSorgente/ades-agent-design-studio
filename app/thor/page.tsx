@@ -34,12 +34,13 @@ export default function ThorPage() {
             THOR · TOKEN HEALTH & OPTIMIZATION ROUTER
           </p>
 
-          <h1 className="mt-7 max-w-4xl text-[2.15rem] font-semibold leading-[1.1] tracking-[-0.02em] text-slate-900 md:text-[3rem] lg:text-[3.7rem] lg:leading-[1.04]">
-            Get more from your LLM before you hit the limit.
+          <h1 className="mt-7 max-w-4xl text-[2.15rem] font-semibold leading-[1.08] tracking-[-0.025em] md:text-[3rem] lg:text-[3.7rem] lg:leading-[1.03]">
+            <span className="block text-slate-900">More output, same plan.</span>
+            <span className="mt-1 block bg-gradient-to-r from-indigo-500 via-violet-500 to-sky-500 bg-clip-text text-transparent">Less waste, more fun.</span>
           </h1>
 
           <p className="mt-6 max-w-3xl text-base leading-relaxed text-slate-600 md:text-[1.12rem] md:leading-relaxed">
-            THOR cleans messy prompts, removes repeated context and automatically helps you use every token more effectively. Get more useful output from the same AI plan.
+            THOR reduces messy prompts, repeated context, and wasted tokens across Claude, ChatGPT and Cursor workflows so you get more useful output from the same AI plan without sacrificing quality.
           </p>
 
           <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-700/90">MORE OUTPUT · FEWER LIMITS · SAME QUALITY</p>
