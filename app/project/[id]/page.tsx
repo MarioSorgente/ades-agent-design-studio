@@ -13,7 +13,7 @@ import { type AdesBoardSnapshot, type AdesEdge, type AdesNode, type BoardViewMod
 import { createStarterBoard } from "@/lib/board/starter-board";
 import { useAdesBoardStore } from "@/lib/board/store";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
-import { getProjectForUser, getUsageSummaryForUser, saveProjectBoardForUser, type ProjectRecord } from "@/lib/firebase/firestore";
+import { getProjectForUser, getUsageSummaryForUser, saveProjectBoardForUser, type MasterPromptPackage, type ProjectRecord } from "@/lib/firebase/firestore";
 import { useAuthStore } from "@/lib/auth/store";
 import type { CritiqueResult } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
@@ -151,6 +151,9 @@ export default function ProjectPage() {
   const [gateModal, setGateModal] = useState<{ isOpen: boolean; trigger: UsageGateTrigger }>({ isOpen: false, trigger: "ai_review" });
   const [isAdminBypass, setIsAdminBypass] = useState(false);
   const [hasExistingProject, setHasExistingProject] = useState(false);
+  const [masterPromptPackage, setMasterPromptPackage] = useState<MasterPromptPackage | null>(null);
+  const [isGeneratingMasterPrompt, setIsGeneratingMasterPrompt] = useState(false);
+  const [masterPromptError, setMasterPromptError] = useState<string | null>(null);
 
   function toUserTriggeredModal(trigger?: UsageGateTrigger): UsageGateTrigger {
     if (trigger === "generate_design") return "second_project";
@@ -257,6 +260,7 @@ export default function ProjectPage() {
     setRiskLevel(project.riskLevel ?? "");
     setGenerationSummary(project.summary);
     setCritiqueResult(project.critique);
+    setMasterPromptPackage(project.masterPromptPackage);
   }, [isLoading, loadBoardSnapshot, project]);
 
   useEffect(() => {
@@ -289,6 +293,40 @@ export default function ProjectPage() {
   }, [currentBoardHash, getBoardSnapshot, project, user]);
 
   const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Unsaved";
+
+  async function handleGenerateMasterPromptPackage() {
+    if (!user || !project || isGeneratingMasterPrompt) return;
+    if (masterPromptPackage) return;
+    setMasterPromptError(null);
+    setIsGeneratingMasterPrompt(true);
+
+    try {
+      const idToken = await getCurrentUserIdToken();
+      const response = await fetch("/api/master-prompt-package", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const payload = (await response.json()) as { masterPromptPackage?: MasterPromptPackage; error?: string };
+      if (!response.ok || !payload.masterPromptPackage) {
+        throw new Error(payload.error || "Unable to generate master prompt package.");
+      }
+      setMasterPromptPackage(payload.masterPromptPackage);
+    } catch (error) {
+      setMasterPromptError(error instanceof Error ? error.message : "Unable to generate master prompt package.");
+    } finally {
+      setIsGeneratingMasterPrompt(false);
+    }
+  }
+
+  async function copyPackage(kind: "title" | "prompt" | "graders" | "all") {
+    if (!masterPromptPackage) return;
+    const gradersText = JSON.stringify(masterPromptPackage.graders, null, 2);
+    const value = kind === "title" ? masterPromptPackage.promptTitle : kind === "prompt" ? masterPromptPackage.masterSystemPrompt : kind === "graders" ? gradersText : `Master prompt package\n\nTitle:\n${masterPromptPackage.promptTitle}\n\nQuality:\n${masterPromptPackage.qualityScore}/100\n${masterPromptPackage.qualitySummary}\n\nAssumptions:\n${masterPromptPackage.assumptionsUsed.join("\n")}\n\nMaster system prompt:\n${masterPromptPackage.masterSystemPrompt}\n\nGraders:\n${gradersText}`;
+    await navigator.clipboard.writeText(value);
+    setAddNotice(`Copied ${kind}.`);
+  }
+
   const hasGeneratedDesign = project?.status === "generated" || nodes.length > 0;
 
   function handleGoToGuidanceTarget(issue: QualityIssue) {
@@ -581,6 +619,7 @@ export default function ProjectPage() {
                       </div>
                     </details>
                   )}
+                  <button type="button" onClick={() => void (masterPromptPackage ? setIsGuidanceOpen(true) : handleGenerateMasterPromptPackage())} disabled={isGeneratingMasterPrompt || project.status === "generating"} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">{isGeneratingMasterPrompt ? "Generating…" : masterPromptPackage ? "View master prompt" : "Generate master prompt and graders"}</button>
                 </div>
               </div>
             </section>
@@ -626,6 +665,31 @@ export default function ProjectPage() {
                 </div>
               </section>
             ) : null}
+
+
+            {masterPromptPackage ? (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">Master prompt package</h3>
+                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{masterPromptPackage.qualityScore}/100</span>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-slate-700">{masterPromptPackage.promptTitle}</p>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap">{masterPromptPackage.masterSystemPrompt}</pre>
+                  <pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap">{JSON.stringify(masterPromptPackage.graders, null, 2)}</pre>
+                </div>
+                <p className="mt-3 text-xs text-slate-600">{masterPromptPackage.qualitySummary}</p>
+                <p className="mt-1 text-xs text-slate-500">Assumptions: {masterPromptPackage.assumptionsUsed.join("; ") || "None provided."}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyPackage("title")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy title</button>
+                  <button type="button" onClick={() => void copyPackage("prompt")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy prompt</button>
+                  <button type="button" onClick={() => void copyPackage("graders")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy graders</button>
+                  <button type="button" onClick={() => void copyPackage("all")} className="ades-primary-btn px-2.5 py-1.5 text-xs">Copy all</button>
+                </div>
+              </section>
+            ) : null}
+
+            {masterPromptError ? <p className="text-xs text-rose-600">{masterPromptError}</p> : null}
 
             <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Readiness review (checklist-first)</p>
