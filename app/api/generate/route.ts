@@ -23,6 +23,8 @@ import {
 import { analyzeBoardQuality } from "@/lib/board/quality";
 import { ADES_GENERATE_MASTER_SYSTEM_PROMPT, buildGenerateBlueprintPrompt } from "@/lib/ai/prompts/generate-master-prompt";
 
+const ADES_OPENAI_MODEL = "gpt-5-mini";
+
 type OpenAIDebug = {
   called: boolean;
   responseId: string | null;
@@ -531,7 +533,7 @@ export async function POST(request: Request) {
     openaiDebug.called = true;
 
     const response = await openai.responses.create({
-      model: "gpt-5-mini",
+      model: ADES_OPENAI_MODEL,
       input: [
         {
           role: "system",
