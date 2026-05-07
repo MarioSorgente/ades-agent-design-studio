@@ -187,7 +187,6 @@ export default function ProjectPage() {
   } | null>(null);
 
   const importInputRef = useRef<HTMLInputElement | null>(null);
-  const masterPromptSectionRef = useRef<HTMLElement | null>(null);
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
   const isBoardInitialized = useAdesBoardStore((state) => state.isInitialized);
@@ -285,7 +284,7 @@ export default function ProjectPage() {
 
   useEffect(() => {
     const requestedView = searchParams.get("view");
-    if (requestedView === "flow" || requestedView === "eval") {
+    if (requestedView === "flow" || requestedView === "eval" || requestedView === "prompt_graders") {
       setViewMode(requestedView);
     }
   }, [searchParams]);
@@ -318,16 +317,11 @@ export default function ProjectPage() {
 
   const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Unsaved";
 
-  function focusMasterPromptPackageSection() {
-    if (!masterPromptSectionRef.current) return;
-    masterPromptSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    masterPromptSectionRef.current.focus({ preventScroll: true });
-  }
 
   async function handleGenerateMasterPromptPackage() {
     if (!user || !project || isGeneratingMasterPrompt) return;
     if (masterPromptPackage) {
-      focusMasterPromptPackageSection();
+      setViewMode("prompt_graders");
       return;
     }
     setMasterPromptError(null);
@@ -345,7 +339,7 @@ export default function ProjectPage() {
         throw new Error(payload.error || "Couldn’t generate the master prompt package. Please try again.");
       }
       setMasterPromptPackage(payload.masterPromptPackage);
-      window.setTimeout(() => focusMasterPromptPackageSection(), 0);
+      setViewMode("prompt_graders");
     } catch (error) {
       setMasterPromptError(error instanceof Error ? error.message : "Couldn’t generate the master prompt package. Please try again.");
     } finally {
@@ -623,6 +617,9 @@ export default function ProjectPage() {
                     <button type="button" onClick={() => setViewMode("eval")} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === "eval" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
                       Evals
                     </button>
+                    <button type="button" onClick={() => setViewMode("prompt_graders")} className={`rounded-md px-2 py-1 text-xs font-medium ${viewMode === "prompt_graders" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>
+                      Prompt and graders
+                    </button>
                   </div>
                 </div>
 
@@ -704,48 +701,6 @@ export default function ProjectPage() {
             ) : null}
 
 
-            {masterPromptPackage ? (
-              <section ref={masterPromptSectionRef} tabIndex={-1} className="rounded-2xl border border-slate-200/80 bg-white p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Master prompt package</h3>
-                    <p className="mt-1 text-xs text-slate-600">{masterPromptPackage.qualitySummary}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{masterPromptPackage.qualityScore}/100</span>
-                    <button type="button" onClick={() => void copyPackage("all")} className="ades-primary-btn px-2.5 py-1.5 text-xs">Copy full package</button>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {[
-                    ["master", "Master prompt"],
-                    ["graders", `Graders (${masterPromptPackage.graders.length})`],
-                    ["assumptions", "Assumptions"],
-                  ].map(([value, label]) => (
-                    <button key={value} type="button" onClick={() => setPackageTab(value as "master" | "graders" | "assumptions")} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${packageTab === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"}`}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {packageTab === "master" ? <div className="mt-3"><button type="button" onClick={() => void copyPackage("prompt")} className="ades-ghost-btn mb-2 px-2.5 py-1.5 text-xs">Copy master prompt</button><pre className="max-h-80 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap">{masterPromptPackage.masterSystemPrompt}</pre></div> : null}
-                {packageTab === "assumptions" ? <div className="mt-3 space-y-2 text-xs text-slate-700"><p className="font-semibold text-slate-800">Quality summary</p><p>{masterPromptPackage.qualitySummary}</p><p className="font-semibold text-slate-800">Assumptions used</p><ul className="list-disc space-y-1 pl-5">{(masterPromptPackage.assumptionsUsed.length ? masterPromptPackage.assumptionsUsed : ["None provided."]).map((a) => <li key={a}>{a}</li>)}</ul></div> : null}
-                {packageTab === "graders" ? <div className="mt-3 space-y-3">{masterPromptPackage.graders.map((grader, index) => {
-                  const tab = graderTabById[grader.id] ?? "overview";
-                  const simple = grader.openaiSimpleGrader ?? { name: `${grader.title} simple grader`, model: "gpt-5-mini", passThreshold: 0.8, scoringGuidelines: fallbackSimpleGuidelines(grader) };
-                  const python = grader.openaiPythonGrader ?? { name: `${grader.title} python grader`, passThreshold: 0.8, sourceCode: fallbackPythonSource(), imageTag: null };
-                  return <article key={grader.id} className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-slate-900">{grader.title}</h4><div className="flex gap-2"><span className="rounded-full border border-slate-300 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{grader.evalSourceTitle || grader.evalSourceId || `Inferred ${index + 1}`}</span><span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Simple + Python</span></div></div>
-                    <div className="mt-2 grid gap-2 text-xs text-slate-700 md:grid-cols-3"><p><span className="font-semibold">Why needed:</span> {grader.whyNeeded || grader.purpose}</p><p><span className="font-semibold">What it evaluates:</span> {grader.whatItEvaluates || grader.instructions}</p><p><span className="font-semibold">When to use:</span> {grader.whenToUse || "Use this grader whenever this behavior is part of the eval set."}</p></div>
-                    <div className="mt-2 flex flex-wrap gap-2">{["overview","simple","python","json"].map((t) => <button key={t} type="button" onClick={() => setGraderTabById((prev) => ({ ...prev, [grader.id]: t as "overview" | "simple" | "python" | "json" }))} className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${tab === t ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"}`}>{t === "json" ? "JSON" : `${t[0].toUpperCase()}${t.slice(1)}`}</button>)}</div>
-                    {tab === "overview" ? <div className="mt-2 text-xs text-slate-700"><p><span className="font-semibold">Purpose:</span> {grader.purpose}</p></div> : null}
-                    {tab === "simple" ? <div className="mt-2"><div className="mb-1 text-xs text-slate-700"><span className="font-semibold">{simple.name}</span> · {simple.model} · pass {simple.passThreshold}</div><button type="button" onClick={() => void copyText("simple grader", simple.scoringGuidelines)} className="ades-ghost-btn mb-2 px-2.5 py-1.5 text-xs">Copy simple grader</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs whitespace-pre-wrap">{simple.scoringGuidelines}</pre></div> : null}
-                    {tab === "python" ? <div className="mt-2"><div className="mb-1 text-xs text-slate-700"><span className="font-semibold">{python.name}</span> · pass {python.passThreshold} {grader.openaiPythonGrader ? "" : "· Generated fallback — review before use"}</div><button type="button" onClick={() => void copyText("Python grader", python.sourceCode)} className="ades-ghost-btn mb-2 px-2.5 py-1.5 text-xs">Copy Python grader</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs whitespace-pre-wrap">{python.sourceCode}</pre></div> : null}
-                    {tab === "json" ? <div className="mt-2"><button type="button" onClick={() => void copyText("grader JSON", JSON.stringify(grader, null, 2))} className="ades-ghost-btn mb-2 px-2.5 py-1.5 text-xs">Copy grader JSON</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-xs whitespace-pre-wrap">{JSON.stringify(grader, null, 2)}</pre></div> : null}
-                  </article>;
-                })}</div> : null}
-              </section>
-            ) : null}
-
             <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Readiness review (checklist-first)</p>
               <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -758,27 +713,28 @@ export default function ProjectPage() {
               </div>
             </section>
 
-            <section className="relative flex min-h-0 flex-1">
-              <div className="pointer-events-none absolute left-4 top-4 z-[95]">
-                <div className="pointer-events-auto flex max-w-[340px] flex-col gap-2">
-                  <div className="group relative inline-flex">
-                    <button
-                      type="button"
-                      onClick={() => void handleGenerateMasterPromptPackage()}
-                      disabled={isGeneratingMasterPrompt || project.status === "generating"}
-                      aria-label="Generate a build-ready system prompt and evaluation graders from this ADES board. One-time generation per project."
-                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 ${masterPromptPackage ? "border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
-                    >
-                      {isGeneratingMasterPrompt ? <span className="inline-block h-2 w-2 rounded-full bg-current animate-pulse" aria-hidden /> : <span aria-hidden>{masterPromptPackage ? "✓" : "✦"}</span>}
-                      {isGeneratingMasterPrompt ? "Generating master package…" : masterPromptPackage ? "View master prompt package" : "Generate master prompt and graders"}
-                    </button>
-                    <span className="pointer-events-none absolute left-1/2 top-[calc(100%+10px)] z-30 w-72 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2.5 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
-                      Generate a build-ready system prompt and evaluation graders from this ADES board. One-time generation per project.
-                    </span>
+            {viewMode === "prompt_graders" ? (
+              <section className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-6">
+                {!masterPromptPackage && !isGeneratingMasterPrompt ? (
+                  <div className="mx-auto flex max-w-3xl flex-col gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8">
+                    <h3 className="text-2xl font-semibold text-slate-900">Generate master prompt and graders</h3>
+                    <p className="text-base leading-7 text-slate-700">Turn this ADES board into a build-ready system prompt and OpenAI-compatible graders.</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button type="button" onClick={() => void handleGenerateMasterPromptPackage()} disabled={project.status === "generating"} className="ades-primary-btn px-4 py-2.5 text-sm disabled:opacity-60">Generate master prompt and graders</button>
+                      <p className="max-w-2xl text-sm leading-6 text-slate-600">One-time generation per project. ADES uses your saved board, evals, safeguards, and assumptions.</p>
+                    </div>
                   </div>
-                  {masterPromptError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 shadow-sm">{masterPromptError}</p> : null}
-                </div>
-              </div>
+                ) : null}
+                {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-5 text-base font-medium text-indigo-700">Generating master package…</div> : null}
+                {masterPromptError ? <p className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{masterPromptError}</p> : null}
+                {masterPromptPackage ? (
+                  <section className="mx-auto flex max-w-6xl flex-col gap-6 text-sm leading-6">
+                    <header className="rounded-2xl border border-slate-200 bg-slate-50/70 p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-4xl"><h3 className="text-2xl font-semibold text-slate-900">Master prompt package</h3><p className="mt-2 text-base leading-7 text-slate-700">{masterPromptPackage.qualitySummary}</p></div><div className="flex items-center gap-3"><span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">{masterPromptPackage.qualityScore}/100</span><button type="button" onClick={() => void copyPackage("all")} className="ades-primary-btn px-3 py-2 text-sm">Copy full package</button></div></div><div className="mt-5 flex flex-wrap gap-2">{[["master","Master prompt"],["graders",`Graders (${masterPromptPackage.graders.length})`],["assumptions","Assumptions"]].map(([value,label]) => (<button key={value} type="button" onClick={() => setPackageTab(value as "master" | "graders" | "assumptions")} className={`rounded-xl border px-4 py-2 text-sm font-semibold ${packageTab === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"}`}>{label}</button>))}</div></header><div className="space-y-6">{packageTab === "master" ? <article className="rounded-2xl border border-slate-200 bg-white p-6"><div className="mb-3 flex items-center justify-between gap-3"><h4 className="text-lg font-semibold text-slate-900">{masterPromptPackage.promptTitle}</h4><button type="button" onClick={() => void copyPackage("prompt")} className="ades-ghost-btn px-3 py-2 text-sm">Copy master prompt</button></div><pre className="max-h-[620px] max-w-5xl overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800 whitespace-pre-wrap">{masterPromptPackage.masterSystemPrompt}</pre></article> : null}{packageTab === "assumptions" ? <article className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4"><div><p className="text-base font-semibold text-slate-900">Quality summary</p><p className="mt-1 text-base leading-7 text-slate-700">{masterPromptPackage.qualitySummary}</p></div><div><p className="text-base font-semibold text-slate-900">Assumptions used</p><ul className="mt-2 list-disc space-y-2 pl-6 text-base leading-7 text-slate-700">{(masterPromptPackage.assumptionsUsed.length ? masterPromptPackage.assumptionsUsed : ["None provided."]).map((a) => <li key={a}>{a}</li>)}</ul></div></article> : null}{packageTab === "graders" ? <div className="space-y-5">{masterPromptPackage.graders.map((grader, index) => { const tab = graderTabById[grader.id] ?? "overview"; const simple = grader.openaiSimpleGrader ?? { name: `${grader.title} simple grader`, model: "gpt-5-mini", passThreshold: 0.8, scoringGuidelines: fallbackSimpleGuidelines(grader) }; const python = grader.openaiPythonGrader ?? { name: `${grader.title} python grader`, passThreshold: 0.8, sourceCode: fallbackPythonSource(), imageTag: null }; return <article key={grader.id} className="rounded-2xl border border-slate-200 bg-white p-6"><div className="flex flex-wrap items-start justify-between gap-3"><h4 className="text-lg font-semibold text-slate-900">{grader.title}</h4><div className="flex flex-wrap gap-2"><span className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700">{grader.evalSourceTitle || grader.evalSourceId || `Inferred ${index + 1}`}</span><span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Simple + Python</span></div></div><div className="mt-4 flex flex-wrap gap-2">{["overview","simple","python","json"].map((t) => <button key={t} type="button" onClick={() => setGraderTabById((prev) => ({ ...prev, [grader.id]: t as "overview" | "simple" | "python" | "json" }))} className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${tab === t ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"}`}>{t === "json" ? "JSON" : `${t[0].toUpperCase()}${t.slice(1)}`}</button>)}</div>{tab === "overview" ? <div className="mt-4 max-w-4xl space-y-5 text-sm leading-6 text-slate-700"><section><h5 className="text-base font-semibold text-slate-900">Why needed</h5><p className="mt-1">{grader.whyNeeded || grader.purpose}</p></section><section><h5 className="text-base font-semibold text-slate-900">What it evaluates</h5><p className="mt-1">{grader.whatItEvaluates || grader.instructions}</p></section><section><h5 className="text-base font-semibold text-slate-900">When to use</h5><p className="mt-1">{grader.whenToUse || "Use this grader whenever this behavior is part of the eval set."}</p></section><section><h5 className="text-base font-semibold text-slate-900">Purpose</h5><p className="mt-1">{grader.purpose}</p></section><section><h5 className="text-base font-semibold text-slate-900">Pass criteria</h5><ul className="mt-1 list-disc space-y-1 pl-6">{(grader.passCriteria?.length ? grader.passCriteria : ["No explicit pass criteria provided."]).map((c) => <li key={c}>{c}</li>)}</ul></section><section><h5 className="text-base font-semibold text-slate-900">Fail criteria</h5><ul className="mt-1 list-disc space-y-1 pl-6">{(grader.failCriteria?.length ? grader.failCriteria : ["No explicit fail criteria provided."]).map((c) => <li key={c}>{c}</li>)}</ul></section><section><h5 className="text-base font-semibold text-slate-900">Scoring rubric</h5><pre className="mt-1 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 whitespace-pre-wrap">{typeof grader.scoringRubric === "string" ? grader.scoringRubric : JSON.stringify(grader.scoringRubric ?? "Use the provided criteria to score 0-1.", null, 2)}</pre></section></div> : null}{tab === "simple" ? <div className="mt-4"><div className="mb-2 text-sm text-slate-700"><span className="font-semibold text-slate-900">{simple.name}</span> · {simple.model} · pass {simple.passThreshold}</div><button type="button" onClick={() => void copyText("simple grader", simple.scoringGuidelines)} className="ades-ghost-btn mb-2 px-3 py-2 text-sm">Copy simple grader</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 whitespace-pre-wrap">{simple.scoringGuidelines}</pre></div> : null}{tab === "python" ? <div className="mt-4"><div className="mb-2 text-sm text-slate-700"><span className="font-semibold text-slate-900">{python.name}</span> · pass {python.passThreshold} {grader.openaiPythonGrader ? "" : "· Generated fallback — review before use"}</div><button type="button" onClick={() => void copyText("Python grader", python.sourceCode)} className="ades-ghost-btn mb-2 px-3 py-2 text-sm">Copy Python grader</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 whitespace-pre-wrap">{python.sourceCode}</pre></div> : null}{tab === "json" ? <div className="mt-4"><button type="button" onClick={() => void copyText("grader JSON", JSON.stringify(grader, null, 2))} className="ades-ghost-btn mb-2 px-3 py-2 text-sm">Copy grader JSON</button><pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 whitespace-pre-wrap">{JSON.stringify(grader, null, 2)}</pre></div> : null}</article>;})}</div> : null}</div>
+                  </section>
+                ) : null}
+              </section>
+            ) : (
+            <section className="relative flex min-h-0 flex-1">
               <div className={`min-w-0 flex-1 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
                 <StudioBoard
                   viewMode={viewMode}
@@ -849,6 +805,7 @@ export default function ProjectPage() {
                 </button>
               ) : null}
             </section>
+            )}
 
             {!hasGeneratedDesign ? (
               <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
