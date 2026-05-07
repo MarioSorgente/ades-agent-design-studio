@@ -82,8 +82,8 @@ const PACKAGE_SCHEMA = {
         properties: {
           id: { type: "string" },
           title: { type: "string" },
-          evalSourceId: { type: "string" },
-          evalSourceTitle: { type: "string" },
+          evalSourceId: { type: ["string", "null"] },
+          evalSourceTitle: { type: ["string", "null"] },
           purpose: { type: "string" },
           graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
           instructions: { type: "string" },
@@ -102,9 +102,9 @@ const PACKAGE_SCHEMA = {
             },
             required: ["score0", "score1", "score2", "score3", "score4", "score5"],
           },
-          expectedOutputShape: { type: "string" },
+          expectedOutputShape: { type: ["string", "null"] },
         },
-        required: ["id", "title", "purpose", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric"],
+        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape"],
       },
     },
     qualityScore: { type: "number" },
@@ -202,9 +202,22 @@ export async function POST(request: Request) {
     }
 
     const parsed = JSON.parse(response.output_text) as Record<string, unknown>;
+    const normalizedGraders = Array.isArray(parsed.graders)
+      ? parsed.graders.map((grader) => {
+          if (!grader || typeof grader !== "object") return grader;
+          const graderRecord = grader as Record<string, unknown>;
+          return {
+            ...graderRecord,
+            evalSourceId: graderRecord.evalSourceId ?? undefined,
+            evalSourceTitle: graderRecord.evalSourceTitle ?? undefined,
+            expectedOutputShape: graderRecord.expectedOutputShape ?? undefined,
+          };
+        })
+      : [];
     const qualityScore = Math.max(0, Math.min(100, Number(parsed.qualityScore ?? 0)));
     const masterPromptPackage = {
       ...parsed,
+      graders: normalizedGraders,
       qualityScore,
       generatedAt: new Date().toISOString(),
       generatedByUid: uid,
@@ -214,11 +227,15 @@ export async function POST(request: Request) {
     await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
     return NextResponse.json({ masterPromptPackage, cached: false });
   } catch (error) {
-    console.error("[/api/master-prompt-package] Failed", error);
+    const detailedMessage = error instanceof Error ? error.message : String(error);
+    console.error("[/api/master-prompt-package] Failed to generate master prompt package", {
+      message: detailedMessage,
+      error,
+    });
     const message = error instanceof Error ? error.message : "Failed to generate master prompt package.";
     if (message.includes("Missing Firebase auth token")) {
       return NextResponse.json({ error: message }, { status: 401 });
     }
-    return NextResponse.json({ error: "Failed to generate master prompt package." }, { status: 500 });
+    return NextResponse.json({ error: "Couldn’t generate the master prompt package. Please try again." }, { status: 500 });
   }
 }
