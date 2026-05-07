@@ -1,13 +1,19 @@
+import { browser } from 'wxt/browser';
 import { readClaudePrompt } from '../src/lib/claudePromptReader';
+
+interface ThorReadPromptMessage {
+  type: 'THOR_READ_PROMPT';
+}
 
 export default defineContentScript({
   matches: ['https://claude.ai/*'],
   main() {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === 'THOR_READ_PROMPT') {
-        sendResponse({ text: readClaudePrompt() });
+    browser.runtime.onMessage.addListener((message: unknown) => {
+      const typedMessage = message as Partial<ThorReadPromptMessage>;
+      if (typedMessage.type === 'THOR_READ_PROMPT') {
+        return Promise.resolve({ text: readClaudePrompt() });
       }
-      return true;
+      return undefined;
     });
   }
 });

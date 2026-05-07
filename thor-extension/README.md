@@ -2,17 +2,24 @@
 
 Local-only prompt scanner for Claude. No backend, no API keys, no telemetry.
 
-## Setup
-1. `cd thor-extension`
-2. `npm install`
+## Build separation (important)
+- **Main ADES web app build (repo root):**
+  1. `cd /workspace/ades-agent-design-studio`
+  2. `npm install`
+  3. `npm run build`
+- **THOR extension build (separate project):**
+  1. `cd /workspace/ades-agent-design-studio/thor-extension`
+  2. `npm install`
+  3. `npm run build`
 
-## Run
+## Extension development commands
+From `/thor-extension`:
 - Dev: `npm run dev`
 - Build: `npm run build`
 - Typecheck: `npm run typecheck`
 - Tests: `npm run test`
 
-## Load in Chrome
+## Load extension in Chrome (unpacked)
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
