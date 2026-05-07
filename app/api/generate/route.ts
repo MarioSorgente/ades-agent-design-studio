@@ -23,7 +23,7 @@ import {
 import { analyzeBoardQuality } from "@/lib/board/quality";
 import { ADES_GENERATE_MASTER_SYSTEM_PROMPT, buildGenerateBlueprintPrompt } from "@/lib/ai/prompts/generate-master-prompt";
 
-const ADES_OPENAI_MODEL = "gpt-5-mini";
+const ADES_OPENAI_MODEL = "gpt.5.nano";
 
 type OpenAIDebug = {
   called: boolean;

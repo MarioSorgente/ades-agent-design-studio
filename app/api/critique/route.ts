@@ -6,7 +6,7 @@ import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
 import { assertCanUseAi, getAuthenticatedUser, getGateResponse, incrementUsage, logGateDeny } from "@/lib/usageGate";
 
-const ADES_OPENAI_MODEL = "gpt-5-mini";
+const ADES_OPENAI_MODEL = "gpt.5.nano";
 
 type CritiqueRequest = {
   projectId?: string;
