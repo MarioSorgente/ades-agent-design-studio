@@ -6,6 +6,8 @@ import type { AdesBoardSnapshot } from "@/lib/board/types";
 import type { CritiqueResult } from "@/lib/critique/types";
 import { assertCanUseAi, getAuthenticatedUser, getGateResponse, incrementUsage, logGateDeny } from "@/lib/usageGate";
 
+const ADES_OPENAI_MODEL = "gpt-5-mini";
+
 type CritiqueRequest = {
   projectId?: string;
   summary?: string;
@@ -228,7 +230,7 @@ export async function POST(request: Request) {
     openaiDebug.called = true;
 
     const response = await openai.responses.create({
-      model: "gpt-5-mini",
+      model: ADES_OPENAI_MODEL,
       input: [
         {
           role: "system",

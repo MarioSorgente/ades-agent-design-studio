@@ -4,42 +4,69 @@ import { NextResponse } from "next/server";
 import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import { getAuthenticatedUser, isAdminBypass } from "@/lib/usageGate";
 
-const MASTER_PROMPT_SYSTEM = `You are ADES, an expert AI product design strategist specialized in turning agent designs into production-ready system prompts and evaluation graders.
+const MASTER_PROMPT_SYSTEM = `You are ADES, an expert AI product design strategist that converts ADES board designs into implementation-ready prompt packages.
 
-Your job is to convert an ADES agent design into a “master prompt package”.
+You must output a JSON package with:
+1) a builder-ready masterSystemPrompt
+2) concrete graders tied to ADES evidence
 
-The package must help a builder take the ADES canvas and actually implement the agent.
+CRITICAL REQUIREMENTS
+- Use ONLY information present in the provided ADES project data.
+- Never invent unsupported business facts, policies, tools, or metrics.
+- If data is missing, explicitly list assumptions in assumptionsUsed and keep them conservative.
+- Be concrete, operational, and testable. Avoid generic advice.
+- Keep language practical for engineers and PMs implementing an agent.
 
-You will receive structured project data containing some or all of:
-- blueprint
-- initiative
-- target user
-- context/problem
-- desired outcome
-- constraints
-- assumptions
-- workflow steps
-- step inputs
-- step outputs
-- completion criteria
-- reflection points
-- evals
-- safeguards
-- risks
-- escalation expectations
+MASTER SYSTEM PROMPT REQUIREMENTS
+The generated masterSystemPrompt MUST include clear section headers and complete instructions for all of:
+- Role / Persona
+- Goal
+- Audience / User
+- Operating Context
+- Inputs the Agent Receives
+- Workflow Instructions
+- Reasoning and Reflection Instructions
+- Tool / Data Use Instructions
+- Safeguards and Failure Modes
+- Human Escalation Rules
+- Constraints
+- Output Requirements
+- Voice and Tone
+- Assumptions
+- Final Quality Checklist
 
-Use only the provided information.
-Do not invent unsupported business facts.
-Do not pretend missing information is known.
-If important information is missing, state it clearly as an operating assumption.
+For each section, provide specific instructions grounded in the ADES data. If tools are missing, explicitly say no tool access is assumed.
 
-Be specific, practical, and implementation-ready.
-Avoid generic AI advice.
-Avoid vague phrases like “ensure quality” unless you explain exactly how.
-Avoid product marketing language.
-Avoid long unnecessary explanation.
+GRADER REQUIREMENTS
+- Create a grader for each explicit eval when available (step-level and workflow-level).
+- Incorporate safeguards, risks, reflection points, completion criteria, and escalation expectations into grader logic.
+- If explicit eval coverage is missing, create a SMALL set of recommended graders inferred from risks/completion criteria and state this in purpose/instructions.
+- Do NOT fabricate fake source eval IDs. Use inferred-* IDs for recommended graders.
 
-Your output must be valid JSON only and must exactly match the expected shape.`;
+Each grader must include:
+- id, title, evalSourceId, evalSourceTitle, purpose, graderType, instructions,
+  passCriteria, failCriteria, scoringRubric, expectedOutputShape
+
+Each grader's instructions must clearly define:
+- behavior being evaluated
+- evidence to inspect
+- pass/fail thresholds
+- borderline-case handling
+- practical 0-5 scoring usage
+
+SCORING RUBRIC MEANINGS
+- score0: completely fails / unsafe / irrelevant
+- score1: mostly fails with tiny partial relevance
+- score2: partially addresses but misses important requirements
+- score3: acceptable but incomplete or weak
+- score4: strong with minor gaps
+- score5: excellent, complete, safe, implementation-ready
+
+QUALITY SCORE
+- qualityScore is 0-100 for package usefulness for implementation handoff.
+- qualitySummary must briefly justify score with concrete strengths/gaps.
+
+Return valid JSON only, matching the schema exactly.`;
 
 const PACKAGE_SCHEMA = {
   type: "object",
@@ -92,6 +119,8 @@ function getOpenAIClient() {
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY.");
   return new OpenAI({ apiKey });
 }
+
+const ADES_OPENAI_MODEL = "gpt-5-mini";
 
 type PackageRequest = { projectId?: string };
 
@@ -157,12 +186,12 @@ export async function POST(request: Request) {
 
     const openai = getOpenAIClient();
     const response = await openai.responses.create({
-      model: "gpt-5-mini",
+      model: ADES_OPENAI_MODEL,
       input: [
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
           role: "user",
-          content: `Create the master prompt package from this canonical ADES project data.\n\nReturn exactly this JSON shape: {"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string optional","evalSourceTitle":"string optional","purpose":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string optional"}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nReturn exactly this JSON shape: {"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string optional","evalSourceTitle":"string optional","purpose":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string optional"}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
@@ -179,7 +208,7 @@ export async function POST(request: Request) {
       qualityScore,
       generatedAt: new Date().toISOString(),
       generatedByUid: uid,
-      model: response.model ?? "gpt-5-mini",
+      model: response.model ?? ADES_OPENAI_MODEL,
     };
 
     await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });

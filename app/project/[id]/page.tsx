@@ -619,7 +619,7 @@ export default function ProjectPage() {
                       </div>
                     </details>
                   )}
-                  <button type="button" onClick={() => void (masterPromptPackage ? setIsGuidanceOpen(true) : handleGenerateMasterPromptPackage())} disabled={isGeneratingMasterPrompt || project.status === "generating"} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">{isGeneratingMasterPrompt ? "Generating…" : masterPromptPackage ? "View master prompt" : "Generate master prompt and graders"}</button>
+                  <button type="button" onClick={() => void handleGenerateMasterPromptPackage()} disabled={isGeneratingMasterPrompt || project.status === "generating" || Boolean(masterPromptPackage)} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">{isGeneratingMasterPrompt ? "Generating…" : "Generate master prompt and graders"}</button>
                 </div>
               </div>
             </section>
@@ -682,9 +682,9 @@ export default function ProjectPage() {
                 <p className="mt-1 text-xs text-slate-500">Assumptions: {masterPromptPackage.assumptionsUsed.join("; ") || "None provided."}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => void copyPackage("title")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy title</button>
-                  <button type="button" onClick={() => void copyPackage("prompt")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy prompt</button>
+                  <button type="button" onClick={() => void copyPackage("prompt")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy master prompt</button>
                   <button type="button" onClick={() => void copyPackage("graders")} className="ades-ghost-btn px-2.5 py-1.5 text-xs">Copy graders</button>
-                  <button type="button" onClick={() => void copyPackage("all")} className="ades-primary-btn px-2.5 py-1.5 text-xs">Copy all</button>
+                  <button type="button" onClick={() => void copyPackage("all")} className="ades-primary-btn px-2.5 py-1.5 text-xs">Copy full package</button>
                 </div>
               </section>
             ) : null}
