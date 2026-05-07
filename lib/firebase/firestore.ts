@@ -46,18 +46,34 @@ export type ProjectRecord = {
 export type MasterPromptGrader = {
   id: string;
   title: string;
-  evalSourceId?: string;
-  evalSourceTitle?: string;
+  evalSourceId?: string | null;
+  evalSourceTitle?: string | null;
   purpose: string;
+  whyNeeded?: string;
+  whatItEvaluates?: string;
+  whenToUse?: string;
   graderType: "model_graded" | "rule_based" | "hybrid";
   instructions: string;
   passCriteria: string[];
   failCriteria: string[];
   scoringRubric: { score0: string; score1: string; score2: string; score3: string; score4: string; score5: string };
-  expectedOutputShape?: string;
+  expectedOutputShape?: string | null;
+  openaiSimpleGrader?: {
+    name: string;
+    model: string;
+    scoringGuidelines: string;
+    passThreshold: number;
+  };
+  openaiPythonGrader?: {
+    name: string;
+    sourceCode: string;
+    passThreshold: number;
+    imageTag?: string | null;
+  };
 };
 
 export type MasterPromptPackage = {
+  packageVersion?: number;
   promptTitle: string;
   masterSystemPrompt: string;
   graders: MasterPromptGrader[];

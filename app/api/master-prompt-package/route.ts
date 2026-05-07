@@ -44,8 +44,8 @@ GRADER REQUIREMENTS
 - Do NOT fabricate fake source eval IDs. Use inferred-* IDs for recommended graders.
 
 Each grader must include:
-- id, title, evalSourceId, evalSourceTitle, purpose, graderType, instructions,
-  passCriteria, failCriteria, scoringRubric, expectedOutputShape
+- id, title, evalSourceId, evalSourceTitle, purpose, whyNeeded, whatItEvaluates, whenToUse, graderType, instructions,
+  passCriteria, failCriteria, scoringRubric, expectedOutputShape, openaiSimpleGrader, openaiPythonGrader
 
 Each grader's instructions must clearly define:
 - behavior being evaluated
@@ -53,6 +53,23 @@ Each grader's instructions must clearly define:
 - pass/fail thresholds
 - borderline-case handling
 - practical 0-5 scoring usage
+
+Do not only describe the grader. Produce the actual grader artifacts that a builder can copy into an eval platform.
+
+Simple grader requirements:
+- Best for subjective/semantic grading and operator-friendly scoring guidelines.
+- Include: what good looks like, evidence to inspect, pass conditions, fail conditions, borderline handling, and 0.0-1.0 guidance.
+- Reference {{ sample.output_text }} and relevant {{ item.* }} fields where useful.
+- If item fields are unknown, keep guidance generic and suggest fields like item.expected_behavior or item.reference_answer.
+
+Python grader requirements:
+- Best for objective checks (structure, keywords, format, thresholds, safety triggers).
+- Return complete runnable function: def grade(sample: dict, item: dict) -> float
+- Read model output from sample.get("output_text", "") and expected data from item.
+- Return float in [0.0, 1.0].
+- Never call network APIs.
+- Keep robust to missing keys and include comments for customization.
+- If semantic judgment is needed, still check objective signals and clearly document limitations.
 
 SCORING RUBRIC MEANINGS
 - score0: completely fails / unsafe / irrelevant
@@ -85,6 +102,9 @@ const PACKAGE_SCHEMA = {
           evalSourceId: { type: ["string", "null"] },
           evalSourceTitle: { type: ["string", "null"] },
           purpose: { type: "string" },
+          whyNeeded: { type: "string" },
+          whatItEvaluates: { type: "string" },
+          whenToUse: { type: "string" },
           graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
           instructions: { type: "string" },
           passCriteria: { type: "array", items: { type: "string" } },
@@ -103,15 +123,38 @@ const PACKAGE_SCHEMA = {
             required: ["score0", "score1", "score2", "score3", "score4", "score5"],
           },
           expectedOutputShape: { type: ["string", "null"] },
+          openaiSimpleGrader: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              model: { type: "string" },
+              scoringGuidelines: { type: "string" },
+              passThreshold: { type: "number" },
+            },
+            required: ["name", "model", "scoringGuidelines", "passThreshold"],
+          },
+          openaiPythonGrader: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              sourceCode: { type: "string" },
+              passThreshold: { type: "number" },
+              imageTag: { type: ["string", "null"] },
+            },
+            required: ["name", "sourceCode", "passThreshold", "imageTag"],
+          },
         },
-        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape"],
+        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
       },
     },
+    packageVersion: { type: "number" },
     qualityScore: { type: "number" },
     qualitySummary: { type: "string" },
     assumptionsUsed: { type: "array", items: { type: "string" } },
   },
-  required: ["promptTitle", "masterSystemPrompt", "graders", "qualityScore", "qualitySummary", "assumptionsUsed"],
+  required: ["promptTitle", "masterSystemPrompt", "graders", "qualityScore", "qualitySummary", "assumptionsUsed", "packageVersion"],
 } as const;
 
 function getOpenAIClient() {
@@ -191,7 +234,7 @@ export async function POST(request: Request) {
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
           role: "user",
-          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nReturn exactly this JSON shape: {"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string optional","evalSourceTitle":"string optional","purpose":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string optional"}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nReturn exactly this JSON shape: {"packageVersion":2,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
@@ -217,6 +260,7 @@ export async function POST(request: Request) {
     const qualityScore = Math.max(0, Math.min(100, Number(parsed.qualityScore ?? 0)));
     const masterPromptPackage = {
       ...parsed,
+      packageVersion: Number(parsed.packageVersion ?? 2) || 2,
       graders: normalizedGraders,
       qualityScore,
       generatedAt: new Date().toISOString(),
