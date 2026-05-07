@@ -168,6 +168,7 @@ export default function ProjectPage() {
   } | null>(null);
 
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const masterPromptSectionRef = useRef<HTMLElement | null>(null);
   const loadBoardSnapshot = useAdesBoardStore((state) => state.loadBoardSnapshot);
   const getBoardSnapshot = useAdesBoardStore((state) => state.getBoardSnapshot);
   const isBoardInitialized = useAdesBoardStore((state) => state.isInitialized);
@@ -294,9 +295,18 @@ export default function ProjectPage() {
 
   const saveStateLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Unsaved";
 
+  function focusMasterPromptPackageSection() {
+    if (!masterPromptSectionRef.current) return;
+    masterPromptSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    masterPromptSectionRef.current.focus({ preventScroll: true });
+  }
+
   async function handleGenerateMasterPromptPackage() {
     if (!user || !project || isGeneratingMasterPrompt) return;
-    if (masterPromptPackage) return;
+    if (masterPromptPackage) {
+      focusMasterPromptPackageSection();
+      return;
+    }
     setMasterPromptError(null);
     setIsGeneratingMasterPrompt(true);
 
@@ -309,11 +319,12 @@ export default function ProjectPage() {
       });
       const payload = (await response.json()) as { masterPromptPackage?: MasterPromptPackage; error?: string };
       if (!response.ok || !payload.masterPromptPackage) {
-        throw new Error(payload.error || "Unable to generate master prompt package.");
+        throw new Error(payload.error || "Couldn’t generate the master prompt package. Please try again.");
       }
       setMasterPromptPackage(payload.masterPromptPackage);
+      window.setTimeout(() => focusMasterPromptPackageSection(), 0);
     } catch (error) {
-      setMasterPromptError(error instanceof Error ? error.message : "Unable to generate master prompt package.");
+      setMasterPromptError(error instanceof Error ? error.message : "Couldn’t generate the master prompt package. Please try again.");
     } finally {
       setIsGeneratingMasterPrompt(false);
     }
@@ -619,7 +630,6 @@ export default function ProjectPage() {
                       </div>
                     </details>
                   )}
-                  <button type="button" onClick={() => void handleGenerateMasterPromptPackage()} disabled={isGeneratingMasterPrompt || project.status === "generating" || Boolean(masterPromptPackage)} className="ades-ghost-btn px-2.5 py-1.5 text-xs disabled:opacity-60">{isGeneratingMasterPrompt ? "Generating…" : "Generate master prompt and graders"}</button>
                 </div>
               </div>
             </section>
@@ -668,7 +678,7 @@ export default function ProjectPage() {
 
 
             {masterPromptPackage ? (
-              <section className="rounded-2xl border border-slate-200/80 bg-white p-4">
+              <section ref={masterPromptSectionRef} tabIndex={-1} className="rounded-2xl border border-slate-200/80 bg-white p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-slate-900">Master prompt package</h3>
                   <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{masterPromptPackage.qualityScore}/100</span>
@@ -689,8 +699,6 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-            {masterPromptError ? <p className="text-xs text-rose-600">{masterPromptError}</p> : null}
-
             <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Readiness review (checklist-first)</p>
               <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -704,6 +712,26 @@ export default function ProjectPage() {
             </section>
 
             <section className="relative flex min-h-0 flex-1">
+              <div className="pointer-events-none absolute left-4 top-4 z-[95]">
+                <div className="pointer-events-auto flex max-w-[340px] flex-col gap-2">
+                  <div className="group relative inline-flex">
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateMasterPromptPackage()}
+                      disabled={isGeneratingMasterPrompt || project.status === "generating"}
+                      aria-label="Generate a build-ready system prompt and evaluation graders from this ADES board. One-time generation per project."
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 ${masterPromptPackage ? "border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+                    >
+                      {isGeneratingMasterPrompt ? <span className="inline-block h-2 w-2 rounded-full bg-current animate-pulse" aria-hidden /> : <span aria-hidden>{masterPromptPackage ? "✓" : "✦"}</span>}
+                      {isGeneratingMasterPrompt ? "Generating master package…" : masterPromptPackage ? "View master prompt package" : "Generate master prompt and graders"}
+                    </button>
+                    <span className="pointer-events-none absolute left-1/2 top-[calc(100%+10px)] z-30 w-72 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2.5 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      Generate a build-ready system prompt and evaluation graders from this ADES board. One-time generation per project.
+                    </span>
+                  </div>
+                  {masterPromptError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 shadow-sm">{masterPromptError}</p> : null}
+                </div>
+              </div>
               <div className={`min-w-0 flex-1 ${isGuidanceOpen ? "xl:pr-16" : "xl:pr-14"}`}>
                 <StudioBoard
                   viewMode={viewMode}
