@@ -163,7 +163,7 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
-const ADES_OPENAI_MODEL = "gpt-5-mini";
+const ADES_OPENAI_MODEL = "gpt.5.nano";
 
 type PackageRequest = { projectId?: string };
 
