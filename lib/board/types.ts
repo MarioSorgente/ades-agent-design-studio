@@ -2,7 +2,7 @@ import type { Edge, Node, XYPosition } from "reactflow";
 
 export const CORE_NODE_TYPES = ["goal", "task", "reflection", "feedback", "risk", "eval", "business_metric", "assumption", "handoff"] as const;
 
-export const BOARD_VIEW_MODES = ["flow", "improvement", "eval"] as const;
+export const BOARD_VIEW_MODES = ["flow", "improvement", "eval", "prompt_graders"] as const;
 
 export type BoardViewMode = (typeof BOARD_VIEW_MODES)[number];
 
