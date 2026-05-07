@@ -531,7 +531,7 @@ export async function POST(request: Request) {
     openaiDebug.called = true;
 
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5-mini",
       input: [
         {
           role: "system",

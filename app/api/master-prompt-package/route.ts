@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
     const openai = getOpenAIClient();
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5-mini",
       input: [
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
       qualityScore,
       generatedAt: new Date().toISOString(),
       generatedByUid: uid,
-      model: response.model ?? "gpt-4.1-mini",
+      model: response.model ?? "gpt-5-mini",
     };
 
     await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
