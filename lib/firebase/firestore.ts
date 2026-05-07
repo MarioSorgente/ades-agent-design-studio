@@ -36,8 +36,37 @@ export type ProjectRecord = {
   assumptions: string[];
   critiqueSeed: string[];
   critique: CritiqueResult | null;
+  masterPromptPackage: MasterPromptPackage | null;
   createdAt: string | null;
   updatedAt: string | null;
+};
+
+
+
+export type MasterPromptGrader = {
+  id: string;
+  title: string;
+  evalSourceId?: string;
+  evalSourceTitle?: string;
+  purpose: string;
+  graderType: "model_graded" | "rule_based" | "hybrid";
+  instructions: string;
+  passCriteria: string[];
+  failCriteria: string[];
+  scoringRubric: { score0: string; score1: string; score2: string; score3: string; score4: string; score5: string };
+  expectedOutputShape?: string;
+};
+
+export type MasterPromptPackage = {
+  promptTitle: string;
+  masterSystemPrompt: string;
+  graders: MasterPromptGrader[];
+  qualityScore: number;
+  qualitySummary: string;
+  assumptionsUsed: string[];
+  generatedAt: string;
+  generatedByUid: string;
+  model?: string;
 };
 
 export type UserProfileRecord = {
@@ -280,6 +309,7 @@ function mapProjectSnapshot(data: Record<string, unknown>): ProjectRecord {
     assumptions: isStringArray(data.assumptions) ? data.assumptions : [],
     critiqueSeed: isStringArray(data.critiqueSeed) ? data.critiqueSeed : [],
     critique: parseCritique(data.critique),
+    masterPromptPackage: (data.masterPromptPackage && typeof data.masterPromptPackage === "object") ? (data.masterPromptPackage as MasterPromptPackage) : null,
     createdAt: toIsoStringOrNull(data.createdAt),
     updatedAt: toIsoStringOrNull(data.updatedAt),
   };
