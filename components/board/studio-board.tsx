@@ -73,7 +73,7 @@ export function StudioBoard({
   const nodes = useAdesBoardStore((state) => state.nodes);
   const edges = useAdesBoardStore((state) => state.edges);
   const [evalFilter, setEvalFilter] = useState<EvalFilter>("all");
-  const [flowZoom, setFlowZoom] = useState(1);
+  const [flowZoom, setFlowZoom] = useState(0.7);
   const [expandedByStep, setExpandedByStep] = useState<Record<string, AttachmentExpansionState>>({});
   const [showAllEvalsByStep, setShowAllEvalsByStep] = useState<Record<string, boolean>>({});
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
@@ -185,7 +185,7 @@ export function StudioBoard({
   );
 
   const resetView = useCallback(() => {
-    setFlowZoom(1);
+    setFlowZoom(0.7);
     window.requestAnimationFrame(() => {
       const preferredStepId = selectedFlowStepId ?? orderedMainSteps[0]?.id;
       if (preferredStepId) {
@@ -355,7 +355,7 @@ export function StudioBoard({
             <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.max(0.25, Number((prev - 0.1).toFixed(2))))}>−</button>
             <span className="min-w-14 text-center text-sm font-semibold text-slate-700">{Math.round(flowZoom * 100)}%</span>
             <button type="button" className="ades-ghost-btn h-9 w-9 px-0 py-0 text-base" onClick={() => setFlowZoom((prev) => Math.min(1.6, Number((prev + 0.1).toFixed(2))))}>+</button>
-            <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(1)}>100%</button>
+            <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={() => setFlowZoom(0.7)}>70%</button>
             <button type="button" className="ades-ghost-btn h-9 px-2.5 py-0 text-xs" onClick={resetView}>Reset</button>
           </div>
         </div>
