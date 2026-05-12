@@ -40,26 +40,50 @@ For each section, provide specific instructions grounded in the ADES data. If to
 GRADER REQUIREMENTS
 - Create a grader for each explicit eval when available (step-level and workflow-level).
 - Incorporate safeguards, risks, reflection points, completion criteria, and escalation expectations into grader logic.
-- If explicit eval coverage is missing, create a SMALL set of recommended graders inferred from risks/completion criteria and state this in purpose/instructions.
+- If explicit eval coverage is missing, create a SMALL set of recommended graders inferred from risks/completion criteria and state this in instructions.
 - Do NOT fabricate fake source eval IDs. Use inferred-* IDs for recommended graders.
 
 Each grader must include:
-- id, title, evalSourceId, evalSourceTitle, purpose, whyNeeded, whatItEvaluates, whenToUse, graderType, instructions,
+- id, title, evalSourceId, evalSourceTitle, purpose, whyNeeded, whatItEvaluates, whenToUse, graderOverview, graderType, instructions,
   passCriteria, failCriteria, scoringRubric, expectedOutputShape, openaiSimpleGrader, openaiPythonGrader
 
-Grader field semantics (NON-OVERLAPPING, STRICT):
-- purpose: one sentence max; short summary only.
-- whyNeeded: consequence/risk if this fails (business, user, product quality, safety/escalation, or implementation risk).
-- whatItEvaluates: the test contract (target behavior, evidence to inspect, output fields/artifacts, objective checks/comparisons).
-- whenToUse: exact eval timing trigger (after which step, on which output, before which handoff/release, and whether step/workflow/regression use).
+GRADER OVERVIEW REQUIREMENTS
+For each grader, create a graderOverview object.
+Do not use long repeated prose.
+Each field has a different job:
+1. summary
+- One short sentence.
+- Max 140 characters.
+- Describes the grader in plain language.
+- Must not mention evidence, timing, or risk.
+2. riskIfMissing
+- Explains the consequence if this behavior is not checked.
+- Focus on product, user, business, safety, escalation, or implementation risk.
+- Must not describe the checks themselves.
+3. evaluatedBehavior
+- Defines the exact behavior or output quality being evaluated.
+- Must be observable.
+- Must not explain why it matters.
+- Must not repeat the risk.
+4. evidenceToInspect
+- Array of concrete fields/artifacts to inspect.
+- Use short noun phrases only.
+- Examples: "agent final output", "ICP persona section", "tool result summary", "escalation note", "JSON response fields".
+5. passDecisionRule
+- One concise decision rule for pass/fail.
+- Must not duplicate the full passCriteria array.
+- It should summarize how to decide whether the output passes.
+6. runTiming
+- States exactly when to run this grader.
+- Mention workflow step, output, handoff, release gate, regression test, or eval suite moment.
+- Avoid generic text like "whenever this behavior is part of the eval set".
 
-Anti-duplication rules:
-- Do not reuse the same sentence across purpose, whyNeeded, whatItEvaluates, and whenToUse.
-- Each field must add new information; no paraphrased repetition.
-- If two fields would overlap, keep purpose short and move details to the correct field.
-- Do not copy passCriteria/failCriteria text into these fields.
-- Avoid generic phrasing like "Use this grader whenever this behavior is part of the eval set."
-- Prefer concrete references to ADES workflow steps, outputs, evals, safeguards, risks, and handoff moments.
+ANTI-REPETITION RULES
+- Do not reuse the same clause across graderOverview fields.
+- Do not copy passCriteria or failCriteria into graderOverview.
+- Do not make riskIfMissing and evaluatedBehavior say the same thing.
+- Do not use vague generic timing.
+- If information is missing, create conservative generic timing based on the workflow step.
 
 Each grader's instructions must clearly define:
 - behavior being evaluated
@@ -119,6 +143,19 @@ const PACKAGE_SCHEMA = {
           whyNeeded: { type: "string" },
           whatItEvaluates: { type: "string" },
           whenToUse: { type: "string" },
+          graderOverview: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              summary: { type: "string" },
+              riskIfMissing: { type: "string" },
+              evaluatedBehavior: { type: "string" },
+              evidenceToInspect: { type: "array", items: { type: "string" } },
+              passDecisionRule: { type: "string" },
+              runTiming: { type: "string" },
+            },
+            required: ["summary", "riskIfMissing", "evaluatedBehavior", "evidenceToInspect", "passDecisionRule", "runTiming"],
+          },
           graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
           instructions: { type: "string" },
           passCriteria: { type: "array", items: { type: "string" } },
@@ -160,7 +197,7 @@ const PACKAGE_SCHEMA = {
             required: ["name", "sourceCode", "passThreshold", "imageTag"],
           },
         },
-        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
+        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderOverview", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
       },
     },
     packageVersion: { type: "number" },
@@ -179,7 +216,7 @@ function getOpenAIClient() {
 
 const ADES_OPENAI_MODEL = "gpt-5-mini";
 
-type PackageRequest = { projectId?: string };
+type PackageRequest = { projectId?: string; forceRegenerate?: boolean };
 
 export async function POST(request: Request) {
   try {
@@ -196,8 +233,9 @@ export async function POST(request: Request) {
     const project = snapshot.data() as Record<string, unknown>;
     if (project.ownerUid !== uid) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
+    const forceRegenerate = body.forceRegenerate === true && isAdminBypass(email);
     const existingPackage = project.masterPromptPackage;
-    if (existingPackage && typeof existingPackage === "object") {
+    if (existingPackage && typeof existingPackage === "object" && !forceRegenerate) {
       return NextResponse.json({ masterPromptPackage: existingPackage, cached: true });
     }
 
@@ -248,9 +286,18 @@ export async function POST(request: Request) {
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
           role: "user",
-          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nFor every grader, make purpose, whyNeeded, whatItEvaluates, and whenToUse non-overlapping. purpose: one-line summary. whyNeeded: consequence/risk if this fails. whatItEvaluates: observable behavior, evidence, and output fields to inspect. whenToUse: exact workflow/eval timing. Do not repeat the same sentence or concept across these fields.
+          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.
 
-Return exactly this JSON shape: {"packageVersion":2,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+For every grader, use graderOverview as the primary human-readable overview. Do not make broad prose fields repeat each other.
+- summary = one-line label
+- riskIfMissing = consequence if not checked
+- evaluatedBehavior = observable behavior
+- evidenceToInspect = artifacts/fields to inspect
+- passDecisionRule = concise pass/fail decision rule
+- runTiming = when to run this grader
+Do not copy passCriteria or failCriteria into graderOverview.
+
+Return exactly this JSON shape: {"packageVersion":3,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderOverview":{"summary":"string","riskIfMissing":"string","evaluatedBehavior":"string","evidenceToInspect":["string"],"passDecisionRule":"string","runTiming":"string"},"graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
@@ -276,7 +323,7 @@ Return exactly this JSON shape: {"packageVersion":2,"promptTitle":"string","mast
     const qualityScore = Math.max(0, Math.min(100, Number(parsed.qualityScore ?? 0)));
     const masterPromptPackage = {
       ...parsed,
-      packageVersion: Number(parsed.packageVersion ?? 2) || 2,
+      packageVersion: Number(parsed.packageVersion ?? 3) || 3,
       graders: normalizedGraders,
       qualityScore,
       generatedAt: new Date().toISOString(),
