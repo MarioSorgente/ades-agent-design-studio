@@ -52,6 +52,14 @@ export type MasterPromptGrader = {
   whyNeeded?: string;
   whatItEvaluates?: string;
   whenToUse?: string;
+  graderOverview?: {
+    summary: string;
+    riskIfMissing: string;
+    evaluatedBehavior: string;
+    evidenceToInspect: string[];
+    passDecisionRule: string;
+    runTiming: string;
+  };
   graderType: "model_graded" | "rule_based" | "hybrid";
   instructions: string;
   passCriteria: string[];
