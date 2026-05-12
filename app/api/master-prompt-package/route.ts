@@ -47,6 +47,20 @@ Each grader must include:
 - id, title, evalSourceId, evalSourceTitle, purpose, whyNeeded, whatItEvaluates, whenToUse, graderType, instructions,
   passCriteria, failCriteria, scoringRubric, expectedOutputShape, openaiSimpleGrader, openaiPythonGrader
 
+Grader field semantics (NON-OVERLAPPING, STRICT):
+- purpose: one sentence max; short summary only.
+- whyNeeded: consequence/risk if this fails (business, user, product quality, safety/escalation, or implementation risk).
+- whatItEvaluates: the test contract (target behavior, evidence to inspect, output fields/artifacts, objective checks/comparisons).
+- whenToUse: exact eval timing trigger (after which step, on which output, before which handoff/release, and whether step/workflow/regression use).
+
+Anti-duplication rules:
+- Do not reuse the same sentence across purpose, whyNeeded, whatItEvaluates, and whenToUse.
+- Each field must add new information; no paraphrased repetition.
+- If two fields would overlap, keep purpose short and move details to the correct field.
+- Do not copy passCriteria/failCriteria text into these fields.
+- Avoid generic phrasing like "Use this grader whenever this behavior is part of the eval set."
+- Prefer concrete references to ADES workflow steps, outputs, evals, safeguards, risks, and handoff moments.
+
 Each grader's instructions must clearly define:
 - behavior being evaluated
 - evidence to inspect
@@ -163,7 +177,7 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
-const ADES_OPENAI_MODEL = "gpt.5.nano";
+const ADES_OPENAI_MODEL = "gpt-5-mini";
 
 type PackageRequest = { projectId?: string };
 
@@ -234,7 +248,9 @@ export async function POST(request: Request) {
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
           role: "user",
-          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nReturn exactly this JSON shape: {"packageVersion":2,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.\n\nFor every grader, make purpose, whyNeeded, whatItEvaluates, and whenToUse non-overlapping. purpose: one-line summary. whyNeeded: consequence/risk if this fails. whatItEvaluates: observable behavior, evidence, and output fields to inspect. whenToUse: exact workflow/eval timing. Do not repeat the same sentence or concept across these fields.
+
+Return exactly this JSON shape: {"packageVersion":2,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
