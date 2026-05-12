@@ -31,7 +31,6 @@ type GenerateResponse = {
 };
 
 type CritiqueResponse = { critique: CritiqueResult; gated?: boolean; trigger?: UsageGateTrigger };
-type ReadinessDimensionItem = { key: string; label: string; ready: boolean; note: string };
 const blueprintFieldTips = {
   initiative: "What agent are you designing?",
   title: "A short internal name for this project.",
@@ -62,32 +61,6 @@ function rebuildExecutionEdges(edges: AdesEdge[], orderedMainSteps: AdesNode[]) 
     data: { semanticType: "execution" },
   }));
   return [...nonExecutionEdges, ...executionEdges];
-}
-
-function getReadinessChecklist(qualityReport: ReturnType<typeof analyzeBoardQuality>, critiqueResult: CritiqueResult | null): ReadinessDimensionItem[] {
-  const critiqueByDimension = new Map<string, number>();
-  critiqueResult?.critiqueItems.forEach((item) => {
-    item.affectedDimensions.forEach((dimension) => {
-      critiqueByDimension.set(dimension, (critiqueByDimension.get(dimension) ?? 0) + 1);
-    });
-  });
-
-  return [
-    { key: "workflow_clarity", label: "Workflow clarity", ready: qualityReport.workflowClarity.passed, note: qualityReport.workflowClarity.issues[0] ?? "Main steps have clear purpose, inputs, outputs, and completion criteria." },
-    { key: "decomposition_quality", label: "Decomposition quality", ready: qualityReport.decompositionQuality.passed, note: qualityReport.decompositionQuality.issues[0] ?? "Step granularity is practical for build planning." },
-    { key: "reflection_logic", label: "Reflection logic", ready: qualityReport.reflectionFeedback.passed, note: qualityReport.reflectionFeedback.issues[0] ?? "Reflection points are used intentionally where uncertainty exists." },
-    { key: "eval_coverage", label: "Eval coverage", ready: qualityReport.evalReadiness.passed, note: qualityReport.evalReadiness.issues[0] ?? "Evals cover end-to-end and critical-step outcomes." },
-    { key: "safeguard_coverage", label: "Safeguard coverage", ready: qualityReport.safeguardsApplicable ? qualityReport.safeguardsPct >= 75 : true, note: qualityReport.safeguardsApplicable ? `Safeguarded risky steps: ${qualityReport.safeguardedRiskySteps}/${qualityReport.riskyOrUncertainSteps}.` : "No risky steps detected yet." },
-    {
-      key: "handoff_readiness",
-      label: "Handoff readiness",
-      ready: qualityReport.workflowClarity.passed && qualityReport.evalReadiness.passed,
-      note: qualityReport.workflowClarity.passed && qualityReport.evalReadiness.passed ? "Workflow and eval intent are clear enough for build planning handoff." : "Clarify workflow outputs and eval plan before final handoff.",
-    },
-  ].map((item) => {
-    const critiqueCount = critiqueByDimension.get(item.key) ?? 0;
-    return critiqueCount > 0 ? { ...item, ready: false, note: `${item.note} ${critiqueCount} critique finding(s) currently affect this dimension.` } : item;
-  });
 }
 
 function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
@@ -590,7 +563,13 @@ export default function ProjectPage() {
   }, [addNotice]);
 
   return (
-    <AppShell title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")} actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn px-2.5 py-1.5 text-xs" aria-disabled={!projectId}>Print</Link>} compact>
+    <AppShell
+      title={project?.title ?? (projectId ? `Project ${projectId}` : "Project")}
+      actions={<Link href={projectId ? `/project/${projectId}/print` : "/dashboard"} className="ades-ghost-btn px-2.5 py-1.5 text-xs" aria-disabled={!projectId}>Print</Link>}
+      compact
+      showPrimaryNav={false}
+      showBranding={false}
+    >
       <ProtectedRoute>
         <UsageGateModal
           isOpen={gateModal.isOpen}
@@ -700,18 +679,6 @@ export default function ProjectPage() {
               </section>
             ) : null}
 
-
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Readiness review (checklist-first)</p>
-              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {getReadinessChecklist(qualityReport, critiqueResult).map((item) => (
-                  <article key={item.key} className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
-                    <p className="text-xs font-semibold text-slate-900">{item.label}</p>
-                    <p className="mt-1 text-[11px] text-slate-700">{item.note}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
 
             {viewMode === "prompt_graders" ? (
               <section className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-6">
