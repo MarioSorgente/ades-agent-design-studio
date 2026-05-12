@@ -61,22 +61,33 @@ Each field has a different job:
 - Focus on product, user, business, safety, escalation, or implementation risk.
 - Must not describe the checks themselves.
 3. evaluatedBehavior
-- Defines the exact behavior or output quality being evaluated.
-- Must be observable.
-- Must not explain why it matters.
-- Must not repeat the risk.
-4. evidenceToInspect
+- Short fluent explanation of what is being checked at a high level.
+- Maximum 2 sentences.
+- Must not include evidence lists, thresholds, borderline handling, scoring instructions, or long checklists.
+4. checksToPerform
+- Array of concrete, short, actionable checklist items.
+- Each item should start with action verbs like Confirm, Check, Verify, Ensure when practical.
+5. evidenceToInspect
 - Array of concrete fields/artifacts to inspect.
 - Use short noun phrases only.
 - Examples: "agent final output", "ICP persona section", "tool result summary", "escalation note", "JSON response fields".
-5. passDecisionRule
+6. passDecisionRule
 - One concise decision rule for pass/fail.
 - Must not duplicate the full passCriteria array.
 - It should summarize how to decide whether the output passes.
-6. runTiming
+8. runTiming
 - States exactly when to run this grader.
 - Mention workflow step, output, handoff, release gate, regression test, or eval suite moment.
 - Avoid generic text like "whenever this behavior is part of the eval set".
+
+7. borderlineHandling
+- One concise explanation for partial or ambiguous cases.
+
+WHAT THIS GRADER CHECKS FORMAT
+- Do not write dense paragraphs that combine behavior, evidence, pass thresholds, and borderline handling.
+- Never put evidence lists, thresholds, borderline cases, or scoring instructions inside evaluatedBehavior.
+- Do not write labels like "Behavior evaluated:", "Evidence to inspect:", "Pass/fail thresholds:", or "Borderline:" inside evaluatedBehavior.
+- The human-readable Overview tab should be easy to render as a short paragraph, bullet checks, bullet evidence, decision rule, borderline handling, and run timing.
 
 ANTI-REPETITION RULES
 - Do not reuse the same clause across graderOverview fields.
@@ -150,11 +161,13 @@ const PACKAGE_SCHEMA = {
               summary: { type: "string" },
               riskIfMissing: { type: "string" },
               evaluatedBehavior: { type: "string" },
+              checksToPerform: { type: "array", items: { type: "string" } },
               evidenceToInspect: { type: "array", items: { type: "string" } },
               passDecisionRule: { type: "string" },
+              borderlineHandling: { type: "string" },
               runTiming: { type: "string" },
             },
-            required: ["summary", "riskIfMissing", "evaluatedBehavior", "evidenceToInspect", "passDecisionRule", "runTiming"],
+            required: ["summary", "riskIfMissing", "evaluatedBehavior", "checksToPerform", "evidenceToInspect", "passDecisionRule", "borderlineHandling", "runTiming"],
           },
           graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
           instructions: { type: "string" },
@@ -292,12 +305,16 @@ For every grader, use graderOverview as the primary human-readable overview. Do 
 - summary = one-line label
 - riskIfMissing = consequence if not checked
 - evaluatedBehavior = observable behavior
+- evaluatedBehavior = short explanation only (max 2 sentences)
+- checksToPerform = concrete checklist items
 - evidenceToInspect = artifacts/fields to inspect
 - passDecisionRule = concise pass/fail decision rule
+- borderlineHandling = partial/ambiguous cases
 - runTiming = when to run this grader
+Avoid long paragraph fields and do not compress all graderOverview information into evaluatedBehavior.
 Do not copy passCriteria or failCriteria into graderOverview.
 
-Return exactly this JSON shape: {"packageVersion":3,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderOverview":{"summary":"string","riskIfMissing":"string","evaluatedBehavior":"string","evidenceToInspect":["string"],"passDecisionRule":"string","runTiming":"string"},"graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+Return exactly this JSON shape: {"packageVersion":4,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderOverview":{"summary":"string","riskIfMissing":"string","evaluatedBehavior":"string","checksToPerform":["string"],"evidenceToInspect":["string"],"passDecisionRule":"string","borderlineHandling":"string","runTiming":"string"},"graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
@@ -323,7 +340,7 @@ Return exactly this JSON shape: {"packageVersion":3,"promptTitle":"string","mast
     const qualityScore = Math.max(0, Math.min(100, Number(parsed.qualityScore ?? 0)));
     const masterPromptPackage = {
       ...parsed,
-      packageVersion: Number(parsed.packageVersion ?? 3) || 3,
+      packageVersion: Number(parsed.packageVersion ?? 4) || 4,
       graders: normalizedGraders,
       qualityScore,
       generatedAt: new Date().toISOString(),
