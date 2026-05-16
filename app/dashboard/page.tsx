@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { UsageGateModal, type UsageGateTrigger } from "@/components/UsageGateModal";
 import { analyzeBoardQuality, type BoardQualityReport } from "@/lib/board/quality";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/firebase/firestore";
 import { getCurrentUserIdToken } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
+import { BlueprintLabel, TooltipInfo, blueprintFieldTips } from "@/components/ui/blueprint-fields";
 
 type ProjectTab = "mine" | "recent" | "templates";
 type SidebarNavItem = { label: string; href?: string };
@@ -51,16 +52,6 @@ const workflowClarityTooltip = "Is the workflow clear enough to build and test?"
 const evalReadinessTooltip = "Are evals explicit enough to verify behavior?";
 const safeguardsTooltip = "Are safeguards and escalation points explicit where risk exists?";
 const weakestAreaTooltip = "The most important gap to fix next before this design is ready to test.";
-const blueprintFieldTips = {
-  initiative: "What agent are you designing?",
-  title: "A short internal name for this project.",
-  targetUser: "Who is this agent for, or who will interact with it?",
-  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
-  desiredOutcome: "What successful change should happen if this agent works well?",
-  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
-  humanInvolvement: "When should a human review, approve, or take over?",
-  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
-} as const;
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -127,14 +118,28 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [status, user]);
 
-  const qualityByProject = useMemo(
-    () =>
-      projects.map((project) => ({
-        project,
-        quality: analyzeBoardQuality(project.board),
-      })),
-    [projects],
-  );
+  // Firestore pushes a fresh `projects` array on any single-project change,
+  // which previously recomputed analyzeBoardQuality for every project. Cache
+  // per project keyed by id + updatedAt (the cheap signal that changes only on
+  // an actual board write) so only changed projects are recomputed. The output
+  // shape is identical to the previous map.
+  const qualityCacheRef = useRef<Map<string, { dep: string; quality: BoardQualityReport }>>(new Map());
+  const qualityByProject = useMemo(() => {
+    const cache = qualityCacheRef.current;
+    const nextCache = new Map<string, { dep: string; quality: BoardQualityReport }>();
+    const result = projects.map((project) => {
+      const dep = project.updatedAt ?? "";
+      const cached = cache.get(project.id);
+      const entry =
+        cached && cached.dep === dep
+          ? cached
+          : { dep, quality: analyzeBoardQuality(project.board) };
+      nextCache.set(project.id, entry);
+      return { project, quality: entry.quality };
+    });
+    qualityCacheRef.current = nextCache;
+    return result;
+  }, [projects]);
 
   const recentProjectTitles = useMemo(() => {
     return [...projects]
@@ -663,33 +668,6 @@ function MainScoringRow({ quality, projectId }: { quality: BoardQualityReport; p
         <WeakestAreaInsight weakestArea={quality.weakestArea} projectId={projectId} />
       </div>
     </div>
-  );
-}
-
-function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
-  return (
-    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-      <span>{label}</span>
-      <TooltipInfo text={tooltip} />
-    </p>
-  );
-}
-
-function TooltipInfo({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-        aria-label={text}
-        title={text}
-      >
-        i
-      </button>
-      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
-        {text}
-      </span>
-    </span>
   );
 }
 

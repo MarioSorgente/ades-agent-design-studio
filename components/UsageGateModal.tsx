@@ -107,8 +107,13 @@ export function UsageGateModal({ isOpen, trigger, hasExistingProject, onClose, o
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/55 px-4">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
-        <h2 className="text-xl font-semibold text-slate-900">{copy.title}</h2>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="usage-gate-modal-title"
+        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+      >
+        <h2 id="usage-gate-modal-title" className="text-xl font-semibold text-slate-900">{copy.title}</h2>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-600">{submitted ? "Thanks — this really helps shape ADES." : copy.body}</p>
 
         {!submitted ? (
