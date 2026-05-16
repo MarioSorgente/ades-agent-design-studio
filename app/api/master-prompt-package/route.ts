@@ -224,7 +224,11 @@ const PACKAGE_SCHEMA = {
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY.");
-  return new OpenAI({ apiKey });
+  // Bound the request and retry transient failures (429/5xx/timeout) with the
+  // SDK's exponential backoff. Timeout is set well above the success-path p99
+  // so slow-but-successful calls are unaffected; only the failure path changes.
+  // The JSON response contract is unchanged.
+  return new OpenAI({ apiKey, timeout: 120_000, maxRetries: 2 });
 }
 
 const ADES_OPENAI_MODEL = "gpt-5-mini";

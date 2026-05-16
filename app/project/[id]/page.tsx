@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { toPng } from "html-to-image";
 import { useParams, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { UsageGateModal, type UsageGateTrigger } from "@/components/UsageGateModal";
@@ -19,6 +18,7 @@ import type { CritiqueResult } from "@/lib/critique/types";
 import { createProjectJson, createProjectMarkdown, downloadTextFile, parseImportJson } from "@/lib/export/project-export";
 import { normalizeRouteParam } from "@/lib/utils/route-params";
 import { analyzeBoardQuality, type QualityIssue } from "@/lib/board/quality";
+import { BlueprintLabel, TooltipInfo, blueprintFieldTips } from "@/components/ui/blueprint-fields";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -31,16 +31,6 @@ type GenerateResponse = {
 };
 
 type CritiqueResponse = { critique: CritiqueResult; gated?: boolean; trigger?: UsageGateTrigger };
-const blueprintFieldTips = {
-  initiative: "What agent are you designing?",
-  title: "A short internal name for this project.",
-  targetUser: "Who is this agent for, or who will interact with it?",
-  contextProblem: "What current pain, inefficiency, or need justifies this agent?",
-  desiredOutcome: "What successful change should happen if this agent works well?",
-  constraints: "What limits should shape the design? For example policy, latency, budget, tools, channels, or languages.",
-  humanInvolvement: "When should a human review, approve, or take over?",
-  riskLevel: "How risky would failure be in this workflow? Use this only if it meaningfully affects safeguards, evals, or human oversight.",
-} as const;
 
 function isMainStep(node: AdesNode) {
   return node.type === "goal" || node.type === "task" || node.type === "handoff";
@@ -63,32 +53,6 @@ function rebuildExecutionEdges(edges: AdesEdge[], orderedMainSteps: AdesNode[]) 
   return [...nonExecutionEdges, ...executionEdges];
 }
 
-function BlueprintLabel({ label, tooltip }: { label: string; tooltip: string }) {
-  return (
-    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-      <span>{label}</span>
-      <TooltipInfo text={tooltip} />
-    </p>
-  );
-}
-
-function TooltipInfo({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-        aria-label={text}
-        title={text}
-      >
-        i
-      </button>
-      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-2 py-1.5 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
-        {text}
-      </span>
-    </span>
-  );
-}
 
 function fallbackSimpleGuidelines(grader: NonNullable<MasterPromptPackage["graders"]>[number]) {
   return [
@@ -552,6 +516,9 @@ export default function ProjectPage() {
     try {
       const element = document.getElementById("ades-canvas-export");
       if (!element) throw new Error("Could not find workspace area for image export.");
+      // Lazy-loaded so html-to-image stays out of the project page's initial
+      // bundle; it loads on first export click. Same call/output as before.
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(element, { cacheBust: true, pixelRatio: 2 });
       const anchor = document.createElement("a");
       anchor.href = dataUrl;

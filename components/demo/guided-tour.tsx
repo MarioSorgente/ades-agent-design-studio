@@ -104,6 +104,8 @@ export function GuidedTour({ steps, isOpen, activeStep, onNext, onBack, onSkip, 
       ) : null}
 
       <aside
+        role="dialog"
+        aria-labelledby="ades-guided-tour-title"
         className="pointer-events-auto absolute w-[308px] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
         style={{ top: cardPosition.top, left: cardPosition.left }}
       >
@@ -115,7 +117,7 @@ export function GuidedTour({ steps, isOpen, activeStep, onNext, onBack, onSkip, 
           </div>
         </div>
 
-        <h3 className="mt-3 text-sm font-semibold text-slate-900">{currentStep.title}</h3>
+        <h3 id="ades-guided-tour-title" className="mt-3 text-sm font-semibold text-slate-900">{currentStep.title}</h3>
         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{currentStep.description}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">

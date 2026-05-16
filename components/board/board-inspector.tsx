@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { getNodeTheme } from "@/lib/board/node-theme";
 import { useAdesBoardStore } from "@/lib/board/store";
 import type { AdesNodeType, BoardViewMode, EvalCategory } from "@/lib/board/types";
@@ -9,7 +9,7 @@ const evalCategories: EvalCategory[] = ["task_success", "reasoning_quality", "to
 
 const TEXTAREA_CLASS = "ades-input min-h-[88px] resize-y text-[15px] leading-7";
 
-export function BoardInspector({ viewMode, nodeId, readOnly = false }: { viewMode: BoardViewMode; nodeId: string | null; readOnly?: boolean }) {
+function BoardInspectorComponent({ viewMode, nodeId, readOnly = false }: { viewMode: BoardViewMode; nodeId: string | null; readOnly?: boolean }) {
   const updateNode = useAdesBoardStore((state) => state.updateNode);
   const selectedNode = useAdesBoardStore((state) => (nodeId ? state.nodes.find((node) => node.id === nodeId) ?? null : null));
 
@@ -122,6 +122,10 @@ export function BoardInspector({ viewMode, nodeId, readOnly = false }: { viewMod
     </div>
   );
 }
+
+// Props are all primitives and state is read via Zustand selectors, so memo
+// is safe: it skips re-renders when the parent re-renders with equal props.
+export const BoardInspector = memo(BoardInspectorComponent);
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block space-y-2.5"><span className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>{children}</label>;
