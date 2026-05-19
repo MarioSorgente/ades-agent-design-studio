@@ -4,210 +4,96 @@ import { NextResponse } from "next/server";
 import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import { getAuthenticatedUser, isAdminBypass } from "@/lib/usageGate";
 
-const MASTER_PROMPT_SYSTEM = `You are ADES, an expert AI product design strategist that converts ADES board designs into implementation-ready prompt packages.
+const STAGE_A_SYSTEM = `You are ADES, an expert AI product design strategist.
+Return JSON only.
+Use ONLY provided ADES canonical data.
+If data is missing, use conservative assumptions and list them in assumptionsUsed.
+Create:
+- promptTitle
+- masterSystemPrompt (implementation-ready; with clear headers)
+- qualitySummary
+- assumptionsUsed
+- qualityScore (0-100)
+Do not include graders.`;
 
-You must output a JSON package with:
-1) a builder-ready masterSystemPrompt
-2) concrete graders tied to ADES evidence
+const STAGE_B_SYSTEM = `You are ADES, an evaluator architect.
+Return JSON only.
+Create graders from compact structured inputs.
+Use only provided data and stage A context.
+If eval source IDs are missing for inferred graders, use inferred-* ids.
+Each grader must include all required fields and both simple + python grader artifacts.`;
 
-CRITICAL REQUIREMENTS
-- Use ONLY information present in the provided ADES project data.
-- Never invent unsupported business facts, policies, tools, or metrics.
-- If data is missing, explicitly list assumptions in assumptionsUsed and keep them conservative.
-- Be concrete, operational, and testable. Avoid generic advice.
-- Keep language practical for engineers and PMs implementing an agent.
-
-MASTER SYSTEM PROMPT REQUIREMENTS
-The generated masterSystemPrompt MUST include clear section headers and complete instructions for all of:
-- Role / Persona
-- Goal
-- Audience / User
-- Operating Context
-- Inputs the Agent Receives
-- Workflow Instructions
-- Reasoning and Reflection Instructions
-- Tool / Data Use Instructions
-- Safeguards and Failure Modes
-- Human Escalation Rules
-- Constraints
-- Output Requirements
-- Voice and Tone
-- Assumptions
-- Final Quality Checklist
-
-For each section, provide specific instructions grounded in the ADES data. If tools are missing, explicitly say no tool access is assumed.
-
-GRADER REQUIREMENTS
-- Create a grader for each explicit eval when available (step-level and workflow-level).
-- Incorporate safeguards, risks, reflection points, completion criteria, and escalation expectations into grader logic.
-- If explicit eval coverage is missing, create a SMALL set of recommended graders inferred from risks/completion criteria and state this in instructions.
-- Do NOT fabricate fake source eval IDs. Use inferred-* IDs for recommended graders.
-
-Grader field rules (keep concise; avoid repeated prose):
-- graderOverview.summary: <= 140 chars, plain-language behavior label only.
-- graderOverview.riskIfMissing: consequence if not checked; risk-focused, not checklist text.
-- graderOverview.evaluatedBehavior: high-level behavior only, <= 2 sentences.
-- graderOverview.checksToPerform: short actionable checklist items.
-- graderOverview.evidenceToInspect: concrete artifacts/fields as short noun phrases.
-- graderOverview.passDecisionRule: single concise pass/fail rule; do not restate full criteria.
-- graderOverview.borderlineHandling: concise partial/ambiguous-case handling.
-- graderOverview.runTiming: specific workflow timing (step/output/handoff/release/regression/eval suite).
-- Do not copy passCriteria/failCriteria text into graderOverview fields.
-
-Each grader's instructions must clearly define:
-- behavior being evaluated
-- evidence to inspect
-- pass/fail thresholds
-- borderline-case handling
-- practical 0-5 scoring usage
-
-Do not only describe the grader. Produce the actual grader artifacts that a builder can copy into an eval platform.
-
-Simple grader requirements:
-- Best for subjective/semantic grading and operator-friendly scoring guidelines.
-- Include: what good looks like, evidence to inspect, pass conditions, fail conditions, borderline handling, and 0.0-1.0 guidance.
-- Reference {{ sample.output_text }} and relevant {{ item.* }} fields where useful.
-- If item fields are unknown, keep guidance generic and suggest fields like item.expected_behavior or item.reference_answer.
-
-Python grader requirements:
-- Best for objective checks (structure, keywords, format, thresholds, safety triggers).
-- Return complete runnable function: def grade(sample: dict, item: dict) -> float
-- Read model output from sample.get("output_text", "") and expected data from item.
-- Return float in [0.0, 1.0].
-- Never call network APIs.
-- Keep robust to missing keys and include comments for customization.
-- If semantic judgment is needed, still check objective signals and clearly document limitations.
-
-SCORING RUBRIC MEANINGS
-- score0: completely fails / unsafe / irrelevant
-- score1: mostly fails with tiny partial relevance
-- score2: partially addresses but misses important requirements
-- score3: acceptable but incomplete or weak
-- score4: strong with minor gaps
-- score5: excellent, complete, safe, implementation-ready
-
-QUALITY SCORE
-- qualityScore is 0-100 for package usefulness for implementation handoff.
-- qualitySummary must briefly justify score with concrete strengths/gaps.
-
-Return valid JSON only, matching the schema exactly.`;
 const PROMPT_PACKAGE_PROMPT_V1 = "prompt-package-v1";
 
-const PACKAGE_SCHEMA = {
+const STAGE_A_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
     promptTitle: { type: "string" },
     masterSystemPrompt: { type: "string" },
-    graders: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string" },
-          title: { type: "string" },
-          evalSourceId: { type: ["string", "null"] },
-          evalSourceTitle: { type: ["string", "null"] },
-          purpose: { type: "string" },
-          whyNeeded: { type: "string" },
-          whatItEvaluates: { type: "string" },
-          whenToUse: { type: "string" },
-          graderOverview: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              summary: { type: "string" },
-              riskIfMissing: { type: "string" },
-              evaluatedBehavior: { type: "string" },
-              checksToPerform: { type: "array", items: { type: "string" } },
-              evidenceToInspect: { type: "array", items: { type: "string" } },
-              passDecisionRule: { type: "string" },
-              borderlineHandling: { type: "string" },
-              runTiming: { type: "string" },
-            },
-            required: ["summary", "riskIfMissing", "evaluatedBehavior", "checksToPerform", "evidenceToInspect", "passDecisionRule", "borderlineHandling", "runTiming"],
-          },
-          graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
-          instructions: { type: "string" },
-          passCriteria: { type: "array", items: { type: "string" } },
-          failCriteria: { type: "array", items: { type: "string" } },
-          scoringRubric: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              score0: { type: "string" },
-              score1: { type: "string" },
-              score2: { type: "string" },
-              score3: { type: "string" },
-              score4: { type: "string" },
-              score5: { type: "string" },
-            },
-            required: ["score0", "score1", "score2", "score3", "score4", "score5"],
-          },
-          expectedOutputShape: { type: ["string", "null"] },
-          openaiSimpleGrader: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "string" },
-              model: { type: "string" },
-              scoringGuidelines: { type: "string" },
-              passThreshold: { type: "number" },
-            },
-            required: ["name", "model", "scoringGuidelines", "passThreshold"],
-          },
-          openaiPythonGrader: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "string" },
-              sourceCode: { type: "string" },
-              passThreshold: { type: "number" },
-              imageTag: { type: ["string", "null"] },
-            },
-            required: ["name", "sourceCode", "passThreshold", "imageTag"],
-          },
-        },
-        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderOverview", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
-      },
-    },
-    packageVersion: { type: "number" },
     qualityScore: { type: "number" },
     qualitySummary: { type: "string" },
     assumptionsUsed: { type: "array", items: { type: "string" } },
   },
-  required: ["promptTitle", "masterSystemPrompt", "graders", "qualityScore", "qualitySummary", "assumptionsUsed", "packageVersion"],
+  required: ["promptTitle", "masterSystemPrompt", "qualityScore", "qualitySummary", "assumptionsUsed"],
+} as const;
+
+const GRADER_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      id: { type: "string" },
+      title: { type: "string" },
+      evalSourceId: { type: ["string", "null"] },
+      evalSourceTitle: { type: ["string", "null"] },
+      purpose: { type: "string" },
+      whyNeeded: { type: "string" },
+      whatItEvaluates: { type: "string" },
+      whenToUse: { type: "string" },
+      graderOverview: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          summary: { type: "string" }, riskIfMissing: { type: "string" }, evaluatedBehavior: { type: "string" },
+          checksToPerform: { type: "array", items: { type: "string" } }, evidenceToInspect: { type: "array", items: { type: "string" } },
+          passDecisionRule: { type: "string" }, borderlineHandling: { type: "string" }, runTiming: { type: "string" },
+        },
+        required: ["summary", "riskIfMissing", "evaluatedBehavior", "checksToPerform", "evidenceToInspect", "passDecisionRule", "borderlineHandling", "runTiming"],
+      },
+      graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
+      instructions: { type: "string" }, passCriteria: { type: "array", items: { type: "string" } }, failCriteria: { type: "array", items: { type: "string" } },
+      scoringRubric: { type: "object", additionalProperties: false, properties: { score0: { type: "string" }, score1: { type: "string" }, score2: { type: "string" }, score3: { type: "string" }, score4: { type: "string" }, score5: { type: "string" } }, required: ["score0", "score1", "score2", "score3", "score4", "score5"] },
+      expectedOutputShape: { type: ["string", "null"] },
+      openaiSimpleGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, model: { type: "string" }, scoringGuidelines: { type: "string" }, passThreshold: { type: "number" } }, required: ["name", "model", "scoringGuidelines", "passThreshold"] },
+      openaiPythonGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, sourceCode: { type: "string" }, passThreshold: { type: "number" }, imageTag: { type: ["string", "null"] } }, required: ["name", "sourceCode", "passThreshold", "imageTag"] },
+    },
+    required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderOverview", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
+  },
 } as const;
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY.");
-  // Bound the request and retry transient failures (429/5xx/timeout) with the
-  // SDK's exponential backoff. Timeout is set well above the success-path p99
-  // so slow-but-successful calls are unaffected; only the failure path changes.
-  // The JSON response contract is unchanged.
   return new OpenAI({ apiKey, timeout: 120_000, maxRetries: 2 });
 }
 
 const ADES_OPENAI_MODEL = "gpt-5-mini";
-
 type PackageRequest = { projectId?: string; forceRegenerate?: boolean };
+
+async function withRetries<T>(fn: () => Promise<T>, attempts = 3) {
+  let lastError: unknown;
+  for (let i = 1; i <= attempts; i += 1) {
+    try { return await fn(); } catch (error) { lastError = error; if (i < attempts) await new Promise((r) => setTimeout(r, i * 400)); }
+  }
+  throw lastError;
+}
 
 export async function POST(request: Request) {
   const t0 = Date.now();
   let stage = "start";
-  let dbReadMs = 0;
-  let canonicalizeMs = 0;
-  let openaiMs = 0;
-  let parseMs = 0;
-  let dbWriteMs = 0;
-  let model = ADES_OPENAI_MODEL;
-  let usage: unknown = undefined;
-  let cached = false;
   try {
-    stage = "auth_project_fetch";
-    const readStart = Date.now();
     const { uid, email } = await getAuthenticatedUser(request);
     const body = (await request.json()) as PackageRequest;
     const projectId = typeof body.projectId === "string" ? body.projectId.trim().slice(0, 120) : "";
@@ -216,187 +102,97 @@ export async function POST(request: Request) {
     const db = getFirebaseAdminDb();
     const projectRef = db.collection("projects").doc(projectId);
     const snapshot = await projectRef.get();
-    dbReadMs = Date.now() - readStart;
     if (!snapshot.exists) return NextResponse.json({ error: "Project not found." }, { status: 404 });
-
     const project = snapshot.data() as Record<string, unknown>;
     if (project.ownerUid !== uid) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const forceRegenerate = body.forceRegenerate === true && isAdminBypass(email);
-    const existingPackage = project.masterPromptPackage;
-    if (existingPackage && typeof existingPackage === "object" && !forceRegenerate) {
-      cached = true;
-      const totalMs = Date.now() - t0;
-      const timing = {
-        total_ms: totalMs,
-        openai_ms: openaiMs,
-        db_read_ms: dbReadMs,
-        db_write_ms: dbWriteMs,
-        parse_ms: parseMs,
-      };
-      console.info("[/api/master-prompt-package] success", {
-        ...timing,
-        cached,
-        model,
-        usage,
-      });
-      return NextResponse.json({
-        masterPromptPackage: existingPackage,
-        cached,
-        ...(isAdminBypass(email) || body.forceRegenerate === true ? { timing } : {}),
-      });
+    const existingPackage = project.masterPromptPackage as Record<string, unknown> | undefined;
+    const existingStage = typeof existingPackage?.generationStage === "string" ? existingPackage.generationStage : null;
+    if (existingPackage && typeof existingPackage === "object" && !forceRegenerate && existingStage !== "stage_a_complete") {
+      return NextResponse.json({ masterPromptPackage: existingPackage, cached: true, stage: existingStage ?? "complete" });
     }
 
-    if (projectId.startsWith("demo-") && !isAdminBypass(email)) {
-      return NextResponse.json({ error: "Master prompt generation is unavailable for demo projects." }, { status: 403 });
-    }
-
-    if (project.status === "generating") {
-      return NextResponse.json({ error: "Project is still generating." }, { status: 409 });
-    }
-
-    stage = "canonicalization";
-    const canonicalizeStart = Date.now();
     const board = project.board && typeof project.board === "object" ? project.board : null;
     const boardNodes = Array.isArray((board as { nodes?: unknown[] } | null)?.nodes) ? ((board as { nodes: Array<Record<string, unknown>> }).nodes ?? []) : [];
     const canonicalData = {
       promptSpecVersion: PROMPT_PACKAGE_PROMPT_V1,
       projectTitle: project.title ?? "Untitled design",
       blueprint: {
-        initiative: project.ideaPrompt ?? "",
-        targetUser: project.audience ?? "",
-        contextProblem: project.contextProblem ?? "",
-        desiredOutcome: project.desiredOutcome ?? "",
-        constraints: project.constraints ?? "",
-        assumptions: Array.isArray(project.assumptions) ? project.assumptions : [],
-        escalationExpectations: project.humanInvolvement ?? "",
+        initiative: project.ideaPrompt ?? "", targetUser: project.audience ?? "", contextProblem: project.contextProblem ?? "",
+        desiredOutcome: project.desiredOutcome ?? "", constraints: project.constraints ?? "", assumptions: Array.isArray(project.assumptions) ? project.assumptions : [], escalationExpectations: project.humanInvolvement ?? "",
       },
       workflowSteps: boardNodes.map((node) => {
         const data = (node.data as Record<string, unknown>) ?? {};
-        return {
-          id: node.id,
-          title: data.label ?? "",
-          purpose: data.purpose ?? "",
-          completionCriteria: data.completionCriteria ?? "",
-          reflectionPoints: data.reflectionHooks ?? [],
-          evals: data.evals ?? [],
-          safeguards: data.risks ?? [],
-          failureModes: data.commonFailureModes ?? [],
-        };
+        return { id: node.id, title: data.label ?? "", purpose: data.purpose ?? "", completionCriteria: data.completionCriteria ?? "", reflectionPoints: data.reflectionHooks ?? [], evals: data.evals ?? [], safeguards: data.risks ?? [], failureModes: data.commonFailureModes ?? [] };
       }),
       projectRisks: Array.isArray(project.risks) ? project.risks : [],
     };
-    canonicalizeMs = Date.now() - canonicalizeStart;
 
-    stage = "openai_call";
-    const openaiStart = Date.now();
+    const evalInputs = canonicalData.workflowSteps.flatMap((step) => (Array.isArray(step.evals) ? step.evals : []).map((evalItem, index) => ({
+      id: typeof (evalItem as { id?: unknown })?.id === "string" ? (evalItem as { id: string }).id : `${step.id}-eval-${index + 1}`,
+      title: typeof (evalItem as { title?: unknown })?.title === "string" ? (evalItem as { title: string }).title : "Untitled eval",
+      stepId: step.id,
+      stepTitle: step.title,
+      eval: evalItem,
+      completionCriteria: step.completionCriteria,
+      safeguards: step.safeguards,
+      failureModes: step.failureModes,
+    })));
+
     const openai = getOpenAIClient();
-    const response = await openai.responses.create({
+
+    const shouldResumeStageB = existingStage === "stage_a_complete" && Array.isArray(existingPackage?.graders) && (existingPackage?.graders as unknown[]).length === 0;
+
+    let stageAPackage: Record<string, unknown>;
+    if (shouldResumeStageB) {
+      stageAPackage = { ...existingPackage } as Record<string, unknown>;
+    } else {
+      stage = "stage_a";
+      const stageAResponse = await withRetries(() => openai.responses.create({
       model: ADES_OPENAI_MODEL,
-      input: [
-        { role: "system", content: MASTER_PROMPT_SYSTEM },
-        {
-          role: "user",
-          content: `Build a master prompt package from this ADES canonical data. Keep output implementation-ready, concrete, and traceable to workflow/evals/risks/safeguards/escalation.
+      input: [{ role: "system", content: STAGE_A_SYSTEM }, { role: "user", content: `Canonical data:\n${JSON.stringify(canonicalData)}` }],
+      text: { format: { type: "json_schema", name: "ades_stage_a", schema: STAGE_A_SCHEMA, strict: true } },
+    }));
+      if (!stageAResponse.output_text) throw new Error("Stage A returned empty output.");
+      const stageAParsed = JSON.parse(stageAResponse.output_text) as Record<string, unknown>;
 
-graderOverview rules:
-- summary: one short sentence, <= 140 chars.
-- riskIfMissing: consequence if unchecked.
-- evaluatedBehavior: high-level behavior only, <= 2 sentences.
-- checksToPerform: concise actionable checklist.
-- evidenceToInspect: concrete fields/artifacts.
-- passDecisionRule: one concise pass/fail rule.
-- borderlineHandling: partial/ambiguous-case handling.
-- runTiming: exact workflow timing.
-- Avoid repetition across overview fields; do not copy passCriteria/failCriteria.
-
-Canonical data:
-${JSON.stringify(canonicalData)}`,
-        },
-      ],
-      text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
-    });
-    openaiMs = Date.now() - openaiStart;
-    model = response.model ?? ADES_OPENAI_MODEL;
-    usage = response.usage;
-
-    if (!response.output_text) {
-      throw new Error("OpenAI returned an empty response.");
-    }
-
-    stage = "parse_normalize";
-    const parseStart = Date.now();
-    const parsed = JSON.parse(response.output_text) as Record<string, unknown>;
-    const normalizedGraders = Array.isArray(parsed.graders)
-      ? parsed.graders.map((grader) => {
-          if (!grader || typeof grader !== "object") return grader;
-          const graderRecord = grader as Record<string, unknown>;
-          return {
-            ...graderRecord,
-            evalSourceId: graderRecord.evalSourceId ?? undefined,
-            evalSourceTitle: graderRecord.evalSourceTitle ?? undefined,
-            expectedOutputShape: graderRecord.expectedOutputShape ?? undefined,
-          };
-        })
-      : [];
-    const qualityScore = Math.max(0, Math.min(100, Number(parsed.qualityScore ?? 0)));
-    const masterPromptPackage = {
-      ...parsed,
-      packageVersion: Number(parsed.packageVersion ?? 4) || 4,
-      graders: normalizedGraders,
-      qualityScore,
+      stageAPackage = {
+      packageVersion: 5,
+      promptTitle: String(stageAParsed.promptTitle ?? "Master Prompt Package"),
+      masterSystemPrompt: String(stageAParsed.masterSystemPrompt ?? ""),
+      qualityScore: Math.max(0, Math.min(100, Number(stageAParsed.qualityScore ?? 0))),
+      qualitySummary: String(stageAParsed.qualitySummary ?? ""),
+      assumptionsUsed: Array.isArray(stageAParsed.assumptionsUsed) ? stageAParsed.assumptionsUsed : [],
+      graders: [],
       generatedAt: new Date().toISOString(),
       generatedByUid: uid,
-      model,
+      model: stageAResponse.model ?? ADES_OPENAI_MODEL,
+      generationStage: "stage_a_complete",
     };
-    parseMs = Date.now() - parseStart;
 
-    stage = "firestore_update";
-    const writeStart = Date.now();
-    await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
-    dbWriteMs = Date.now() - writeStart;
-
-    const totalMs = Date.now() - t0;
-    const timing = {
-      total_ms: totalMs,
-      openai_ms: openaiMs,
-      db_read_ms: dbReadMs,
-      db_write_ms: dbWriteMs,
-      parse_ms: parseMs,
-    };
-    console.info("[/api/master-prompt-package] success", {
-      ...timing,
-      cached,
-      model,
-      usage,
-    });
-
-    return NextResponse.json({
-      masterPromptPackage,
-      cached,
-      ...(isAdminBypass(email) || body.forceRegenerate === true ? { timing } : {}),
-    });
-  } catch (error) {
-    const totalMs = Date.now() - t0;
-    const detailedMessage = error instanceof Error ? error.message : String(error);
-    console.error("[/api/master-prompt-package] error", {
-      total_ms: totalMs,
-      openai_ms: openaiMs,
-      db_read_ms: dbReadMs,
-      db_write_ms: dbWriteMs,
-      parse_ms: parseMs,
-      canonicalize_ms: canonicalizeMs,
-      stage,
-      cached,
-      model,
-      usage,
-      message: detailedMessage,
-      error,
-    });
-    const message = error instanceof Error ? error.message : "Failed to generate master prompt package.";
-    if (message.includes("Missing Firebase auth token")) {
-      return NextResponse.json({ error: message }, { status: 401 });
+      await projectRef.update({ masterPromptPackage: stageAPackage, updatedAt: FieldValue.serverTimestamp() });
     }
-    return NextResponse.json({ error: "Couldn’t generate the master prompt package. Please try again." }, { status: 500 });
+
+    stage = "stage_b";
+    const stageBResponse = await withRetries(() => openai.responses.create({
+      model: ADES_OPENAI_MODEL,
+      input: [
+        { role: "system", content: STAGE_B_SYSTEM },
+        { role: "user", content: `Stage A context:\n${JSON.stringify(stageAPackage)}\n\nCompact eval inputs:\n${JSON.stringify(evalInputs)}` },
+      ],
+      text: { format: { type: "json_schema", name: "ades_stage_b_graders", schema: GRADER_SCHEMA, strict: true } },
+    }));
+    if (!stageBResponse.output_text) throw new Error("Stage B returned empty output.");
+    const graders = JSON.parse(stageBResponse.output_text) as unknown[];
+
+    const masterPromptPackage = { ...stageAPackage, graders, generationStage: "complete", model: stageBResponse.model ?? stageAPackage.model };
+    await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
+
+    return NextResponse.json({ masterPromptPackage, cached: false, stage: "complete", totalMs: Date.now() - t0 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to generate master prompt package.";
+    if (message.includes("Missing Firebase auth token")) return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: "Couldn’t generate the master prompt package. Please try again.", stage }, { status: 500 });
   }
 }
