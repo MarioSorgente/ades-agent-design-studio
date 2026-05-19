@@ -342,9 +342,9 @@ export default function ProjectPage() {
 
   function buildMasterPromptFailureMessage(baseMessage: string, status?: number) {
     const guidance = status && status >= 500
-      ? "The server timed out or hit a temporary error. Retry now, then try again in 30–60 seconds if it persists."
-      : "Retry generation. If this repeats, verify your board has evals/assumptions and try again.";
-    return `${baseMessage} ${guidance} If the issue keeps happening, force regenerate (admin) or refresh and retry.`;
+      ? "The AI studio hit a temporary traffic spike. Your board is safe — give it another shot now, or retry in about a minute."
+      : "Try generating again. If it repeats, make sure your board includes evals and assumptions, then rerun.";
+    return `${baseMessage} ${guidance} Still stuck? Refresh and retry${isAdminBypass ? ", or use Force regenerate." : "."}`;
   }
 
   async function handleGenerateMasterPromptPackage(forceRegenerate = false) {
@@ -764,7 +764,7 @@ export default function ProjectPage() {
                     </div>
                   </div>
                 ) : null}
-                {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-5 text-indigo-700"><p className="text-base font-semibold">{masterPromptStage === "stage_context" ? "Preparing project context…" : masterPromptStage === "stage_a" ? "Generating master system prompt…" : masterPromptStage === "stage_b" ? "Generating graders…" : "Saving package…"}</p><p className="mt-2 text-sm">Elapsed: {masterPromptElapsedSeconds}s · Usually finishes in 30–45s.</p><p className="mt-3 text-xs text-indigo-700/90">Started at {new Date((masterPromptStartedAt ?? Date.now())).toLocaleTimeString()}.</p></div> : null}
+                {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-sky-50 to-violet-50 px-6 py-5 text-indigo-800 shadow-sm"><p className="text-base font-semibold">{masterPromptStage === "stage_context" ? "✨ Warming up your design context…" : masterPromptStage === "stage_a" ? "🧠 Crafting your master system prompt…" : masterPromptStage === "stage_b" ? "🧪 Building high-signal graders…" : "💾 Saving your package…"}</p><p className="mt-2 text-sm">Elapsed: {masterPromptElapsedSeconds}s · Most projects finish in ~30–45s, complex boards can take longer.</p><p className="mt-3 text-xs text-indigo-800/80">You can stay on this page — we’ll keep this running.</p></div> : null}
                 {masterPromptError ? <p className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{masterPromptError}</p> : null}
                 {masterPromptPackage ? (
                   <section className="mx-auto flex max-w-6xl flex-col gap-6 text-sm leading-6">
