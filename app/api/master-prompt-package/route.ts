@@ -93,6 +93,7 @@ async function withRetries<T>(fn: () => Promise<T>, attempts = 3) {
 export async function POST(request: Request) {
   const t0 = Date.now();
   let stage = "start";
+  let fallbackCachedPackage: Record<string, unknown> | null = null;
   try {
     const { uid, email } = await getAuthenticatedUser(request);
     const body = (await request.json()) as PackageRequest;
@@ -108,6 +109,9 @@ export async function POST(request: Request) {
 
     const forceRegenerate = body.forceRegenerate === true && isAdminBypass(email);
     const existingPackage = project.masterPromptPackage as Record<string, unknown> | undefined;
+    if (existingPackage && typeof existingPackage === "object" && (existingPackage.generationStage === "complete" || Array.isArray(existingPackage.graders))) {
+      fallbackCachedPackage = existingPackage;
+    }
     const existingStage = typeof existingPackage?.generationStage === "string" ? existingPackage.generationStage : null;
     if (existingPackage && typeof existingPackage === "object" && !forceRegenerate && existingStage !== "stage_a_complete") {
       return NextResponse.json({ masterPromptPackage: existingPackage, cached: true, stage: existingStage ?? "complete" });
@@ -193,6 +197,6 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate master prompt package.";
     if (message.includes("Missing Firebase auth token")) return NextResponse.json({ error: message }, { status: 401 });
-    return NextResponse.json({ error: "Couldn’t generate the master prompt package. Please try again.", stage }, { status: 500 });
+    return NextResponse.json({ error: "Couldn’t generate the master prompt package. Please try again.", stage, cachedPackage: fallbackCachedPackage, cached: Boolean(fallbackCachedPackage) }, { status: 500 });
   }
 }
