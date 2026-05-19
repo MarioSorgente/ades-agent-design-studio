@@ -78,6 +78,16 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <footer className="mt-5 flex flex-wrap items-center justify-center gap-3 pb-6 text-xs text-slate-500">
+        <Link href="/privacy" className="hover:text-indigo-700 hover:underline">
+          Privacy & Data Use
+        </Link>
+        <span aria-hidden="true">•</span>
+        <Link href="/terms" className="hover:text-indigo-700 hover:underline">
+          Terms & Conditions
+        </Link>
+      </footer>
     </main>
   );
 }

@@ -267,7 +267,7 @@ export default function DashboardPage() {
     if (!user) return;
     const project = projects.find((candidate) => candidate.id === projectId);
     if (project && isGeneratingProject(project, generatingProjectId)) return;
-    const confirmed = window.confirm("Delete this project permanently?");
+    const confirmed = window.confirm("Delete this project permanently? This cannot be undone.");
     if (!confirmed) return;
 
     setErrorMessage(null);
@@ -402,6 +402,7 @@ export default function DashboardPage() {
                     className="ades-input mt-1 min-h-24 rounded-2xl"
                     maxLength={1800}
                   />
+                  <p className="mt-2 text-xs text-amber-700">Do not enter confidential or sensitive personal data during beta.</p>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div>
