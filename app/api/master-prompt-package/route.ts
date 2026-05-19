@@ -43,58 +43,16 @@ GRADER REQUIREMENTS
 - If explicit eval coverage is missing, create a SMALL set of recommended graders inferred from risks/completion criteria and state this in instructions.
 - Do NOT fabricate fake source eval IDs. Use inferred-* IDs for recommended graders.
 
-Each grader must include:
-- id, title, evalSourceId, evalSourceTitle, purpose, whyNeeded, whatItEvaluates, whenToUse, graderOverview, graderType, instructions,
-  passCriteria, failCriteria, scoringRubric, expectedOutputShape, openaiSimpleGrader, openaiPythonGrader
-
-GRADER OVERVIEW REQUIREMENTS
-For each grader, create a graderOverview object.
-Do not use long repeated prose.
-Each field has a different job:
-1. summary
-- One short sentence.
-- Max 140 characters.
-- Describes the grader in plain language.
-- Must not mention evidence, timing, or risk.
-2. riskIfMissing
-- Explains the consequence if this behavior is not checked.
-- Focus on product, user, business, safety, escalation, or implementation risk.
-- Must not describe the checks themselves.
-3. evaluatedBehavior
-- Short fluent explanation of what is being checked at a high level.
-- Maximum 2 sentences.
-- Must not include evidence lists, thresholds, borderline handling, scoring instructions, or long checklists.
-4. checksToPerform
-- Array of concrete, short, actionable checklist items.
-- Each item should start with action verbs like Confirm, Check, Verify, Ensure when practical.
-5. evidenceToInspect
-- Array of concrete fields/artifacts to inspect.
-- Use short noun phrases only.
-- Examples: "agent final output", "ICP persona section", "tool result summary", "escalation note", "JSON response fields".
-6. passDecisionRule
-- One concise decision rule for pass/fail.
-- Must not duplicate the full passCriteria array.
-- It should summarize how to decide whether the output passes.
-8. runTiming
-- States exactly when to run this grader.
-- Mention workflow step, output, handoff, release gate, regression test, or eval suite moment.
-- Avoid generic text like "whenever this behavior is part of the eval set".
-
-7. borderlineHandling
-- One concise explanation for partial or ambiguous cases.
-
-WHAT THIS GRADER CHECKS FORMAT
-- Do not write dense paragraphs that combine behavior, evidence, pass thresholds, and borderline handling.
-- Never put evidence lists, thresholds, borderline cases, or scoring instructions inside evaluatedBehavior.
-- Do not write labels like "Behavior evaluated:", "Evidence to inspect:", "Pass/fail thresholds:", or "Borderline:" inside evaluatedBehavior.
-- The human-readable Overview tab should be easy to render as a short paragraph, bullet checks, bullet evidence, decision rule, borderline handling, and run timing.
-
-ANTI-REPETITION RULES
-- Do not reuse the same clause across graderOverview fields.
-- Do not copy passCriteria or failCriteria into graderOverview.
-- Do not make riskIfMissing and evaluatedBehavior say the same thing.
-- Do not use vague generic timing.
-- If information is missing, create conservative generic timing based on the workflow step.
+Grader field rules (keep concise; avoid repeated prose):
+- graderOverview.summary: <= 140 chars, plain-language behavior label only.
+- graderOverview.riskIfMissing: consequence if not checked; risk-focused, not checklist text.
+- graderOverview.evaluatedBehavior: high-level behavior only, <= 2 sentences.
+- graderOverview.checksToPerform: short actionable checklist items.
+- graderOverview.evidenceToInspect: concrete artifacts/fields as short noun phrases.
+- graderOverview.passDecisionRule: single concise pass/fail rule; do not restate full criteria.
+- graderOverview.borderlineHandling: concise partial/ambiguous-case handling.
+- graderOverview.runTiming: specific workflow timing (step/output/handoff/release/regression/eval suite).
+- Do not copy passCriteria/failCriteria text into graderOverview fields.
 
 Each grader's instructions must clearly define:
 - behavior being evaluated
@@ -133,6 +91,7 @@ QUALITY SCORE
 - qualitySummary must briefly justify score with concrete strengths/gaps.
 
 Return valid JSON only, matching the schema exactly.`;
+const PROMPT_PACKAGE_PROMPT_V1 = "prompt-package-v1";
 
 const PACKAGE_SCHEMA = {
   type: "object",
@@ -267,6 +226,7 @@ export async function POST(request: Request) {
     const board = project.board && typeof project.board === "object" ? project.board : null;
     const boardNodes = Array.isArray((board as { nodes?: unknown[] } | null)?.nodes) ? ((board as { nodes: Array<Record<string, unknown>> }).nodes ?? []) : [];
     const canonicalData = {
+      promptSpecVersion: PROMPT_PACKAGE_PROMPT_V1,
       projectTitle: project.title ?? "Untitled design",
       blueprint: {
         initiative: project.ideaPrompt ?? "",
@@ -282,10 +242,7 @@ export async function POST(request: Request) {
         return {
           id: node.id,
           title: data.label ?? "",
-          type: node.type,
           purpose: data.purpose ?? "",
-          inputs: data.inputs ?? "",
-          outputs: data.outputs ?? "",
           completionCriteria: data.completionCriteria ?? "",
           reflectionPoints: data.reflectionHooks ?? [],
           evals: data.evals ?? [],
@@ -303,22 +260,21 @@ export async function POST(request: Request) {
         { role: "system", content: MASTER_PROMPT_SYSTEM },
         {
           role: "user",
-          content: `Create the master prompt package from this canonical ADES project data. Build an implementation-ready masterSystemPrompt and concrete, testable graders with traceability to ADES workflow/evals/risks/safeguards/escalation rules.
+          content: `Build a master prompt package from this ADES canonical data. Keep output implementation-ready, concrete, and traceable to workflow/evals/risks/safeguards/escalation.
 
-For every grader, use graderOverview as the primary human-readable overview. Do not make broad prose fields repeat each other.
-- summary = one-line label
-- riskIfMissing = consequence if not checked
-- evaluatedBehavior = observable behavior
-- evaluatedBehavior = short explanation only (max 2 sentences)
-- checksToPerform = concrete checklist items
-- evidenceToInspect = artifacts/fields to inspect
-- passDecisionRule = concise pass/fail decision rule
-- borderlineHandling = partial/ambiguous cases
-- runTiming = when to run this grader
-Avoid long paragraph fields and do not compress all graderOverview information into evaluatedBehavior.
-Do not copy passCriteria or failCriteria into graderOverview.
+graderOverview rules:
+- summary: one short sentence, <= 140 chars.
+- riskIfMissing: consequence if unchecked.
+- evaluatedBehavior: high-level behavior only, <= 2 sentences.
+- checksToPerform: concise actionable checklist.
+- evidenceToInspect: concrete fields/artifacts.
+- passDecisionRule: one concise pass/fail rule.
+- borderlineHandling: partial/ambiguous-case handling.
+- runTiming: exact workflow timing.
+- Avoid repetition across overview fields; do not copy passCriteria/failCriteria.
 
-Return exactly this JSON shape: {"packageVersion":4,"promptTitle":"string","masterSystemPrompt":"string","graders":[{"id":"string","title":"string","evalSourceId":"string | null","evalSourceTitle":"string | null","purpose":"string","whyNeeded":"string","whatItEvaluates":"string","whenToUse":"string","graderOverview":{"summary":"string","riskIfMissing":"string","evaluatedBehavior":"string","checksToPerform":["string"],"evidenceToInspect":["string"],"passDecisionRule":"string","borderlineHandling":"string","runTiming":"string"},"graderType":"model_graded | rule_based | hybrid","instructions":"string","passCriteria":["string"],"failCriteria":["string"],"scoringRubric":{"score0":"string","score1":"string","score2":"string","score3":"string","score4":"string","score5":"string"},"expectedOutputShape":"string | null","openaiSimpleGrader":{"name":"string","model":"gpt-5-mini","scoringGuidelines":"string","passThreshold":0.0},"openaiPythonGrader":{"name":"string","sourceCode":"string with def grade(sample: dict, item: dict) -> float","passThreshold":0.0,"imageTag":null}}],"qualityScore":0,"qualitySummary":"string","assumptionsUsed":["string"]}\n\nData:\n${JSON.stringify(canonicalData)}`,
+Canonical data:
+${JSON.stringify(canonicalData)}`,
         },
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
