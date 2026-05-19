@@ -181,6 +181,7 @@ export default function ProjectPage() {
   const [masterPromptPackage, setMasterPromptPackage] = useState<MasterPromptPackage | null>(null);
   const [isGeneratingMasterPrompt, setIsGeneratingMasterPrompt] = useState(false);
   const [masterPromptError, setMasterPromptError] = useState<string | null>(null);
+  const [masterPromptStage, setMasterPromptStage] = useState<"idle" | "stage_a" | "stage_b">("idle");
   const [packageTab, setPackageTab] = useState<"master" | "graders" | "assumptions">("master");
   const [graderTabById, setGraderTabById] = useState<Record<string, "overview" | "simple" | "python" | "json">>({});
 
@@ -335,6 +336,7 @@ export default function ProjectPage() {
       return;
     }
     setMasterPromptError(null);
+    setMasterPromptStage("stage_a");
     setIsGeneratingMasterPrompt(true);
 
     try {
@@ -348,12 +350,14 @@ export default function ProjectPage() {
       if (!response.ok || !payload.masterPromptPackage) {
         throw new Error(payload.error || "Couldn’t generate the master prompt package. Please try again.");
       }
+      setMasterPromptStage("stage_b");
       setMasterPromptPackage(payload.masterPromptPackage);
       setViewMode("prompt_graders");
     } catch (error) {
       setMasterPromptError(error instanceof Error ? error.message : "Couldn’t generate the master prompt package. Please try again.");
     } finally {
       setIsGeneratingMasterPrompt(false);
+      setMasterPromptStage("idle");
     }
   }
 
@@ -732,7 +736,7 @@ export default function ProjectPage() {
                     </div>
                   </div>
                 ) : null}
-                {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-5 text-base font-medium text-indigo-700">Generating master package…</div> : null}
+                {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-5 text-base font-medium text-indigo-700">{masterPromptStage === "stage_b" ? "Generating graders…" : "Generating master prompt…"}</div> : null}
                 {masterPromptError ? <p className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{masterPromptError}</p> : null}
                 {masterPromptPackage ? (
                   <section className="mx-auto flex max-w-6xl flex-col gap-6 text-sm leading-6">
