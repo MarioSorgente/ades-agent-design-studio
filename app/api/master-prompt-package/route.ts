@@ -195,7 +195,19 @@ const ADES_OPENAI_MODEL = "gpt-5-mini";
 type PackageRequest = { projectId?: string; forceRegenerate?: boolean };
 
 export async function POST(request: Request) {
+  const t0 = Date.now();
+  let stage = "start";
+  let dbReadMs = 0;
+  let canonicalizeMs = 0;
+  let openaiMs = 0;
+  let parseMs = 0;
+  let dbWriteMs = 0;
+  let model = ADES_OPENAI_MODEL;
+  let usage: unknown = undefined;
+  let cached = false;
   try {
+    stage = "auth_project_fetch";
+    const readStart = Date.now();
     const { uid, email } = await getAuthenticatedUser(request);
     const body = (await request.json()) as PackageRequest;
     const projectId = typeof body.projectId === "string" ? body.projectId.trim().slice(0, 120) : "";
@@ -204,6 +216,7 @@ export async function POST(request: Request) {
     const db = getFirebaseAdminDb();
     const projectRef = db.collection("projects").doc(projectId);
     const snapshot = await projectRef.get();
+    dbReadMs = Date.now() - readStart;
     if (!snapshot.exists) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
     const project = snapshot.data() as Record<string, unknown>;
@@ -212,7 +225,26 @@ export async function POST(request: Request) {
     const forceRegenerate = body.forceRegenerate === true && isAdminBypass(email);
     const existingPackage = project.masterPromptPackage;
     if (existingPackage && typeof existingPackage === "object" && !forceRegenerate) {
-      return NextResponse.json({ masterPromptPackage: existingPackage, cached: true });
+      cached = true;
+      const totalMs = Date.now() - t0;
+      const timing = {
+        total_ms: totalMs,
+        openai_ms: openaiMs,
+        db_read_ms: dbReadMs,
+        db_write_ms: dbWriteMs,
+        parse_ms: parseMs,
+      };
+      console.info("[/api/master-prompt-package] success", {
+        ...timing,
+        cached,
+        model,
+        usage,
+      });
+      return NextResponse.json({
+        masterPromptPackage: existingPackage,
+        cached,
+        ...(isAdminBypass(email) || body.forceRegenerate === true ? { timing } : {}),
+      });
     }
 
     if (projectId.startsWith("demo-") && !isAdminBypass(email)) {
@@ -223,6 +255,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project is still generating." }, { status: 409 });
     }
 
+    stage = "canonicalization";
+    const canonicalizeStart = Date.now();
     const board = project.board && typeof project.board === "object" ? project.board : null;
     const boardNodes = Array.isArray((board as { nodes?: unknown[] } | null)?.nodes) ? ((board as { nodes: Array<Record<string, unknown>> }).nodes ?? []) : [];
     const canonicalData = {
@@ -252,7 +286,10 @@ export async function POST(request: Request) {
       }),
       projectRisks: Array.isArray(project.risks) ? project.risks : [],
     };
+    canonicalizeMs = Date.now() - canonicalizeStart;
 
+    stage = "openai_call";
+    const openaiStart = Date.now();
     const openai = getOpenAIClient();
     const response = await openai.responses.create({
       model: ADES_OPENAI_MODEL,
@@ -279,11 +316,16 @@ ${JSON.stringify(canonicalData)}`,
       ],
       text: { format: { type: "json_schema", name: "ades_master_prompt_package", schema: PACKAGE_SCHEMA, strict: true } },
     });
+    openaiMs = Date.now() - openaiStart;
+    model = response.model ?? ADES_OPENAI_MODEL;
+    usage = response.usage;
 
     if (!response.output_text) {
       throw new Error("OpenAI returned an empty response.");
     }
 
+    stage = "parse_normalize";
+    const parseStart = Date.now();
     const parsed = JSON.parse(response.output_text) as Record<string, unknown>;
     const normalizedGraders = Array.isArray(parsed.graders)
       ? parsed.graders.map((grader) => {
@@ -305,14 +347,49 @@ ${JSON.stringify(canonicalData)}`,
       qualityScore,
       generatedAt: new Date().toISOString(),
       generatedByUid: uid,
-      model: response.model ?? ADES_OPENAI_MODEL,
+      model,
     };
+    parseMs = Date.now() - parseStart;
 
+    stage = "firestore_update";
+    const writeStart = Date.now();
     await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
-    return NextResponse.json({ masterPromptPackage, cached: false });
+    dbWriteMs = Date.now() - writeStart;
+
+    const totalMs = Date.now() - t0;
+    const timing = {
+      total_ms: totalMs,
+      openai_ms: openaiMs,
+      db_read_ms: dbReadMs,
+      db_write_ms: dbWriteMs,
+      parse_ms: parseMs,
+    };
+    console.info("[/api/master-prompt-package] success", {
+      ...timing,
+      cached,
+      model,
+      usage,
+    });
+
+    return NextResponse.json({
+      masterPromptPackage,
+      cached,
+      ...(isAdminBypass(email) || body.forceRegenerate === true ? { timing } : {}),
+    });
   } catch (error) {
+    const totalMs = Date.now() - t0;
     const detailedMessage = error instanceof Error ? error.message : String(error);
-    console.error("[/api/master-prompt-package] Failed to generate master prompt package", {
+    console.error("[/api/master-prompt-package] error", {
+      total_ms: totalMs,
+      openai_ms: openaiMs,
+      db_read_ms: dbReadMs,
+      db_write_ms: dbWriteMs,
+      parse_ms: parseMs,
+      canonicalize_ms: canonicalizeMs,
+      stage,
+      cached,
+      model,
+      usage,
       message: detailedMessage,
       error,
     });
