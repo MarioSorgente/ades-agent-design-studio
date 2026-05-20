@@ -5,12 +5,21 @@ import { useRouter } from "next/navigation";
 import { signOutUser } from "@/lib/firebase/auth";
 import { useAuthStore } from "@/lib/auth/store";
 
+const ADMIN_EMAILS = new Set(["ms.sorgente@gmail.com"]);
+
+function isAdminEmail(email?: string | null) {
+  if (!email) return false;
+  return ADMIN_EMAILS.has(email.toLowerCase());
+}
+
+
 export function AuthHeaderActions() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
   const firstName = user?.displayName?.split(" ")[0] || "Account";
   const initial = firstName.slice(0, 1).toUpperCase();
+  const isAdmin = isAdminEmail(user?.email);
 
   if (status === "loading") {
     return <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">Loading…</span>;
@@ -29,6 +38,11 @@ export function AuthHeaderActions() {
       <Link href="/dashboard" className="ades-ghost-btn px-3 py-2 text-xs">
         Dashboard
       </Link>
+      {isAdmin ? (
+        <Link href="/admin/monitoring" className="ades-ghost-btn px-3 py-2 text-xs">
+          Admin monitoring
+        </Link>
+      ) : null}
       <Link href="/account" className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-700">
         {user.photoURL ? (
           <img src={user.photoURL} alt={user.displayName ?? "Signed in user"} className="h-6 w-6 rounded-full" />

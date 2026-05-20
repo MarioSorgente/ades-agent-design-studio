@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       assumptions: [],
       critiqueSeed: [],
       critique: null,
+      latestGenerationMeta: null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

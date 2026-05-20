@@ -37,6 +37,18 @@ export type ProjectRecord = {
   critiqueSeed: string[];
   critique: CritiqueResult | null;
   masterPromptPackage: MasterPromptPackage | null;
+  latestGenerationMeta?: {
+    success: boolean;
+    model: string | null;
+    promptVersion: string;
+    responseId: string | null;
+    latencyMs: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    generatedAt: string | null;
+  } | null;
   createdAt: string | null;
   updatedAt: string | null;
 };

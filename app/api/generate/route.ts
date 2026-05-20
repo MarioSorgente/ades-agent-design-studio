@@ -22,6 +22,12 @@ import {
 } from "@/lib/board/types";
 import { analyzeBoardQuality } from "@/lib/board/quality";
 import { ADES_GENERATE_MASTER_SYSTEM_PROMPT, buildGenerateBlueprintPrompt } from "@/lib/ai/prompts/generate-master-prompt";
+import {
+  estimateGpt5MiniCostUsd,
+  extractUsageMetrics,
+  GENERATE_PROMPT_VERSION,
+  recordGenerationMetric,
+} from "@/lib/server/observability";
 
 const ADES_OPENAI_MODEL = "gpt-5-mini";
 
@@ -479,11 +485,14 @@ export async function POST(request: Request) {
   const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
   const openaiDebug = createOpenAIDebug(hasApiKey);
   let requestProjectId: string | null = null;
+  let generationUid: string | null = null;
+  const generationStartedAt = Date.now();
 
   console.info("[/api/generate] Route entry", { hasApiKey });
 
   try {
     const { uid, email } = await getAuthenticatedUser(request);
+    generationUid = uid;
 
     const body = (await request.json()) as GenerateRequest;
     const projectId = clampText(body.projectId, 120);
@@ -583,6 +592,10 @@ export async function POST(request: Request) {
     const quality = analyzeBoardQuality(board);
     const qualityWarnings = buildQualityWarnings(quality);
 
+    const usageTokens = extractUsageMetrics(openaiDebug.usage);
+    const latencyMs = Date.now() - generationStartedAt;
+    const estimatedCostUsd = estimateGpt5MiniCostUsd(usageTokens.inputTokens, usageTokens.outputTokens);
+
     await projectRef.update({
       title: generatedDesign.title,
       summary: generatedDesign.summary,
@@ -600,6 +613,21 @@ export async function POST(request: Request) {
       board,
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    await recordGenerationMetric({
+      uid,
+      projectId,
+      success: true,
+      model: openaiDebug.model,
+      promptVersion: GENERATE_PROMPT_VERSION,
+      responseId: openaiDebug.responseId,
+      latencyMs,
+      inputTokens: usageTokens.inputTokens,
+      outputTokens: usageTokens.outputTokens,
+      totalTokens: usageTokens.totalTokens,
+      estimatedCostUsd,
+    });
+
     await markGenerationCompleted(uid, reservation.plan);
 
     return NextResponse.json({
@@ -612,12 +640,29 @@ export async function POST(request: Request) {
       openaiDebug,
     });
   } catch (error) {
-    if (requestProjectId) {
+    if (requestProjectId && generationUid) {
       try {
-        const { uid } = await getAuthenticatedUser(request);
-        await markGenerationFailed(uid);
+        await markGenerationFailed(generationUid);
         const db = getFirebaseAdminDb();
         await db.collection("projects").doc(requestProjectId).set({ status: "draft", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+
+        const usageTokens = extractUsageMetrics(openaiDebug.usage);
+        const latencyMs = Date.now() - generationStartedAt;
+        const estimatedCostUsd = estimateGpt5MiniCostUsd(usageTokens.inputTokens, usageTokens.outputTokens);
+        await recordGenerationMetric({
+          uid: generationUid,
+          projectId: requestProjectId,
+          success: false,
+          model: openaiDebug.model,
+          promptVersion: GENERATE_PROMPT_VERSION,
+          responseId: openaiDebug.responseId,
+          latencyMs,
+          inputTokens: usageTokens.inputTokens,
+          outputTokens: usageTokens.outputTokens,
+          totalTokens: usageTokens.totalTokens,
+          estimatedCostUsd,
+          errorMessage: error instanceof Error ? error.message : "Unknown generation error",
+        });
       } catch {
         // noop
       }
