@@ -464,7 +464,9 @@ export default function DashboardPage() {
 
           {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
           {generatingProjectId ? (
-            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">Generating your project board now. You will see it below with a spinner until it is ready.</div>
+            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+              We’re building your first board draft now. This usually takes under a minute—watch progress below and keep this tab open.
+            </div>
           ) : null}
 
           <section className="mt-4 rounded-[2rem] border border-slate-200/80 bg-white/90 p-4 shadow-[0_18px_45px_-42px_rgba(15,23,42,0.8)] md:p-5">

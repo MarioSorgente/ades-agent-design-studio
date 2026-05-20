@@ -90,6 +90,26 @@ async function withRetries<T>(fn: () => Promise<T>, attempts = 3) {
   throw lastError;
 }
 
+function extractResponseText(response: unknown): string {
+  if (response && typeof response === "object" && typeof (response as { output_text?: unknown }).output_text === "string" && (response as { output_text: string }).output_text.trim()) {
+    return (response as { output_text: string }).output_text;
+  }
+  const output = response && typeof response === "object" ? (response as { output?: unknown[] }).output : null;
+  if (!Array.isArray(output)) return "";
+  const textParts: string[] = [];
+  for (const item of output) {
+    const content = item && typeof item === "object" ? (item as { content?: unknown[] }).content : null;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part && typeof part === "object" && (part as { type?: unknown }).type === "output_text") {
+        const value = (part as { text?: unknown }).text;
+        if (typeof value === "string" && value.trim()) textParts.push(value);
+      }
+    }
+  }
+  return textParts.join("\n").trim();
+}
+
 export async function POST(request: Request) {
   const t0 = Date.now();
   let stage = "start";
@@ -158,8 +178,9 @@ export async function POST(request: Request) {
       input: [{ role: "system", content: STAGE_A_SYSTEM }, { role: "user", content: `Canonical data:\n${JSON.stringify(canonicalData)}` }],
       text: { format: { type: "json_schema", name: "ades_stage_a", schema: STAGE_A_SCHEMA, strict: true } },
     }));
-      if (!stageAResponse.output_text) throw new Error("Stage A returned empty output.");
-      const stageAParsed = JSON.parse(stageAResponse.output_text) as Record<string, unknown>;
+      const stageAText = extractResponseText(stageAResponse);
+      if (!stageAText) throw new Error("Stage A returned empty output.");
+      const stageAParsed = JSON.parse(stageAText) as Record<string, unknown>;
 
       stageAPackage = {
       packageVersion: 5,
@@ -187,8 +208,9 @@ export async function POST(request: Request) {
       ],
       text: { format: { type: "json_schema", name: "ades_stage_b_graders", schema: GRADER_SCHEMA, strict: true } },
     }));
-    if (!stageBResponse.output_text) throw new Error("Stage B returned empty output.");
-    const graders = JSON.parse(stageBResponse.output_text) as unknown[];
+    const stageBText = extractResponseText(stageBResponse);
+    if (!stageBText) throw new Error("Stage B returned empty output.");
+    const graders = JSON.parse(stageBText) as unknown[];
 
     const masterPromptPackage = { ...stageAPackage, graders, generationStage: "complete", model: stageBResponse.model ?? stageAPackage.model };
     await projectRef.update({ masterPromptPackage, updatedAt: FieldValue.serverTimestamp() });
