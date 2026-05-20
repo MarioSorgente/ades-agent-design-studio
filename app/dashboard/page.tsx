@@ -464,8 +464,10 @@ export default function DashboardPage() {
 
           {errorMessage ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{errorMessage}</div> : null}
           {generatingProjectId ? (
-            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
-              We’re building your first board draft now. This usually takes under a minute—watch progress below and keep this tab open.
+            <div className="mt-4" role="status" aria-live="polite" aria-label="Generating project board">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-indigo-100">
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-indigo-600" />
+              </div>
             </div>
           ) : null}
 
