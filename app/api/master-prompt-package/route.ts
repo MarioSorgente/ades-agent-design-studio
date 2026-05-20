@@ -163,6 +163,36 @@ export async function POST(request: Request) {
       safeguards: step.safeguards,
       failureModes: step.failureModes,
     })));
+    const legacyEvalNodeInputs = boardNodes
+      .filter((node) => node.type === "eval")
+      .map((node, index) => {
+        const data = (node.data as Record<string, unknown>) ?? {};
+        return {
+          id: typeof node.id === "string" && node.id.trim() ? node.id : `eval-node-${index + 1}`,
+          title:
+            typeof data.evalName === "string" && data.evalName.trim()
+              ? data.evalName
+              : typeof data.label === "string" && data.label.trim()
+                ? data.label
+                : `Eval node ${index + 1}`,
+          stepId: typeof node.id === "string" ? node.id : `eval-node-${index + 1}`,
+          stepTitle: typeof data.label === "string" ? data.label : "Eval node",
+          eval: {
+            question: typeof data.evalQuestion === "string" ? data.evalQuestion : "",
+            metric: typeof data.evalMetric === "string" ? data.evalMetric : "",
+            category: typeof data.evalCategory === "string" ? data.evalCategory : "task_success",
+            scope: typeof data.evalScope === "string" ? data.evalScope : "step",
+            criteria: typeof data.evalCriteria === "string" ? data.evalCriteria : "",
+            method: typeof data.evalMethod === "string" ? data.evalMethod : "",
+            threshold: typeof data.evalThreshold === "string" ? data.evalThreshold : "",
+            dataset: typeof data.evalDataset === "string" ? data.evalDataset : "",
+          },
+          completionCriteria: typeof data.completionCriteria === "string" ? data.completionCriteria : "",
+          safeguards: Array.isArray(data.risks) ? data.risks : [],
+          failureModes: Array.isArray(data.commonFailureModes) ? data.commonFailureModes : [],
+        };
+      });
+    const compactEvalInputs = evalInputs.length > 0 ? evalInputs : legacyEvalNodeInputs;
 
     const openai = getOpenAIClient();
 
@@ -204,7 +234,7 @@ export async function POST(request: Request) {
       model: ADES_OPENAI_MODEL,
       input: [
         { role: "system", content: STAGE_B_SYSTEM },
-        { role: "user", content: `Stage A context:\n${JSON.stringify(stageAPackage)}\n\nCompact eval inputs:\n${JSON.stringify(evalInputs)}` },
+        { role: "user", content: `Stage A context:\n${JSON.stringify(stageAPackage)}\n\nCompact eval inputs:\n${JSON.stringify(compactEvalInputs)}` },
       ],
       text: { format: { type: "json_schema", name: "ades_stage_b_graders", schema: GRADER_SCHEMA, strict: true } },
     }));
