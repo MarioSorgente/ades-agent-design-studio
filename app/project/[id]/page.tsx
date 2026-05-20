@@ -372,6 +372,9 @@ export default function ProjectPage() {
         if (payload.cachedPackage) {
           setMasterPromptPackage(payload.cachedPackage);
           setIsCachedMasterPrompt(true);
+          setViewMode("prompt_graders");
+          setMasterPromptError("We restored your last generated master prompt package. Refresh is no longer required.");
+          return;
         }
         throw new Error(buildMasterPromptFailureMessage(payload.error || "Couldn’t generate the master prompt package.", response.status));
       }
