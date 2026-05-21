@@ -88,6 +88,9 @@ Schema and compatibility requirements:
 - Preserve full field-level completeness for every object in the expected schema.
 - Always populate all required fields, including critiqueSeed, reflectionHooks, feedbackHooks, step-level evals, and end-to-end evals.
 - Keep IDs stable-looking, concrete, and unique within the response.
+- Never return partial or truncated JSON. Before finalizing, verify all objects and arrays are fully closed and all required fields are present.
+- Do not emit any prose before or after the JSON object.
+- If constraints conflict or required fields are uncertain, still return a fully valid JSON object and record uncertainty inside assumptions instead of omitting fields.
 
 Output shaping rules:
 - Prefer 5–8 main workflow steps unless the Blueprint clearly requires more complexity.
@@ -95,6 +98,10 @@ Output shaping rules:
 - Include at least one end-to-end eval and only the most important step-level evals needed to assess quality.
 - Safeguards should be strongest on risky, externally visible, policy-sensitive, or high-consequence steps.
 - The final design should feel like a strong first build-planning artifact for product, design, and engineering — not a final technical specification and not a vague brainstorm.
+- For high-risk domains (including legal, finance, hiring, medical, safety, compliance, identity, or externally binding decisions), increase safeguard strictness, reflection depth on critical decisions, and eval rigor.
+- In high-risk workflows, default to decision support, not autonomous execution. The agent may recommend, summarize, and prepare rationale, but must not make or execute final high-consequence decisions.
+- If a Blueprint asks for unsafe autonomy in a high-risk domain, explicitly reframe the design to human-approved decision support and add clear stop/escalation gates.
+- When riskLevel is high or ambiguous, choose the safer interpretation and state this assumption explicitly.
 
 Examples of good design behavior:
 
@@ -155,6 +162,8 @@ Especially check:
 - whether safeguards are proportional to risk
 - whether the output feels handoff-ready for product, design, and engineering
 - whether assumptions are explicit rather than hidden
+- whether high-risk steps are constrained to recommendation/support with explicit human approval gates
+- whether any uncertainty is captured explicitly in assumptions rather than implied
 
 User inputs:
 You will receive the Blueprint in this structure:
