@@ -105,6 +105,8 @@ export type MasterPromptPackage = {
   generatedAt: string;
   generatedByUid: string;
   model?: string;
+  generationStage?: "stage_a_complete" | "complete" | string;
+  graderGenerationSource?: "openai" | "deterministic_fallback" | string;
 };
 
 export type UserProfileRecord = {
