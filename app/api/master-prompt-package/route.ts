@@ -17,7 +17,7 @@ Create:
 Do not include graders.`;
 
 const STAGE_B_SYSTEM = `You are ADES, an evaluator architect.
-Return JSON only.
+Return JSON only as an object with a graders array.
 Create graders from compact structured inputs.
 Use only provided data and stage A context.
 If eval source IDs are missing for inferred graders, use inferred-* ids.
@@ -39,38 +39,45 @@ const STAGE_A_SCHEMA = {
 } as const;
 
 const GRADER_SCHEMA = {
-  type: "array",
-  items: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      id: { type: "string" },
-      title: { type: "string" },
-      evalSourceId: { type: ["string", "null"] },
-      evalSourceTitle: { type: ["string", "null"] },
-      purpose: { type: "string" },
-      whyNeeded: { type: "string" },
-      whatItEvaluates: { type: "string" },
-      whenToUse: { type: "string" },
-      graderOverview: {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    graders: {
+      type: "array",
+      items: {
         type: "object",
         additionalProperties: false,
         properties: {
-          summary: { type: "string" }, riskIfMissing: { type: "string" }, evaluatedBehavior: { type: "string" },
-          checksToPerform: { type: "array", items: { type: "string" } }, evidenceToInspect: { type: "array", items: { type: "string" } },
-          passDecisionRule: { type: "string" }, borderlineHandling: { type: "string" }, runTiming: { type: "string" },
+          id: { type: "string" },
+          title: { type: "string" },
+          evalSourceId: { type: ["string", "null"] },
+          evalSourceTitle: { type: ["string", "null"] },
+          purpose: { type: "string" },
+          whyNeeded: { type: "string" },
+          whatItEvaluates: { type: "string" },
+          whenToUse: { type: "string" },
+          graderOverview: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              summary: { type: "string" }, riskIfMissing: { type: "string" }, evaluatedBehavior: { type: "string" },
+              checksToPerform: { type: "array", items: { type: "string" } }, evidenceToInspect: { type: "array", items: { type: "string" } },
+              passDecisionRule: { type: "string" }, borderlineHandling: { type: "string" }, runTiming: { type: "string" },
+            },
+            required: ["summary", "riskIfMissing", "evaluatedBehavior", "checksToPerform", "evidenceToInspect", "passDecisionRule", "borderlineHandling", "runTiming"],
+          },
+          graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
+          instructions: { type: "string" }, passCriteria: { type: "array", items: { type: "string" } }, failCriteria: { type: "array", items: { type: "string" } },
+          scoringRubric: { type: "object", additionalProperties: false, properties: { score0: { type: "string" }, score1: { type: "string" }, score2: { type: "string" }, score3: { type: "string" }, score4: { type: "string" }, score5: { type: "string" } }, required: ["score0", "score1", "score2", "score3", "score4", "score5"] },
+          expectedOutputShape: { type: ["string", "null"] },
+          openaiSimpleGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, model: { type: "string" }, scoringGuidelines: { type: "string" }, passThreshold: { type: "number" } }, required: ["name", "model", "scoringGuidelines", "passThreshold"] },
+          openaiPythonGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, sourceCode: { type: "string" }, passThreshold: { type: "number" }, imageTag: { type: ["string", "null"] } }, required: ["name", "sourceCode", "passThreshold", "imageTag"] },
         },
-        required: ["summary", "riskIfMissing", "evaluatedBehavior", "checksToPerform", "evidenceToInspect", "passDecisionRule", "borderlineHandling", "runTiming"],
+        required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderOverview", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
       },
-      graderType: { type: "string", enum: ["model_graded", "rule_based", "hybrid"] },
-      instructions: { type: "string" }, passCriteria: { type: "array", items: { type: "string" } }, failCriteria: { type: "array", items: { type: "string" } },
-      scoringRubric: { type: "object", additionalProperties: false, properties: { score0: { type: "string" }, score1: { type: "string" }, score2: { type: "string" }, score3: { type: "string" }, score4: { type: "string" }, score5: { type: "string" } }, required: ["score0", "score1", "score2", "score3", "score4", "score5"] },
-      expectedOutputShape: { type: ["string", "null"] },
-      openaiSimpleGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, model: { type: "string" }, scoringGuidelines: { type: "string" }, passThreshold: { type: "number" } }, required: ["name", "model", "scoringGuidelines", "passThreshold"] },
-      openaiPythonGrader: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, sourceCode: { type: "string" }, passThreshold: { type: "number" }, imageTag: { type: ["string", "null"] } }, required: ["name", "sourceCode", "passThreshold", "imageTag"] },
     },
-    required: ["id", "title", "evalSourceId", "evalSourceTitle", "purpose", "whyNeeded", "whatItEvaluates", "whenToUse", "graderOverview", "graderType", "instructions", "passCriteria", "failCriteria", "scoringRubric", "expectedOutputShape", "openaiSimpleGrader", "openaiPythonGrader"],
   },
+  required: ["graders"],
 } as const;
 
 function getOpenAIClient() {
@@ -248,7 +255,7 @@ function buildDeterministicGraders(compactEvalInputs: unknown[], canonicalData: 
       evalSourceId: input.id,
       evalSourceTitle: input.title,
       purpose: `Evaluate whether the agent output meets the expected quality bar for ${stepTitle}.`,
-      whyNeeded: "This board-derived grader keeps evaluation coverage available when the AI grader-writing step is temporarily unavailable.",
+      whyNeeded: "This grader keeps evaluation coverage tied to the project’s saved eval criteria and workflow context.",
       whatItEvaluates: question,
       whenToUse: "Run after the agent produces an output for the associated workflow step or before release as part of regression evaluation.",
       graderOverview: {
@@ -445,8 +452,9 @@ ${JSON.stringify(compactEvalInputs)}` },
       stageBModel = stageBResponse.model ?? stageAPackage.model;
       const stageBText = extractResponseText(stageBResponse);
       if (!stageBText) throw new Error("Stage B returned empty output.");
-      graders = JSON.parse(stageBText) as unknown[];
-      if (!Array.isArray(graders) || graders.length === 0) throw new Error("Stage B returned no graders.");
+      const stageBParsed = JSON.parse(stageBText) as { graders?: unknown };
+      graders = Array.isArray(stageBParsed.graders) ? stageBParsed.graders : [];
+      if (graders.length === 0) throw new Error("Stage B returned no graders.");
     } catch (stageBError) {
       usedFallbackGraders = true;
       console.warn("[/api/master-prompt-package] Stage B grader generation failed; saving deterministic fallback graders.", {
