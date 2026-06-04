@@ -185,6 +185,7 @@ export default function ProjectPage() {
   const [masterPromptPackage, setMasterPromptPackage] = useState<MasterPromptPackage | null>(null);
   const [isGeneratingMasterPrompt, setIsGeneratingMasterPrompt] = useState(false);
   const [masterPromptError, setMasterPromptError] = useState<string | null>(null);
+  const [masterPromptNotice, setMasterPromptNotice] = useState<string | null>(null);
   const [masterPromptStage, setMasterPromptStage] = useState<"idle" | "stage_context" | "stage_a" | "stage_b" | "stage_save">("idle");
   const [masterPromptStartedAt, setMasterPromptStartedAt] = useState<number | null>(null);
   const [masterPromptElapsedSeconds, setMasterPromptElapsedSeconds] = useState(0);
@@ -360,6 +361,7 @@ export default function ProjectPage() {
       return;
     }
     setMasterPromptError(null);
+    setMasterPromptNotice(null);
     setMasterPromptStage("stage_context");
     setMasterPromptStartedAt(Date.now());
     setMasterPromptElapsedSeconds(0);
@@ -373,7 +375,7 @@ export default function ProjectPage() {
         body: JSON.stringify({ projectId: project.id, forceRegenerate }),
       });
       setMasterPromptStage("stage_a");
-      const payload = (await response.json()) as { masterPromptPackage?: MasterPromptPackage; cached?: boolean; cachedPackage?: MasterPromptPackage; error?: string };
+      const payload = (await response.json()) as { masterPromptPackage?: MasterPromptPackage; cached?: boolean; cachedPackage?: MasterPromptPackage; error?: string; usedFallbackGraders?: boolean };
       if (!response.ok || !payload.masterPromptPackage) {
         if (payload.cachedPackage) {
           setMasterPromptPackage(payload.cachedPackage);
@@ -386,9 +388,11 @@ export default function ProjectPage() {
       setMasterPromptStage("stage_b");
       setMasterPromptPackage(payload.masterPromptPackage);
       setIsCachedMasterPrompt(payload.cached === true);
+      if (payload.usedFallbackGraders) setMasterPromptNotice("The master prompt and graders were saved. Because the AI grader-writing step was busy, ADES generated the graders directly from your board eval details.");
       setMasterPromptStage("stage_save");
       setViewMode("prompt_graders");
     } catch (error) {
+      setMasterPromptNotice(null);
       setMasterPromptError(error instanceof Error ? error.message : "Couldn’t generate the master prompt package. Please try again.");
     } finally {
       setIsGeneratingMasterPrompt(false);
@@ -773,6 +777,7 @@ export default function ProjectPage() {
                   </div>
                 ) : null}
                 {isGeneratingMasterPrompt ? <div className="mx-auto max-w-3xl rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-sky-50 to-violet-50 px-6 py-5 text-indigo-800 shadow-sm"><p className="text-base font-semibold">{masterPromptStage === "stage_context" ? "✨ Warming up your design context…" : masterPromptStage === "stage_a" ? "🧠 Crafting your master system prompt…" : masterPromptStage === "stage_b" ? "🧪 Building high-signal graders…" : "💾 Saving your package…"}</p><p className="mt-2 text-sm">Elapsed: {masterPromptElapsedSeconds}s · Most projects finish in ~30–45s, complex boards can take longer.</p><p className="mt-3 text-xs text-indigo-800/80">You can stay on this page — we’ll keep this running.</p></div> : null}
+                {masterPromptNotice || fallbackGraderNotice ? <p className="mx-auto mt-4 max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">{masterPromptNotice ?? fallbackGraderNotice}</p> : null}
                 {masterPromptError ? <p className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{masterPromptError}</p> : null}
                 {masterPromptPackage ? (
                   <section className="mx-auto flex max-w-6xl flex-col gap-6 text-sm leading-6">
