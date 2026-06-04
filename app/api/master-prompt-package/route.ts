@@ -85,8 +85,18 @@ function hasGeneratedGraders(packageValue: Record<string, unknown> | undefined):
   return Array.isArray(packageValue?.graders) && packageValue.graders.length > 0;
 }
 
+function hasPlaceholderGeneratedGraders(packageValue: Record<string, unknown> | undefined) {
+  const graders = Array.isArray(packageValue?.graders) ? packageValue.graders : [];
+  return graders.some((grader) => {
+    const record = grader && typeof grader === "object" ? (grader as Record<string, unknown>) : {};
+    const title = compactString(record.title);
+    const evalSourceTitle = compactString(record.evalSourceTitle);
+    return (title && isPlaceholderEvalTitle(title)) || (evalSourceTitle && isPlaceholderEvalTitle(evalSourceTitle));
+  });
+}
+
 function isCompleteMasterPromptPackage(packageValue: Record<string, unknown> | undefined) {
-  if (!hasGeneratedGraders(packageValue)) return false;
+  if (!hasGeneratedGraders(packageValue) || hasPlaceholderGeneratedGraders(packageValue)) return false;
   return packageValue.generationStage === undefined || packageValue.generationStage === "complete";
 }
 
@@ -98,6 +108,15 @@ function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72) || "grader";
 }
 
+function trimTitle(value: string) {
+  const trimmed = value.trim().replace(/\s+/g, " ").replace(/[?.!]+$/g, "");
+  return trimmed.length > 92 ? `${trimmed.slice(0, 89).trim()}…` : trimmed;
+}
+
+function isPlaceholderEvalTitle(value: string) {
+  return /^(untitled eval|evaluation coverage \d+)$/i.test(value.trim());
+}
+
 function listFromMaybe(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -105,7 +124,7 @@ function listFromMaybe(value: unknown): string[] {
         if (typeof item === "string") return item.trim();
         if (item && typeof item === "object") {
           const record = item as Record<string, unknown>;
-          return compactString(record.title) || compactString(record.label) || compactString(record.description) || compactString(record.text);
+          return compactString(record.title) || compactString(record.name) || compactString(record.label) || compactString(record.description) || compactString(record.text);
         }
         return "";
       })
@@ -113,6 +132,39 @@ function listFromMaybe(value: unknown): string[] {
   }
   if (typeof value === "string" && value.trim()) return [value.trim()];
   return [];
+}
+
+function getStringField(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    const direct = compactString(value);
+    if (direct) return direct;
+    const listed = listFromMaybe(value)[0];
+    if (listed) return listed;
+  }
+  return "";
+}
+
+function getMeaningfulTitleField(record: Record<string, unknown>, keys: string[]) {
+  const value = getStringField(record, keys);
+  return value && !isPlaceholderEvalTitle(value) ? value : "";
+}
+
+function deriveEvalTitle(value: unknown, index: number) {
+  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const evalRecord = record.eval && typeof record.eval === "object" ? (record.eval as Record<string, unknown>) : record;
+  const directTitle = getMeaningfulTitleField(record, ["title", "name", "label", "evalName"]) || getMeaningfulTitleField(evalRecord, ["title", "name", "label", "evalName"]);
+  if (directTitle) return trimTitle(directTitle);
+
+  const descriptiveText =
+    getStringField(evalRecord, ["question", "evalQuestion", "criteria", "passCriteria", "metric", "whyItMatters"]) ||
+    getStringField(record, ["question", "evalQuestion", "criteria", "passCriteria", "metric", "completionCriteria"]);
+  if (descriptiveText) return trimTitle(descriptiveText);
+
+  const stepTitle = getMeaningfulTitleField(record, ["stepTitle"]);
+  if (stepTitle) return trimTitle(`${stepTitle} quality check`);
+
+  return `Evaluation coverage ${index + 1}`;
 }
 
 type FallbackEvalInput = {
@@ -130,7 +182,7 @@ function normalizeEvalInput(value: unknown, index: number): FallbackEvalInput {
   const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   return {
     id: compactString(record.id, `inferred-eval-${index + 1}`),
-    title: compactString(record.title, `Evaluation coverage ${index + 1}`),
+    title: deriveEvalTitle(record, index),
     stepId: record.stepId,
     stepTitle: record.stepTitle,
     eval: record.eval,
@@ -196,11 +248,11 @@ function buildDeterministicGraders(compactEvalInputs: unknown[], canonicalData: 
       evalSourceId: input.id,
       evalSourceTitle: input.title,
       purpose: `Evaluate whether the agent output meets the expected quality bar for ${stepTitle}.`,
-      whyNeeded: "This deterministic fallback grader prevents a temporary AI generation outage from leaving the project without grader coverage.",
+      whyNeeded: "This board-derived grader keeps evaluation coverage available when the AI grader-writing step is temporarily unavailable.",
       whatItEvaluates: question,
       whenToUse: "Run after the agent produces an output for the associated workflow step or before release as part of regression evaluation.",
       graderOverview: {
-        summary: `Checks ${input.title} against the ADES board's eval and completion criteria.`,
+        summary: `Checks ${input.title} using the board's evaluation question, completion criteria, safeguards, and failure modes.`,
         riskIfMissing: "Without this grader, teams may ship outputs that look plausible but fail the intended workflow criteria.",
         evaluatedBehavior: question,
         checksToPerform,
@@ -302,7 +354,7 @@ export async function POST(request: Request) {
 
     const evalInputs = canonicalData.workflowSteps.flatMap((step) => (Array.isArray(step.evals) ? step.evals : []).map((evalItem, index) => ({
       id: typeof (evalItem as { id?: unknown })?.id === "string" ? (evalItem as { id: string }).id : `${step.id}-eval-${index + 1}`,
-      title: typeof (evalItem as { title?: unknown })?.title === "string" ? (evalItem as { title: string }).title : "Untitled eval",
+      title: deriveEvalTitle({ eval: evalItem, stepTitle: step.title, completionCriteria: step.completionCriteria }, index),
       stepId: step.id,
       stepTitle: step.title,
       eval: evalItem,
@@ -316,12 +368,7 @@ export async function POST(request: Request) {
         const data = (node.data as Record<string, unknown>) ?? {};
         return {
           id: typeof node.id === "string" && node.id.trim() ? node.id : `eval-node-${index + 1}`,
-          title:
-            typeof data.evalName === "string" && data.evalName.trim()
-              ? data.evalName
-              : typeof data.label === "string" && data.label.trim()
-                ? data.label
-                : `Eval node ${index + 1}`,
+          title: deriveEvalTitle({ title: data.evalName, label: data.label, eval: { question: data.evalQuestion, criteria: data.evalCriteria, metric: data.evalMetric }, stepTitle: data.label, completionCriteria: data.completionCriteria }, index),
           stepId: typeof node.id === "string" ? node.id : `eval-node-${index + 1}`,
           stepTitle: typeof data.label === "string" ? data.label : "Eval node",
           eval: {
@@ -343,11 +390,13 @@ export async function POST(request: Request) {
 
     const openai = getOpenAIClient();
 
-    const shouldResumeStageB = existingStage === "stage_a_complete" && Array.isArray(existingPackage?.graders) && (existingPackage?.graders as unknown[]).length === 0;
+    const shouldResumeStageB =
+      (existingStage === "stage_a_complete" && Array.isArray(existingPackage?.graders) && (existingPackage?.graders as unknown[]).length === 0) ||
+      hasPlaceholderGeneratedGraders(existingPackage);
 
     let stageAPackage: Record<string, unknown>;
     if (shouldResumeStageB) {
-      stageAPackage = { ...existingPackage } as Record<string, unknown>;
+      stageAPackage = { ...existingPackage, graders: [] } as Record<string, unknown>;
     } else {
       stage = "stage_a";
       const stageAResponse = await withRetries(() => openai.responses.create({
