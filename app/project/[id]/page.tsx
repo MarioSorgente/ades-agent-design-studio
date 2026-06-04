@@ -21,6 +21,7 @@ import { analyzeBoardQuality, type QualityIssue } from "@/lib/board/quality";
 import { BlueprintLabel, TooltipInfo, blueprintFieldTips } from "@/components/ui/blueprint-fields";
 
 const AUTOSAVE_DELAY_MS = 900;
+const FALLBACK_GRADER_NOTICE = "The master prompt and graders were saved. Because the AI grader-writing step was busy, ADES generated the graders directly from your board eval details.";
 
 type GenerateResponse = {
   project: { id: string; title: string; summary: string; status: "generated" };
@@ -317,6 +318,7 @@ export default function ProjectPage() {
   }, [masterPromptPackage]);
   const hasCompleteMasterPrompt = hasCompleteMasterPromptPackage(masterPromptPackage);
   const hasPartialMasterPrompt = Boolean(masterPromptPackage && !hasCompleteMasterPrompt);
+  const fallbackGraderNotice = masterPromptPackage?.graderGenerationSource === "deterministic_fallback" ? FALLBACK_GRADER_NOTICE : null;
   const activeCritiqueItems = useMemo(() => critiqueResult?.critiqueItems.filter((item) => !dismissedFindingIds.includes(item.id)) ?? [], [critiqueResult, dismissedFindingIds]);
   const totalGuidanceCount = qualityReport.actionableIssues.length + activeCritiqueItems.length;
   useEffect(() => {
@@ -388,7 +390,7 @@ export default function ProjectPage() {
       setMasterPromptStage("stage_b");
       setMasterPromptPackage(payload.masterPromptPackage);
       setIsCachedMasterPrompt(payload.cached === true);
-      if (payload.usedFallbackGraders) setMasterPromptNotice("The master prompt and graders were saved. Because the AI grader-writing step was busy, ADES generated the graders directly from your board eval details.");
+      if (payload.usedFallbackGraders) setMasterPromptNotice(FALLBACK_GRADER_NOTICE);
       setMasterPromptStage("stage_save");
       setViewMode("prompt_graders");
     } catch (error) {
