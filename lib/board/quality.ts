@@ -1,4 +1,4 @@
-import type { AdesBoardSnapshot, AdesNode } from "@/lib/board/types";
+import type { AdesBoardSnapshot, AdesEdge, AdesNode } from "@/lib/board/types";
 
 export type QualityCategoryKey = "workflowClarity" | "decompositionQuality" | "toolLogic" | "reflectionFeedback" | "evalReadiness";
 
@@ -83,14 +83,21 @@ function isRiskyOrUncertainStep(node: AdesNode) {
   return node.data.risks.length > 0 || node.data.stepType === "tool_use" || /uncertain|ambigu|confidence|risky|risk|escalat|policy|compliance/.test(uncertaintySignals);
 }
 
-function buildStepEvalMatcher(evalNodes: AdesNode[]) {
+function buildStepEvalMatcher(evalNodes: AdesNode[], edges: AdesEdge[]) {
   return (step: AdesNode, predicate?: (evalNode: AdesNode) => boolean) =>
     evalNodes.some((evalNode) => {
       if (predicate && !predicate(evalNode)) return false;
+
+      const evalEdges = edges.filter(
+        (edge) =>
+          edge.target === evalNode.id &&
+          (edge.data?.semanticType === "eval" || evalNode.type === "eval"),
+      );
+      if (evalEdges.length > 0) return evalEdges.some((edge) => edge.source === step.id);
+
+      // Compatibility fallback only for evals saved before attachment edges were added.
       const relatedStepIds = evalNode.data.evals.flatMap((evalDefinition) => evalDefinition.relatedStepIds);
-      const referencesStepId = relatedStepIds.includes(step.id);
-      const referencesStepName = [evalNode.data.evalName, evalNode.data.evalQuestion, evalNode.data.body].join(" ").toLowerCase().includes(step.data.label.trim().toLowerCase());
-      return referencesStepId || referencesStepName;
+      return relatedStepIds.includes(step.id);
     });
 }
 
@@ -209,7 +216,7 @@ export function analyzeBoardQuality(board: AdesBoardSnapshot | null): BoardQuali
   const decompositionScore = 100 - stepCountPenalty - vagueSteps * 12 - Math.max(0, microSteps - Math.ceil(mainSteps.length * 0.35)) * 8;
   const decompositionQuality = toCategoryReport(decompositionScore, decompositionIssues, 75);
 
-  const hasStepEval = buildStepEvalMatcher(evalNodes);
+  const hasStepEval = buildStepEvalMatcher(evalNodes, board.edges);
   const toolUseSteps = mainSteps.filter((node) => node.data.stepType === "tool_use" || node.data.tools.length > 0);
   const toolIssues: string[] = [];
   const badToolSteps = toolUseSteps.filter(
