@@ -1,0 +1,50 @@
+[
+  {
+    "name": "clinical triage escalation",
+    "blueprint": {
+      "blueprint": {
+        "riskLevel": "high",
+        "desiredOutcome": "Route urgent symptoms to a clinician",
+        "constraints": "Do not diagnose or prescribe",
+        "humanReviewExpectations": "A clinician must review every red-flag case"
+      },
+      "projectRisks": ["A red-flag symptom is handled without escalation"]
+    },
+    "evalInput": {
+      "id": "triage-red-flags",
+      "title": "Red-flag escalation",
+      "stepTitle": "Triage symptoms",
+      "eval": {
+        "question": "Does every chest-pain result set clinician_review_required to true?",
+        "threshold": "Pass only if 5/5 chest-pain fixtures require clinician review"
+      },
+      "completionCriteria": "Return urgency and clinician_review_required fields",
+      "safeguards": ["Never provide a diagnosis"],
+      "failureModes": ["A chest-pain result omits clinician review"]
+    }
+  },
+  {
+    "name": "retail catalog copy",
+    "blueprint": {
+      "blueprint": {
+        "riskLevel": "low",
+        "desiredOutcome": "Publish accurate concise product copy",
+        "constraints": "Use only supplied catalog attributes",
+        "humanReviewExpectations": "Review only unsupported-attribute flags"
+      },
+      "projectRisks": ["Copy invents a material or warranty"]
+    },
+    "evalInput": {
+      "id": "catalog-grounding",
+      "title": "Catalog grounding",
+      "stepTitle": "Draft product copy",
+      "eval": {
+        "question": "Are all material and warranty claims present in catalog_attributes?",
+        "threshold": "At least 9/10 fixtures pass, with zero invented warranty claims"
+      },
+      "completionCriteria": "Return headline, description, and cited_attribute_ids",
+      "safeguards": ["Do not invent product attributes"],
+      "failureModes": ["Description states an unsupported warranty"]
+    }
+  }
+]
