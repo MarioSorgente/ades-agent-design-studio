@@ -45,6 +45,7 @@ function BoardInspectorComponent({ viewMode, nodeId, readOnly = false }: { viewM
       | "evalScope"
       | "evalCriteria"
       | "evalDataset"
+      | "evalMetric"
       | "evalThreshold"
       | "confidenceCheck",
     value: string,
@@ -96,7 +97,8 @@ function BoardInspectorComponent({ viewMode, nodeId, readOnly = false }: { viewM
           </Field>
           <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
           <Field label="Threshold / scoring"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
-          <Field label="Failure examples / dataset notes"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Test cases (normal, failure, boundary / ambiguity)"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={5} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="Concrete failure examples"><textarea value={selectedNode.data.evalMetric} onChange={(event) => updateField("evalMetric", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
         </Section>
       ) : null}
 

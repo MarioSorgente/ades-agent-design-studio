@@ -44,6 +44,9 @@ function markdownListForNodes(nodes: AdesNode[]) {
         node.data.evalMetric?.trim(),
         node.data.businessMetric?.trim(),
         node.data.confidenceCheck?.trim(),
+        node.type === "eval" ? node.data.evalCriteria?.trim() : "",
+        node.type === "eval" ? node.data.evalThreshold?.trim() : "",
+        node.type === "eval" ? node.data.evalDataset?.trim() : "",
       ].filter(Boolean);
 
       const detailText = details.length ? `\n  - Details: ${details.join(" | ")}` : "";

@@ -90,9 +90,24 @@ type GeneratedStep = {
     whyItMatters: string;
     gradingMethod: string;
     passCriteria: string;
+    evaluatedStepName: string;
+    evaluatedOutput: string;
+    observablePassConditions: string[];
+    graderEvidence: string[];
+    toolUseRequirements: {
+      expectedTool: string;
+      argumentConstraints: string[];
+      returnedEvidence: string[];
+      allowedFailureBehavior: string[];
+    };
+    safetyEscalationRequirements: {
+      blueprintRisks: string[];
+      humanInvolvementRules: string[];
+    };
     threshold: string;
     datasetNotes: string;
-    failureExamples: string;
+    testCases: Array<{ caseType: "normal" | "failure" | "boundary_or_ambiguity"; description: string; input: string; expectedBehavior: string }>;
+    failureExamples: string[];
     priority: "high" | "medium" | "low";
   }>;
 };
@@ -110,7 +125,7 @@ type GeneratedDesign = {
   endToEndEvals: GeneratedStep["evals"];
 };
 
-const AI_SCHEMA = {
+export const AI_SCHEMA = {
   type: "object",
   additionalProperties: false,
   $defs: {
@@ -130,12 +145,40 @@ const AI_SCHEMA = {
         whyItMatters: { type: "string" },
         gradingMethod: { type: "string" },
         passCriteria: { type: "string" },
+        evaluatedStepName: { type: "string" },
+        evaluatedOutput: { type: "string" },
+        observablePassConditions: { type: "array", items: { type: "string" } },
+        graderEvidence: { type: "array", items: { type: "string" } },
+        toolUseRequirements: {
+          type: "object", additionalProperties: false,
+          properties: {
+            expectedTool: { type: "string" },
+            argumentConstraints: { type: "array", items: { type: "string" } },
+            returnedEvidence: { type: "array", items: { type: "string" } },
+            allowedFailureBehavior: { type: "array", items: { type: "string" } },
+          },
+          required: ["expectedTool", "argumentConstraints", "returnedEvidence", "allowedFailureBehavior"],
+        },
+        safetyEscalationRequirements: {
+          type: "object", additionalProperties: false,
+          properties: {
+            blueprintRisks: { type: "array", items: { type: "string" } },
+            humanInvolvementRules: { type: "array", items: { type: "string" } },
+          },
+          required: ["blueprintRisks", "humanInvolvementRules"],
+        },
         threshold: { type: "string" },
         datasetNotes: { type: "string" },
-        failureExamples: { type: "string" },
+        testCases: {
+          type: "array", items: { type: "object", additionalProperties: false, properties: {
+            caseType: { type: "string", enum: ["normal", "failure", "boundary_or_ambiguity"] },
+            description: { type: "string" }, input: { type: "string" }, expectedBehavior: { type: "string" },
+          }, required: ["caseType", "description", "input", "expectedBehavior"] },
+        },
+        failureExamples: { type: "array", items: { type: "string" } },
         priority: { type: "string", enum: ["high", "medium", "low"] },
       },
-      required: ["id", "name", "question", "category", "scope", "relatedStepIds", "whyItMatters", "gradingMethod", "passCriteria", "threshold", "datasetNotes", "failureExamples", "priority"],
+      required: ["id", "name", "question", "category", "scope", "relatedStepIds", "whyItMatters", "gradingMethod", "passCriteria", "evaluatedStepName", "evaluatedOutput", "observablePassConditions", "graderEvidence", "toolUseRequirements", "safetyEscalationRequirements", "threshold", "datasetNotes", "testCases", "failureExamples", "priority"],
     },
   },
   properties: {
@@ -273,7 +316,17 @@ function sanitizeLabel(label: string, fallback: string) {
   return trimmed;
 }
 
-function normalizeDesign(design: GeneratedDesign): AdesBoardSnapshot {
+function formatTestCases(testCases: GeneratedStep["evals"][number]["testCases"]): string {
+  return testCases.map((item) => `[${item.caseType}] ${item.description} | Input: ${item.input} | Expected: ${item.expectedBehavior}`).join("\n");
+}
+
+function formatEvalCriteria(evalItem: GeneratedStep["evals"][number]): string {
+  return evalItem.observablePassConditions.length
+    ? evalItem.observablePassConditions.map((condition) => `• ${condition}`).join("\n")
+    : evalItem.passCriteria;
+}
+
+export function normalizeDesign(design: GeneratedDesign): AdesBoardSnapshot {
   const nodes: AdesNode[] = [];
   const edges: AdesEdge[] = [];
   const stepIdToNodeId = new Map<string, string>();
@@ -321,8 +374,14 @@ function normalizeDesign(design: GeneratedDesign): AdesBoardSnapshot {
       whyItMatters: evalItem.whyItMatters,
       gradingMethod: evalItem.gradingMethod,
       passCriteria: evalItem.passCriteria,
+      evaluatedStepName: evalItem.evaluatedStepName,
+      evaluatedOutput: evalItem.evaluatedOutput,
+      observablePassConditions: evalItem.observablePassConditions,
+      graderEvidence: evalItem.graderEvidence,
+      toolUseRequirements: evalItem.toolUseRequirements,
+      safetyEscalationRequirements: evalItem.safetyEscalationRequirements,
       threshold: evalItem.threshold,
-      testCases: evalItem.datasetNotes,
+      testCases: evalItem.testCases,
       failureExamples: evalItem.failureExamples,
       priority: evalItem.priority,
     }));
@@ -365,11 +424,12 @@ function normalizeDesign(design: GeneratedDesign): AdesBoardSnapshot {
       evalData.evalQuestion = evalItem.question;
       evalData.evalCategory = toEvalCategory(evalItem.category);
       evalData.evalScope = evalItem.scope;
-      evalData.evalCriteria = evalItem.passCriteria;
+      evalData.evalCriteria = formatEvalCriteria(evalItem);
       evalData.evalThreshold = evalItem.threshold;
       evalData.evalMethod = evalItem.gradingMethod;
-      evalData.evalDataset = evalItem.datasetNotes;
-      evalData.evalMetric = evalItem.failureExamples;
+      evalData.evalDataset = formatTestCases(evalItem.testCases) || evalItem.datasetNotes;
+      evalData.evalMetric = evalItem.failureExamples.map((example) => `• ${example}`).join("\n");
+      evalData.evals = [{ ...evalItem, testCases: evalItem.testCases }];
       nodes.push({ id: evalId, type: "eval", position: { x: 420 + index * 320, y: 260 }, data: evalData });
       edges.push({ id: `e-eval-${index}-${evalIdx}`, source: nodeId, target: evalId, data: { semanticType: "eval" } });
     });
@@ -383,11 +443,12 @@ function normalizeDesign(design: GeneratedDesign): AdesBoardSnapshot {
     evalData.evalQuestion = evalItem.question;
     evalData.evalCategory = toEvalCategory(evalItem.category);
     evalData.evalScope = "flow";
-    evalData.evalCriteria = evalItem.passCriteria;
+    evalData.evalCriteria = formatEvalCriteria(evalItem);
     evalData.evalThreshold = evalItem.threshold;
     evalData.evalMethod = evalItem.gradingMethod;
-    evalData.evalDataset = evalItem.datasetNotes;
-    evalData.evalMetric = evalItem.failureExamples;
+    evalData.evalDataset = formatTestCases(evalItem.testCases) || evalItem.datasetNotes;
+    evalData.evalMetric = evalItem.failureExamples.map((example) => `• ${example}`).join("\n");
+    evalData.evals = [{ ...evalItem, testCases: evalItem.testCases }];
     nodes.push({ id: evalId, type: "eval", position: { x: 180 + idx * 320, y: 620 }, data: evalData });
 
     (evalItem.relatedStepIds || []).forEach((stepId, stepIdx) => {
