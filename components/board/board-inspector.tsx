@@ -83,7 +83,7 @@ function BoardInspectorComponent({ viewMode, nodeId, readOnly = false }: { viewM
       {selectedNode.type === "eval" ? (
         <Section title="Eval details">
           <Field label="Eval title"><input value={selectedNode.data.evalName} onChange={(event) => updateField("evalName", event.target.value)} className="ades-input text-[15px]" readOnly={readOnly} /></Field>
-          <Field label="Eval question"><textarea value={selectedNode.data.evalQuestion} onChange={(event) => updateField("evalQuestion", event.target.value)} rows={4} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="What should this check?"><textarea value={selectedNode.data.evalQuestion} onChange={(event) => updateField("evalQuestion", event.target.value)} rows={4} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
           <Field label="Category">
             <select value={selectedNode.data.evalCategory} onChange={(event) => updateField("evalCategory", event.target.value)} className="ades-input text-[15px]" disabled={readOnly}>
               {evalCategories.map((category) => (<option key={category} value={category}>{category.replace(/_/g, " ")}</option>))}
@@ -95,9 +95,9 @@ function BoardInspectorComponent({ viewMode, nodeId, readOnly = false }: { viewM
               <option value="flow">End-to-end</option>
             </select>
           </Field>
-          <Field label="Pass criteria"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
-          <Field label="Threshold / scoring"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
-          <Field label="Test cases (normal, failure, boundary / ambiguity)"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={5} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="What counts as a pass?"><textarea value={selectedNode.data.evalCriteria} onChange={(event) => updateField("evalCriteria", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="How many failures are acceptable?"><textarea value={selectedNode.data.evalThreshold} onChange={(event) => updateField("evalThreshold", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
+          <Field label="What is the evaluation set?"><textarea value={selectedNode.data.evalDataset} onChange={(event) => updateField("evalDataset", event.target.value)} rows={5} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
           <Field label="Concrete failure examples"><textarea value={selectedNode.data.evalMetric} onChange={(event) => updateField("evalMetric", event.target.value)} rows={3} className={TEXTAREA_CLASS} readOnly={readOnly} /></Field>
         </Section>
       ) : null}

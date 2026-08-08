@@ -18,6 +18,24 @@ function hasMissingStepEval(board: AdesBoardSnapshot) {
   return analyzeBoardQuality(board).actionableIssues.find((issue) => issue.id === "critical-step-eval-missing");
 }
 
+test("new eval guidance avoids invented targets while legacy saved wording remains intact", () => {
+  const defaults = createNodeData("eval", "New eval");
+  assert.match(defaults.evalQuestion, /expected output.*observable/i);
+  assert.match(defaults.evalCriteria, /specific fact, structure, or decision/i);
+  assert.match(defaults.evalDataset, /evaluation set/i);
+  assert.match(defaults.evalThreshold, /failures are acceptable/i);
+  assert.doesNotMatch(defaults.evalThreshold, /90%/);
+
+  const legacy = node("legacy-eval-copy", "eval", "Old eval", {
+    evalQuestion: "Did this step achieve its intended output?",
+    evalCriteria: "Accurate, complete, policy-safe",
+    evalThreshold: "Pass rate ≥ 90%",
+  });
+  assert.equal(legacy.data.evalQuestion, "Did this step achieve its intended output?");
+  assert.equal(legacy.data.evalCriteria, "Accurate, complete, policy-safe");
+  assert.equal(legacy.data.evalThreshold, "Pass rate ≥ 90%");
+});
+
 test("generated-board eval edges cover steps without relying on eval-title substrings", () => {
   const toolStep = node("step-tool", "task", "Collect sources", {
     stepType: "tool_use",

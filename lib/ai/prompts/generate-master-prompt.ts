@@ -24,12 +24,13 @@ Your output must optimize for these six design quality dimensions.
 1. Workflow clarity
 - The workflow must be understandable, implementable, and visually clear when rendered on the board.
 - Each main step must have:
-  - a concrete title
-  - a clear purpose
+  - a title that starts with a concrete action verb and names the object being changed
+  - a purpose of one or two short sentences
   - explicit inputs
   - explicit outputs
-  - completion criteria
-- Avoid ambiguous step names and generic labels.
+  - completion criteria of one or two short sentences
+- Good: “Classify the ticket” — “Assign one supported category and flag uncertainty.”
+- Bad: “Ticket classification analysis” — “Perform a comprehensive analysis of the ticket.”
 
 2. Decomposition quality
 - Break the workflow into practical, buildable steps.
@@ -53,7 +54,7 @@ Your output must optimize for these six design quality dimensions.
 - Include at least one end-to-end eval and important step-level evals.
 - Evals must be specific, testable, and linked to success or failure.
 - Each eval should clearly state:
-  - what is being checked
+  - the expected output and the observable result being checked
   - why it matters
   - what passing looks like
   - what failure looks like
@@ -63,7 +64,7 @@ Your output must optimize for these six design quality dimensions.
   - translate that step's completionCriteria into an array of observable pass conditions; do not merely repeat the criteria
   - provide structured testCases containing at least one normal case, one relevant failure case, and one boundary_or_ambiguity case, each with an input and expected behavior
   - state the evidence visible to the grader (for example step input, emitted output, tool call record, tool response, policy excerpt, or escalation record); never assume access to hidden chain-of-thought or other hidden reasoning
-  - use a measurable threshold with a denominator and defined test set (for example, 19 of 20 named fixtures), or an explicit all-or-nothing decision rule. Never use an unsupported generic percentage such as “90%” without defining the cases counted
+  - define the evaluation set and acceptable number of failures; use a threshold with a denominator (for example, at most 1 failure across 20 named fixtures), or an explicit all-or-nothing decision rule. Never invent a generic pass rate
   - supply failureExamples as an array of concrete, domain-specific failures rather than a dense prose string
 - For tool-use evals, fill toolUseRequirements with the expected tool, argument constraints, evidence the tool returns, and allowed failure behavior (retry, stop, fallback, or escalate). Use empty values only when the evaluated step genuinely uses no tool.
 - For safety or escalation evals, fill safetyEscalationRequirements from the Blueprint's named risks and human-involvement/escalation rules. Verify stop and approval gates rather than inventing generic safety language.
@@ -112,53 +113,6 @@ Output shaping rules:
 - In high-risk workflows, default to decision support, not autonomous execution. The agent may recommend, summarize, and prepare rationale, but must not make or execute final high-consequence decisions.
 - If a Blueprint asks for unsafe autonomy in a high-risk domain, explicitly reframe the design to human-approved decision support and add clear stop/escalation gates.
 - When riskLevel is high or ambiguous, choose the safer interpretation and state this assumption explicitly.
-
-Examples of good design behavior:
-
-Example 1 — Medium-risk support workflow
-Blueprint:
-- Initiative: Agent for triaging inbound support tickets
-- Target user: Support operations manager
-- Context / problem: Ticket routing is slow and inconsistent
-- Desired outcome: Faster triage with more consistent escalation quality
-- Constraints: Must use internal CRM only
-- Human involvement / escalation expectation: Human review for policy-sensitive cases
-- Risk level: medium
-
-Good output characteristics:
-- The workflow is broken into a practical sequence of concrete steps such as intake, classify, check policy/risk, recommend route, and escalate when needed.
-- Reflection is added only on uncertain or policy-sensitive steps, not everywhere.
-- At least one end-to-end eval checks whether tickets are routed correctly and consistently.
-- Step-level evals focus on critical decision points such as classification accuracy and escalation quality.
-- Safeguards explicitly cover low-confidence cases, policy-sensitive cases, and human review triggers.
-- Assumptions are surfaced clearly if the Blueprint leaves anything unspecified.
-
-Example 2 — High-risk recommendation workflow
-Blueprint:
-- Initiative: Agent that recommends refund decisions
-- Target user: Customer support lead
-- Context / problem: Refund decisions are inconsistent and slow
-- Desired outcome: Faster and more policy-consistent recommendations
-- Constraints: Must not send external communication automatically
-- Human involvement / escalation expectation: Human approval required for final decisions
-- Risk level: high
-
-Good output characteristics:
-- The workflow does not treat the agent as fully autonomous.
-- Human review is explicit at final decision points.
-- Reflection is used only on steps involving policy interpretation, ambiguity, or high-consequence judgment.
-- Evals include policy adherence, decision consistency, escalation appropriateness, and failure cases.
-- Safeguards are stronger than in medium- or low-risk workflows and include stop/escalate logic.
-- The result feels appropriate for discussion with product, design, engineering, and operations before build.
-
-Example 3 — What to avoid
-Weak output patterns include:
-- generic step names like “Step 1” or “Analyze request”
-- adding reflection to every step
-- generic evals such as “check quality”
-- missing safeguards in risky workflows
-- hiding assumptions instead of stating them
-- producing a workflow that sounds polished but is not concrete enough to build from
 
 Internal self-reflection before final answer:
 Before producing the final output, silently review your design against the six design quality dimensions above.
