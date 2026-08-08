@@ -6,8 +6,48 @@ import fixtures from "../fixtures/grader-case-studies.json";
 import {
   buildDeterministicGraders,
   buildStageBInput,
+  getMasterPromptPackageCacheDecision,
+  MASTER_PROMPT_PACKAGE_VERSION,
+  PROMPT_PACKAGE_PROMPT_V1,
   STAGE_B_SYSTEM,
 } from "../../app/api/master-prompt-package/route";
+
+function currentPackage() {
+  return {
+    packageVersion: MASTER_PROMPT_PACKAGE_VERSION,
+    promptSpecVersion: PROMPT_PACKAGE_PROMPT_V1,
+    masterSystemPrompt: "Be useful.",
+    generationStage: "complete",
+    graders: buildDeterministicGraders([{
+      id: "accuracy",
+      title: "Answer accuracy",
+      eval: { question: "Does the answer contain the required result?", requiredKeys: ["result"] },
+    }], {}),
+  };
+}
+
+test("cache decisions distinguish current, stale, partial, placeholder, and legacy packages", () => {
+  const current = currentPackage();
+  assert.equal(getMasterPromptPackageCacheDecision(current), "use_cache");
+
+  assert.equal(getMasterPromptPackageCacheDecision({
+    ...current,
+    promptSpecVersion: "observable-evidence-graders-v1",
+  }), "regenerate_stage_b", "a grader-prompt-only change must retain Stage A");
+
+  const partial = structuredClone(current);
+  delete (partial.graders[0] as Partial<(typeof partial.graders)[number]>).graderOverview;
+  assert.equal(getMasterPromptPackageCacheDecision(partial), "regenerate_stage_b");
+
+  const placeholder = structuredClone(current);
+  placeholder.graders[0].title = "Untitled eval";
+  assert.equal(getMasterPromptPackageCacheDecision(placeholder), "regenerate_stage_b");
+
+  const legacy = { ...current } as Partial<typeof current>;
+  delete legacy.packageVersion;
+  delete legacy.promptSpecVersion;
+  assert.equal(getMasterPromptPackageCacheDecision(legacy as Record<string, unknown>), "regenerate_all");
+});
 
 test("Stage B system prompt is an explicit observable-evidence grader contract", () => {
   for (const requirement of [
