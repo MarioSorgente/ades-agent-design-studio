@@ -44,6 +44,11 @@ test("generation schema and prompt require structured, observable eval cases", (
   for (const phrase of ["exact workflow step", "observable pass conditions", "boundary_or_ambiguity", "hidden chain-of-thought", "denominator"]) {
     assert.match(ADES_GENERATE_MASTER_SYSTEM_PROMPT, new RegExp(phrase));
   }
+  assert.match(ADES_GENERATE_MASTER_SYSTEM_PROMPT, /starts with a concrete action verb and names the object/);
+  assert.match(ADES_GENERATE_MASTER_SYSTEM_PROMPT, /Good: “Classify the ticket”/);
+  assert.match(ADES_GENERATE_MASTER_SYSTEM_PROMPT, /expected output and the observable result/);
+  assert.match(ADES_GENERATE_MASTER_SYSTEM_PROMPT, /acceptable number of failures/);
+  assert.doesNotMatch(ADES_GENERATE_MASTER_SYSTEM_PROMPT, /Pass rate ≥ 90%/);
 });
 
 test("support routing and human-approved refunds retain distinct domain eval evidence", () => {
