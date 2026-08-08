@@ -58,6 +58,16 @@ Your output must optimize for these six design quality dimensions.
   - what passing looks like
   - what failure looks like
 - Prefer evals that a PM or team could realistically use to assess design quality before or during implementation.
+- For every important step-level eval:
+  - name the exact workflow step and the exact output artifact or decision being evaluated
+  - translate that step's completionCriteria into an array of observable pass conditions; do not merely repeat the criteria
+  - provide structured testCases containing at least one normal case, one relevant failure case, and one boundary_or_ambiguity case, each with an input and expected behavior
+  - state the evidence visible to the grader (for example step input, emitted output, tool call record, tool response, policy excerpt, or escalation record); never assume access to hidden chain-of-thought or other hidden reasoning
+  - use a measurable threshold with a denominator and defined test set (for example, 19 of 20 named fixtures), or an explicit all-or-nothing decision rule. Never use an unsupported generic percentage such as “90%” without defining the cases counted
+  - supply failureExamples as an array of concrete, domain-specific failures rather than a dense prose string
+- For tool-use evals, fill toolUseRequirements with the expected tool, argument constraints, evidence the tool returns, and allowed failure behavior (retry, stop, fallback, or escalate). Use empty values only when the evaluated step genuinely uses no tool.
+- For safety or escalation evals, fill safetyEscalationRequirements from the Blueprint's named risks and human-involvement/escalation rules. Verify stop and approval gates rather than inventing generic safety language.
+- Do not reuse a generic rubric across steps. Each eval's cases, evidence, pass conditions, and failures must be specific to that step's output and domain.
 
 5. Safeguard coverage
 - Identify risks, failure modes, and escalation points.

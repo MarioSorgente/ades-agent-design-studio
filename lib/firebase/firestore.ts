@@ -141,6 +141,17 @@ function stringOrEmpty(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function normalizeEvalDefinitions(value: unknown): AdesNodeData["evals"] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").map((item) => ({
+    ...(item as unknown as AdesNodeData["evals"][number]),
+    observablePassConditions: isStringArray(item.observablePassConditions) ? item.observablePassConditions : [],
+    graderEvidence: isStringArray(item.graderEvidence) ? item.graderEvidence : [],
+    testCases: Array.isArray(item.testCases) ? item.testCases as AdesNodeData["evals"][number]["testCases"] : stringOrEmpty(item.testCases),
+    failureExamples: isStringArray(item.failureExamples) ? item.failureExamples : stringOrEmpty(item.failureExamples),
+  }));
+}
+
 function sanitizeProjectTitle(value: string) {
   const trimmed = value.trim().replace(/\s+/g, " ");
   if (!trimmed) return "Untitled design";
@@ -186,7 +197,7 @@ function parseNodeData(value: unknown): AdesNodeData | null {
     dependencies: isStringArray(data.dependencies) ? data.dependencies : [],
     reflectionHooks: Array.isArray(data.reflectionHooks) ? (data.reflectionHooks as AdesNodeData["reflectionHooks"]) : [],
     feedbackHooks: Array.isArray(data.feedbackHooks) ? (data.feedbackHooks as AdesNodeData["feedbackHooks"]) : [],
-    evals: Array.isArray(data.evals) ? (data.evals as AdesNodeData["evals"]) : [],
+    evals: normalizeEvalDefinitions(data.evals),
     reflectionPrompt: stringOrEmpty(data.reflectionPrompt),
     reflectionTrigger: stringOrEmpty(data.reflectionTrigger),
     reflectionLoopTarget: data.reflectionLoopTarget === "previous_step" ? "previous_step" : "same_step",

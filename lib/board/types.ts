@@ -49,9 +49,28 @@ export type EvalDefinition = {
   whyItMatters: string;
   gradingMethod: string;
   passCriteria: string;
+  evaluatedStepName?: string;
+  evaluatedOutput?: string;
+  observablePassConditions?: string[];
+  graderEvidence?: string[];
+  toolUseRequirements?: {
+    expectedTool: string;
+    argumentConstraints: string[];
+    returnedEvidence: string[];
+    allowedFailureBehavior: string[];
+  };
+  safetyEscalationRequirements?: {
+    blueprintRisks: string[];
+    humanInvolvementRules: string[];
+  };
   threshold: string;
-  testCases: string;
-  failureExamples: string;
+  testCases: Array<{
+    caseType: "normal" | "failure" | "boundary_or_ambiguity";
+    description: string;
+    input: string;
+    expectedBehavior: string;
+  }> | string;
+  failureExamples: string[] | string;
   priority: "high" | "medium" | "low";
 };
 
