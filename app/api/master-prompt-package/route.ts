@@ -215,8 +215,57 @@ function normalizeEvalInput(value: unknown, index: number): FallbackEvalInput {
   };
 }
 
-function buildFallbackPythonSource(passTerms: string[], failTerms: string[]) {
-  return `import re\n\nPASS_TERMS = ${JSON.stringify(passTerms)}\nFAIL_TERMS = ${JSON.stringify(failTerms)}\n\ndef grade(output):\n    text = output if isinstance(output, str) else str(output)\n    normalized = text.lower()\n    pass_hits = sum(1 for term in PASS_TERMS if term and term.lower() in normalized)\n    fail_hits = sum(1 for term in FAIL_TERMS if term and term.lower() in normalized)\n    score = max(0.0, min(1.0, (pass_hits / max(1, len(PASS_TERMS))) - (0.25 * fail_hits)))\n    return {"score": score, "pass": score >= 0.8, "reason": f"Matched {pass_hits}/{len(PASS_TERMS)} expected signals and {fail_hits} failure signals."}\n`;
+type DeterministicCheck = {
+  id: string;
+  kind: "required_key" | "equals" | "forbidden_action";
+  path: string;
+  expected?: string | number | boolean;
+  values?: string[];
+  critical: boolean;
+};
+
+function structuredChecksFor(input: FallbackEvalInput): DeterministicCheck[] {
+  const evalRecord = input.eval && typeof input.eval === "object" ? (input.eval as Record<string, unknown>) : {};
+  const checks: DeterministicCheck[] = [];
+  const addRequired = (path: string, critical = false) => {
+    if (path && !checks.some((check) => check.kind === "required_key" && check.path === path)) {
+      checks.push({ id: `required_${path.replace(/[^a-z0-9]+/gi, "_")}`, kind: "required_key", path, critical });
+    }
+  };
+
+  // Prefer explicit machine-readable eval configuration. These fields describe values that
+  // can be established without interpreting the candidate's prose.
+  for (const path of listFromMaybe(evalRecord.requiredJsonKeys ?? evalRecord.requiredKeys)) addRequired(path);
+  for (const path of listFromMaybe(evalRecord.requiredCitationFields)) addRequired(path, true);
+  for (const path of listFromMaybe(evalRecord.requiredToolFields)) addRequired(path, true);
+
+  const enumValues = evalRecord.enumValues && typeof evalRecord.enumValues === "object" ? evalRecord.enumValues as Record<string, unknown> : {};
+  for (const [path, rawValues] of Object.entries(enumValues)) {
+    const values = listFromMaybe(rawValues);
+    if (values.length) checks.push({ id: `enum_${path.replace(/[^a-z0-9]+/gi, "_")}`, kind: "equals", path, values, critical: false });
+  }
+  for (const action of listFromMaybe(evalRecord.forbiddenActions)) {
+    checks.push({ id: `forbidden_${slugify(action)}`, kind: "forbidden_action", path: compactString(evalRecord.actionField, "action"), values: [action], critical: true });
+  }
+
+  const completion = compactString(input.completionCriteria);
+  const returnedFields = completion.match(/\breturn\s+(.+?)\s+fields?\b/i)?.[1];
+  if (returnedFields) {
+    for (const path of returnedFields.split(/,|\band\b/i).map((value) => value.trim()).filter((value) => /^[a-z][a-z0-9_.]*$/i.test(value))) addRequired(path);
+  }
+
+  // A named boolean field and literal value is structural; the surrounding sentence is not.
+  const combined = [compactString(evalRecord.question), compactString(evalRecord.criteria), compactString(evalRecord.threshold)].join(" ");
+  for (const match of combined.matchAll(/\b([a-z][a-z0-9_]*)\s+(?:is|to|=|equals?)\s+(true|false)\b/gi)) {
+    const path = match[1];
+    addRequired(path, true);
+    checks.push({ id: `value_${path}`, kind: "equals", path, expected: match[2].toLowerCase() === "true", critical: true });
+  }
+  return checks;
+}
+
+export function buildFallbackPythonSource(checks: DeterministicCheck[]) {
+  return `import json\n\nCHECKS = json.loads(${JSON.stringify(JSON.stringify(checks))})\nPASS_THRESHOLD = 0.8  # A 4/5 rubric threshold translated to the 0-1 scale.\n\ndef _read(value, path):\n    for part in path.split("."):\n        if not isinstance(value, dict) or part not in value:\n            return False, None\n        value = value[part]\n    return True, value\n\ndef grade(output):\n    if isinstance(output, str):\n        try:\n            candidate = json.loads(output)\n        except (TypeError, ValueError):\n            return {"score": 0.0, "pass": False, "failed_checks": ["valid_json"], "evidence": ["Candidate output is not valid JSON."]}\n    else:\n        candidate = output\n    if not isinstance(candidate, dict):\n        return {"score": 0.0, "pass": False, "failed_checks": ["json_object"], "evidence": ["Candidate output is not a JSON object."]}\n    failed, evidence = [], []\n    critical_failure = False\n    for check in CHECKS:\n        found, value = _read(candidate, check["path"])\n        ok = found\n        if check["kind"] == "equals":\n            ok = found and (value == check.get("expected") if "expected" in check else value in check.get("values", []))\n        elif check["kind"] == "forbidden_action":\n            ok = not found or value not in check.get("values", [])\n        if not ok:\n            failed.append(check["id"])\n            evidence.append(f'{check["id"]}: observed {value!r} at {check["path"]}.')\n            critical_failure = critical_failure or check.get("critical", False)\n    score = 1.0 if not CHECKS else (len(CHECKS) - len(failed)) / len(CHECKS)\n    if critical_failure:\n        score = 0.0\n    score = round(score, 4)\n    return {"score": score, "pass": (not critical_failure and score >= PASS_THRESHOLD), "failed_checks": failed, "evidence": evidence[:5] or ["All deterministic structural checks passed."]}\n`;
 }
 
 export function buildDeterministicGraders(compactEvalInputs: unknown[], canonicalData: Record<string, unknown>) {
@@ -263,7 +312,9 @@ export function buildDeterministicGraders(compactEvalInputs: unknown[], canonica
       ...(safeguardSignals.length ? safeguardSignals.slice(0, 3).map((item) => `Check safeguard coverage: ${item}`) : ["Check that relevant risks and constraints are handled explicitly."]),
     ];
     const id = `fallback-${slugify(input.id || input.title)}-${index + 1}`;
-    const guidelines = `Grade the candidate output for ${input.title}. Award a passing score only when it satisfies the evaluation question (${question}), demonstrates completion of ${stepTitle}, and avoids the listed failure criteria. Use the rubric from 0 to 5 and require at least 4/5 to pass.`;
+    const deterministicChecks = structuredChecksFor(input);
+    const graderType = deterministicChecks.length === 0 ? "model_graded" : "hybrid";
+    const guidelines = `Grade the candidate output for ${input.title} semantically. Award a passing score only when it satisfies the evaluation question (${question}), demonstrates completion of ${stepTitle}, and avoids the listed failure criteria. Correct paraphrases must receive the same credit as equivalent wording; never award credit merely because the candidate repeats rubric language. Use the rubric from 0 to 5 and require at least 4/5 to pass (0.8 on the normalized scale). Critical safety violations, forbidden actions, and missed escalation gates override the aggregate score.`;
 
     return {
       id,
@@ -284,7 +335,7 @@ export function buildDeterministicGraders(compactEvalInputs: unknown[], canonica
         borderlineHandling: "If evidence is partial, mark as fail and request more explicit support in the output.",
         runTiming: "Run on each candidate output and during regression checks.",
       },
-      graderType: "hybrid",
+      graderType,
       instructions: guidelines,
       passCriteria,
       failCriteria,
@@ -296,9 +347,16 @@ export function buildDeterministicGraders(compactEvalInputs: unknown[], canonica
         score4: "Satisfies the requirement with clear, project-specific evidence and only minor gaps.",
         score5: "Fully satisfies the requirement, handles safeguards, and provides strong evidence for the decision.",
       },
-      expectedOutputShape: compactString(evalRecord.expectedOutputShape, "A scored pass/fail judgment with concise evidence and remediation notes."),
+      expectedOutputShape: "{ score: number (0-1), pass: boolean, failed_checks: string[], evidence: string[] }",
       openaiSimpleGrader: { name: `${slugify(input.title)}_simple`, model: "gpt-5-mini", scoringGuidelines: guidelines, passThreshold: 0.8 },
-      openaiPythonGrader: { name: `${slugify(input.title)}_python`, sourceCode: buildFallbackPythonSource(passCriteria, failCriteria), passThreshold: 0.8, imageTag: null },
+      openaiPythonGrader: {
+        name: `${slugify(input.title)}_python`,
+        sourceCode: deterministicChecks.length
+          ? buildFallbackPythonSource(deterministicChecks)
+          : "# Semantic evaluation is performed by openaiSimpleGrader; no rule-based checks are valid for this eval.\n",
+        passThreshold: 0.8,
+        imageTag: null,
+      },
     };
   });
 }
